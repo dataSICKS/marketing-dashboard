@@ -1,44 +1,57 @@
-# [Project name]
+# マーケティングダッシュボード
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+マーケ施策（メルマガ等）の結果をスプレッドシートから自動連携してレポートするダッシュボード。
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run dev` — APIサーバー起動
+- `pnpm --filter @workspace/dashboard run dev` — フロントエンド起動
+- `pnpm run typecheck` — 全パッケージのタイプチェック
+- `pnpm run build` — タイプチェック + ビルド
+- `pnpm --filter @workspace/api-spec run codegen` — OpenAPI specからコード生成
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- API: Express 5 (`artifacts/api-server`)
+- Frontend: React + Vite + Tailwind v4 (`artifacts/dashboard`)
+- Google Sheets連携: `@replit/connectors-sdk`（Replit Integrations経由）
+- Validation: Zod (`zod/v4`)、API codegen: Orval
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — APIコントラクト（source of truth）
+- `lib/api-client-react/src/generated/` — 生成されたReact Queryフック
+- `lib/api-zod/src/generated/` — 生成されたZodスキーマ
+- `artifacts/api-server/src/routes/newsletter.ts` — メルマガAPIルート
+- `artifacts/api-server/src/lib/newsletter-sheets.ts` — Google Sheets取得
+- `artifacts/api-server/src/lib/newsletter-aggregate.ts` — 集計ロジック
+- `artifacts/api-server/src/lib/newsletter-cache.ts` — インメモリキャッシュ
+- `artifacts/dashboard/src/pages/dashboard.tsx` — ダッシュボードページ
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Google Sheetsデータはインメモリキャッシュで保持。初回アクセス時に自動取得、手動更新ボタンで再取得
+- DB不使用（スプシがsource of truth）。将来的なレポート種別追加を見据えたシンプルな設計
+- ダッシュボードは常時ダークモード（コックピット感）。`:root`にダーク変数を直接設定
+- 集計軸（日別/週別/月別/シナリオ別）はクライアント側のパラメータで切り替え
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- メルマガ配信レポート：配信数・開封率・クリック率・CVR・CV数をKPIカードで表示
+- 集計軸を日別/週別/月別/シナリオ別に切り替え可能
+- Rechartsで配信数（棒）と各率（折れ線）を重ねたトレンドチャート
+- 手動「スプレッドシートから更新」ボタン + 画面開時の自動取得
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- 機能追加前に要件を1個ずつ確認してから開発する
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Tailwind v4では `@apply dark` は無効。ダークモード強制はCSSのセレクタ（`:root`への直接設定）で対応
+- Google Sheetsの認証は Replit Connectors SDK 経由。`@replit/connectors-sdk` を `artifacts/api-server` にインストール済み
+- APIサーバーのワークフローを再起動するとキャッシュはリセットされる（インメモリのため）
 
 ## Pointers
 

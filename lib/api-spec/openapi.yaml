@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: newsletter
+    description: Newsletter report operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /newsletter/sync:
+    post:
+      operationId: syncNewsletter
+      tags: [newsletter]
+      summary: Sync newsletter data from Google Sheets
+      description: Fetches latest data from the calc sheet and returns it
+      responses:
+        "200":
+          description: Synced newsletter rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterSyncResult"
+        "500":
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /newsletter/data:
+    get:
+      operationId: getNewsletterData
+      tags: [newsletter]
+      summary: Get newsletter report data
+      description: Returns aggregated newsletter metrics grouped by the specified dimension
+      parameters:
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, scenario]
+            default: day
+          description: Aggregation dimension
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter start date (YYYY/MM/DD)
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter end date (YYYY/MM/DD)
+      responses:
+        "200":
+          description: Newsletter report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterReportResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +98,128 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    NewsletterRow:
+      type: object
+      properties:
+        deliveryYearMonth:
+          type: string
+          description: 配信年月 (YYYY/MM)
+        deliveryWeek:
+          type: string
+          description: 配信月週 (e.g. 9月2W)
+        deliveryDate:
+          type: string
+          description: 配信日 (YYYY/MM/DD)
+        scenarioName:
+          type: string
+          description: シナリオ名
+        segment:
+          type: string
+          description: セグメント
+        deliveryMethod:
+          type: string
+          description: 配信方法
+        templateName:
+          type: string
+          description: テンプレート名
+        subject:
+          type: string
+          description: 件名
+        deliveryCount:
+          type: number
+          description: 配信数
+        openCount:
+          type: number
+          description: 開封数
+        clickCount:
+          type: number
+          description: クリック数
+        cvCount:
+          type: number
+          description: CV数
+      required:
+        - deliveryYearMonth
+        - deliveryWeek
+        - deliveryDate
+        - scenarioName
+        - segment
+        - deliveryMethod
+        - templateName
+        - subject
+        - deliveryCount
+        - openCount
+        - clickCount
+        - cvCount
+
+    NewsletterSyncResult:
+      type: object
+      properties:
+        rowCount:
+          type: number
+          description: Number of rows synced
+        syncedAt:
+          type: string
+          description: ISO timestamp of sync
+      required:
+        - rowCount
+        - syncedAt
+
+    NewsletterMetrics:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Group label (date, week, month, or scenario name)
+        deliveryCount:
+          type: number
+        openCount:
+          type: number
+        clickCount:
+          type: number
+        cvCount:
+          type: number
+        openRate:
+          type: number
+          description: Open rate (openCount / deliveryCount)
+        clickRate:
+          type: number
+          description: Click rate (clickCount / deliveryCount)
+        cvr:
+          type: number
+          description: Conversion rate (cvCount / deliveryCount)
+      required:
+        - label
+        - deliveryCount
+        - openCount
+        - clickCount
+        - cvCount
+        - openRate
+        - clickRate
+        - cvr
+
+    NewsletterReportResponse:
+      type: object
+      properties:
+        groupBy:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsletterMetrics"
+        summary:
+          $ref: "#/components/schemas/NewsletterMetrics"
+        lastSyncedAt:
+          type: ["string", "null"]
+      required:
+        - groupBy
+        - items
+        - summary
+        - lastSyncedAt
