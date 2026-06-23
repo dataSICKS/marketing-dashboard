@@ -4,17 +4,17 @@ import { logger } from "./logger.js";
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error("SUPABASE_URL または SUPABASE_ANON_KEY が設定されていません");
+    throw new Error("SUPABASE_URL または SUPABASE_SERVICE_ROLE_KEY が設定されていません");
   }
-  return createClient(url, key);
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function upsertRows(rows: NewsletterRow[], syncedAt: string): Promise<void> {
   const supabase = getSupabaseClient();
 
-  const records = rows.map((r) => ({
+  const allRecords = rows.map((r) => ({
     delivery_year_month: r.deliveryYearMonth,
     delivery_week: r.deliveryWeek,
     delivery_date: r.deliveryDate,
@@ -29,6 +29,15 @@ export async function upsertRows(rows: NewsletterRow[], syncedAt: string): Promi
     cv_count: r.cvCount,
     synced_at: syncedAt,
   }));
+
+  // 同一ユニークキーの重複を除去（後勝ち）
+  const seen = new Map<string, typeof allRecords[0]>();
+  for (const record of allRecords) {
+    const key = `${record.delivery_date}|${record.scenario_name}|${record.segment}|${record.template_name}`;
+    seen.set(key, record);
+  }
+  const records = Array.from(seen.values());
+  logger.info({ original: rows.length, deduplicated: records.length }, "Deduplicated rows");
 
   const BATCH = 500;
   for (let i = 0; i < records.length; i += BATCH) {
@@ -45,7 +54,7 @@ export async function upsertRows(rows: NewsletterRow[], syncedAt: string): Promi
     }
   }
 
-  logger.info({ rowCount: rows.length }, "Upserted rows to Supabase");
+  logger.info({ rowCount: records.length }, "Upserted rows to Supabase");
 }
 
 export async function fetchRowsFromSupabase(): Promise<{ rows: NewsletterRow[]; syncedAt: string | null }> {
