@@ -22,4 +22,19 @@ dateFrom?: string | null;
  * @nullable
  */
 dateTo?: string | null;
+/**
+ * Filter by segment name (comma-separated for multiple)
+ * @nullable
+ */
+segment?: string | null;
+/**
+ * Comparison period start date (YYYY/MM/DD)
+ * @nullable
+ */
+compareFrom?: string | null;
+/**
+ * Comparison period end date (YYYY/MM/DD)
+ * @nullable
+ */
+compareTo?: string | null;
 };

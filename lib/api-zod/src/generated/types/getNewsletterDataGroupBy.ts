@@ -13,5 +13,5 @@ export const GetNewsletterDataGroupBy = {
   day: 'day',
   week: 'week',
   month: 'month',
-  scenario: 'scenario',
+  template: 'template',
 } as const;

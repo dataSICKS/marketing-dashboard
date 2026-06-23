@@ -4,7 +4,11 @@ import {
   useSyncNewsletter,
   getGetNewsletterDataQueryKey,
 } from "@workspace/api-client-react";
-import type { GetNewsletterDataGroupBy } from "@workspace/api-client-react";
+import type {
+  GetNewsletterDataGroupBy,
+  NewsletterMetrics,
+  NewsletterSegmentGroup,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +33,9 @@ import {
   Menu,
   X,
   Calendar,
+  TrendingUp,
+  TrendingDown,
+  ChevronDown,
 } from "lucide-react";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -48,13 +55,42 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
   { value: "week", label: "週別" },
   { value: "month", label: "月別" },
-  { value: "scenario", label: "シナリオ別" },
+  { value: "template", label: "テンプレ別" },
 ];
 
+// ─── Date helpers ───────────────────────────────────────────────
+function subtractDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr.replace(/\//g, "-"));
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10).replace(/-/g, "/");
+}
+function daysBetween(from: string, to: string): number {
+  const a = new Date(from.replace(/\//g, "-"));
+  const b = new Date(to.replace(/\//g, "-"));
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+}
+
+// ─── Diff badge ─────────────────────────────────────────────────
+function DiffBadge({ current, prev }: { current: number; prev: number | null | undefined }) {
+  if (prev == null || prev === 0) return null;
+  const diff = current - prev;
+  const pct = diff / Math.abs(prev);
+  const isUp = diff >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1 py-0.5 rounded ml-1.5"
+      style={{ background: isUp ? "#DCFCE7" : "#FEE2E2", color: isUp ? "#16A34A" : "#DC2626" }}
+    >
+      {isUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+      {isUp ? "+" : ""}{(pct * 100).toFixed(1)}%
+    </span>
+  );
+}
+
+// ─── Sidebar ────────────────────────────────────────────────────
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex flex-col h-full bg-white" style={{ borderRight: "1px solid #EBEBEB" }}>
-      {/* Logo */}
       <div className="px-5 h-14 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #EBEBEB" }}>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: YELLOW }}>
@@ -68,19 +104,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </button>
         )}
       </div>
-
-      {/* Nav */}
       <nav className="flex-1 p-3 flex flex-col gap-0.5 overflow-y-auto">
-        <div className="px-3 py-2 text-[10px] font-semibold" style={{ color: "#BBBBBB", letterSpacing: "0.1em" }}>
-          分析
-        </div>
+        <div className="px-3 py-2 text-[10px] font-semibold" style={{ color: "#BBBBBB", letterSpacing: "0.1em" }}>分析</div>
         {NAV_ITEMS.map(({ icon: Icon, label, active }) => (
           <div
             key={label}
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-sm"
-            style={active
-              ? { background: YELLOW_LIGHT, color: YELLOW_DARK, fontWeight: 600 }
-              : { color: "#6B7280" }}
+            style={active ? { background: YELLOW_LIGHT, color: YELLOW_DARK, fontWeight: 600 } : { color: "#6B7280" }}
             onClick={onClose}
           >
             <Icon size={16} color={active ? YELLOW_DARK : "#9CA3AF"} />
@@ -88,8 +118,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </div>
         ))}
       </nav>
-
-      {/* Bottom */}
       <div className="p-3 shrink-0" style={{ borderTop: "1px solid #EBEBEB" }}>
         <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm" style={{ color: "#9CA3AF" }}>
           <LogOut size={16} color="#9CA3AF" />
@@ -100,91 +128,172 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   );
 }
 
+// ─── Metrics table ───────────────────────────────────────────────
+function MetricsTable({
+  items,
+  groupBy,
+  showComparison,
+  showSubject,
+}: {
+  items: NewsletterMetrics[];
+  groupBy: GroupBy;
+  showComparison: boolean;
+  showSubject: boolean;
+}) {
+  const showSub = showSubject && (groupBy === "template" || groupBy === "day");
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent" style={{ borderBottom: "1px solid #F3F4F6" }}>
+            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>ラベル</TableHead>
+            {showSub && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>件名</TableHead>}
+            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>配信数</TableHead>
+            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>開封数（率）</TableHead>
+            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>クリック数（率）</TableHead>
+            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>CV数（CVR）</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={showSub ? 6 : 5} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>データがありません</TableCell>
+            </TableRow>
+          ) : items.map((item, i) => (
+            <TableRow key={`${item.label}-${i}`} className="hover:bg-[#FAFAFA] transition-colors" style={{ borderBottom: "1px solid #F9FAFB" }}>
+              <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: "#6B7280" }}>{item.label}</TableCell>
+              {showSub && (
+                <TableCell className="text-xs max-w-[200px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
+                  {item.subject ?? "—"}
+                </TableCell>
+              )}
+              <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
+                {formatNumber(item.deliveryCount)}
+                {showComparison && <DiffBadge current={item.deliveryCount} prev={item.prevDeliveryCount} />}
+              </TableCell>
+              <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                {formatNumber(item.openCount)}
+                <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.openRate)})</span>
+                {showComparison && <DiffBadge current={item.openRate} prev={item.prevOpenRate} />}
+              </TableCell>
+              <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                {formatNumber(item.clickCount)}
+                <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.clickRate)})</span>
+                {showComparison && <DiffBadge current={item.clickRate} prev={item.prevClickRate} />}
+              </TableCell>
+              <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
+                {formatNumber(item.cvCount)}
+                <span className="text-xs ml-1 font-normal" style={{ color: "#9CA3AF" }}>({formatPercent(item.cvr)})</span>
+                {showComparison && <DiffBadge current={item.cvr} prev={item.prevCvr} />}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ──────────────────────────────────────────────
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data, isLoading, isError } = useGetNewsletterData(
-    { groupBy },
-    { query: { enabled: true, queryKey: getGetNewsletterDataQueryKey({ groupBy }) } }
-  );
+  // date filter
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
+  // comparison
+  const [compareEnabled, setCompareEnabled] = useState(false);
+
+  // segment filter
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
+  const [segmentDropdownOpen, setSegmentDropdownOpen] = useState(false);
+
+  // compute comparison range automatically (same length, immediately before)
+  const compareFrom = compareEnabled && dateFrom && dateTo
+    ? subtractDays(dateFrom, daysBetween(dateFrom, dateTo))
+    : undefined;
+  const compareTo = compareEnabled && dateFrom
+    ? subtractDays(dateFrom, 1)
+    : undefined;
+
+  const params = {
+    groupBy,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
+    compareFrom,
+    compareTo,
+  };
+
+  const { data, isLoading, isError } = useGetNewsletterData(params, {
+    query: { queryKey: getGetNewsletterDataQueryKey(params) },
+  });
 
   const syncMutation = useSyncNewsletter({
     mutation: {
       onSuccess: () => {
-        (["day", "week", "month", "scenario"] as GroupBy[]).forEach((g) =>
-          queryClient.invalidateQueries({ queryKey: getGetNewsletterDataQueryKey({ groupBy: g }) })
-        );
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
       },
     },
   });
 
   const summary = data?.summary;
   const items = data?.items ?? [];
+  const segmentGroups: NewsletterSegmentGroup[] = (data?.segmentGroups ?? []) as NewsletterSegmentGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
+  const availableSegments = data?.availableSegments ?? [];
+
+  const showComparison = compareEnabled && !!(compareFrom && compareTo);
+  const showSubject = true;
+
+  const toggleSegment = (seg: string) => {
+    setSelectedSegments((prev) =>
+      prev.includes(seg) ? prev.filter((s) => s !== seg) : [...prev, seg]
+    );
+  };
 
   return (
     <div className="min-h-screen flex" style={{ fontFamily: "'Inter','Noto Sans JP',sans-serif", background: "#F7F8FA" }}>
 
-      {/* ── Desktop Sidebar ── */}
+      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col" style={{ minHeight: "100vh" }}>
         <div className="sticky top-0 h-screen">
           <SidebarContent />
         </div>
       </aside>
 
-      {/* ── Mobile Drawer overlay ── */}
+      {/* Mobile Drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0"
-            style={{ background: "rgba(0,0,0,0.4)" }}
-            onClick={() => setDrawerOpen(false)}
-          />
-          {/* Drawer panel */}
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setDrawerOpen(false)} />
           <div className="relative w-64 h-full z-10 shadow-xl">
             <SidebarContent onClose={() => setDrawerOpen(false)} />
           </div>
         </div>
       )}
 
-      {/* ── Main ── */}
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
-        <div
-          className="bg-white px-4 md:px-8 h-14 flex items-center justify-between shrink-0"
-          style={{ borderBottom: "1px solid #EBEBEB" }}
-        >
+        <div className="bg-white px-4 md:px-8 h-14 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #EBEBEB" }}>
           <div className="flex items-center gap-3">
-            {/* Hamburger (mobile only) */}
-            <button
-              className="md:hidden p-1.5 rounded-lg"
-              style={{ color: "#6B7280" }}
-              onClick={() => setDrawerOpen(true)}
-            >
+            <button className="md:hidden p-1.5 rounded-lg" style={{ color: "#6B7280" }} onClick={() => setDrawerOpen(true)}>
               <Menu size={20} />
             </button>
             <div>
               <div className="hidden sm:block text-xs" style={{ color: "#9CA3AF" }}>メルマガ · 配信分析</div>
-              <div className="text-sm md:text-base font-bold leading-tight" style={{ color: "#1A1A1A" }} data-testid="heading-title">
-                メルマガレポート
-              </div>
+              <div className="text-sm md:text-base font-bold leading-tight" style={{ color: "#1A1A1A" }} data-testid="heading-title">メルマガレポート</div>
             </div>
           </div>
-
           <div className="flex items-center gap-2 md:gap-3">
-            {/* Date badge — hidden on small mobile */}
-            <div
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ border: "1px solid #EBEBEB", color: "#6B7280", background: "#FAFAFA" }}
-            >
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ border: "1px solid #EBEBEB", color: "#6B7280", background: "#FAFAFA" }}>
               <Calendar size={13} color="#9CA3AF" />
               <span data-testid="text-last-sync">最終更新: {formatDate(lastSyncedAt)}</span>
             </div>
-            {/* Sync button */}
             <button
               onClick={() => syncMutation.mutate(undefined)}
               disabled={syncMutation.isPending}
@@ -199,10 +308,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Content area */}
         <div className="flex-1 px-4 md:px-8 py-4 md:py-6 flex flex-col gap-4 md:gap-5">
 
-          {/* Horizontal tabs — scrollable on mobile */}
+          {/* ── Tabs ── */}
           <div className="overflow-x-auto" style={{ borderBottom: "1px solid #EBEBEB" }}>
             <div className="flex items-center gap-0 min-w-max">
               {GROUP_TABS.map((tab) => (
@@ -215,14 +323,108 @@ export default function Dashboard() {
                 >
                   {tab.label}
                   {groupBy === tab.value && (
-                    <span
-                      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                      style={{ background: YELLOW }}
-                    />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: YELLOW }} />
                   )}
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* ── Filter bar ── */}
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            {/* Date range */}
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: "#6B7280" }}>
+              <Calendar size={13} color="#9CA3AF" />
+              <input
+                type="date"
+                value={dateFrom.replace(/\//g, "-")}
+                onChange={(e) => setDateFrom(e.target.value.replace(/-/g, "/"))}
+                className="rounded-lg px-2 py-1.5 text-xs outline-none"
+                style={{ border: "1px solid #EBEBEB", background: "#fff", color: "#374151" }}
+              />
+              <span style={{ color: "#BBBBBB" }}>〜</span>
+              <input
+                type="date"
+                value={dateTo.replace(/\//g, "-")}
+                onChange={(e) => setDateTo(e.target.value.replace(/-/g, "/"))}
+                className="rounded-lg px-2 py-1.5 text-xs outline-none"
+                style={{ border: "1px solid #EBEBEB", background: "#fff", color: "#374151" }}
+              />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs px-2 py-1 rounded-lg" style={{ color: "#9CA3AF", border: "1px solid #EBEBEB" }}>
+                  クリア
+                </button>
+              )}
+            </div>
+
+            {/* Compare toggle */}
+            <button
+              onClick={() => setCompareEnabled((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={compareEnabled
+                ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
+                : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB" }}
+            >
+              <TrendingUp size={12} />
+              前期間と比較
+            </button>
+
+            {/* Segment dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setSegmentDropdownOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={selectedSegments.length > 0
+                  ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
+                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB" }}
+              >
+                {selectedSegments.length > 0 ? `セグメント (${selectedSegments.length})` : "セグメント"}
+                <ChevronDown size={12} />
+              </button>
+              {segmentDropdownOpen && (
+                <div
+                  className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden"
+                  style={{ border: "1px solid #EBEBEB", minWidth: 180 }}
+                >
+                  {availableSegments.length === 0 ? (
+                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>セグメントなし</div>
+                  ) : availableSegments.map((seg) => (
+                    <label
+                      key={seg}
+                      className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs"
+                      style={{ color: "#374151" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSegments.includes(seg)}
+                        onChange={() => toggleSegment(seg)}
+                        className="rounded"
+                        style={{ accentColor: YELLOW }}
+                      />
+                      {seg}
+                    </label>
+                  ))}
+                  {selectedSegments.length > 0 && (
+                    <div style={{ borderTop: "1px solid #F3F4F6" }}>
+                      <button
+                        onClick={() => { setSelectedSegments([]); setSegmentDropdownOpen(false); }}
+                        className="w-full px-4 py-2.5 text-xs text-left"
+                        style={{ color: "#9CA3AF" }}
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* comparison hint */}
+            {showComparison && compareFrom && compareTo && (
+              <span className="text-[10px] px-2 py-1 rounded-lg" style={{ background: "#F3F4F6", color: "#9CA3AF" }}>
+                比較期間: {compareFrom} 〜 {compareTo}
+              </span>
+            )}
           </div>
 
           {isLoading ? (
@@ -231,60 +433,28 @@ export default function Dashboard() {
             <ErrorState onRetry={() => queryClient.invalidateQueries()} />
           ) : (
             <>
-              {/* KPI cards: 1col mobile → 3col desktop */}
+              {/* KPI cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" data-testid="kpi-grid">
-                <KpiCard
-                  label="配信数"
-                  value={formatNumber(summary?.deliveryCount)}
-                  sub="通"
-                  testId="kpi-delivery"
-                  accent
-                />
-                <KpiCard
-                  label="開封率 / クリック率"
-                  value={formatPercent(summary?.openRate)}
-                  sub2={`クリック ${formatPercent(summary?.clickRate)}`}
-                  testId="kpi-open-rate"
-                />
-                <KpiCard
-                  label="CV数 / CVR"
-                  value={formatNumber(summary?.cvCount)}
-                  sub="件"
-                  sub2={`CVR ${formatPercent(summary?.cvr)}`}
-                  testId="kpi-cv-count"
-                />
+                <KpiCard label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通" testId="kpi-delivery" accent
+                  prev={showComparison ? summary?.prevDeliveryCount : undefined} current={summary?.deliveryCount} />
+                <KpiCard label="開封率 / クリック率" value={formatPercent(summary?.openRate)}
+                  sub2={`クリック ${formatPercent(summary?.clickRate)}`} testId="kpi-open-rate"
+                  prev={showComparison ? summary?.prevOpenRate : undefined} current={summary?.openRate} />
+                <KpiCard label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
+                  sub2={`CVR ${formatPercent(summary?.cvr)}`} testId="kpi-cv-count"
+                  prev={showComparison ? summary?.prevCvr : undefined} current={summary?.cvr} />
               </div>
 
               {/* Chart */}
-              <div
-                className="bg-white rounded-xl p-4 md:p-6"
-                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                data-testid="card-chart"
-              >
-                <div className="flex items-start justify-between mb-3 md:mb-1 gap-2">
+              <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-chart">
+                <div className="flex items-start justify-between mb-3 gap-2">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>配信トレンド</div>
-                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
-                      棒：配信数　折れ線：開封率 / クリック率
-                    </div>
-                  </div>
-                  {/* mini period tabs — hidden on mobile to save space */}
-                  <div className="hidden sm:flex items-center gap-1 p-0.5 rounded-lg shrink-0" style={{ background: "#F3F4F6" }}>
-                    {(["日別", "週別", "月別"] as const).map((t, i) => (
-                      <span key={t} className="px-2.5 py-1 rounded-md text-xs font-medium cursor-pointer"
-                        style={i === (groupBy === "day" ? 0 : groupBy === "week" ? 1 : 2)
-                          ? { background: "#fff", color: "#1A1A1A", boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
-                          : { color: "#9CA3AF" }}>
-                        {t}
-                      </span>
-                    ))}
+                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>棒：配信数　折れ線：開封率 / クリック率</div>
                   </div>
                 </div>
-
                 {items.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
-                    データがありません
-                  </div>
+                  <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データがありません</div>
                 ) : (
                   <>
                     <div style={{ height: 200 }} className="md:h-60">
@@ -306,13 +476,8 @@ export default function Dashboard() {
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
-                    {/* Legend */}
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
-                      {[
-                        { color: YELLOW, label: "配信数" },
-                        { color: "#60A5FA", label: "開封率" },
-                        { color: "#34D399", label: "クリック率" },
-                      ].map((l) => (
+                      {[{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }].map((l) => (
                         <div key={l.label} className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
                           {l.label}
@@ -323,61 +488,54 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Table */}
-              <div
-                className="bg-white rounded-xl overflow-hidden"
-                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                data-testid="card-table"
-              >
-                <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                  <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
-                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
+              {/* ── Tables ── */}
+              {segmentGroups.length > 0 ? (
+                // セグメント別テーブル
+                segmentGroups.map((group) => (
+                  <div key={group.segment} className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6", background: YELLOW_LIGHT }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>
+                          セグメント：{group.segment}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: YELLOW, color: "#fff" }}>
+                          配信数 {formatNumber(group.summary.deliveryCount)}
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
+                    </div>
+                    <MetricsTable items={group.items} groupBy={groupBy} showComparison={showComparison} showSubject={showSubject} />
+                  </div>
+                ))
+              ) : (
+                // 通常テーブル
+                <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
+                  <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6" }}>
+                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
+                    <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
+                  </div>
+                  <MetricsTable items={items} groupBy={groupBy} showComparison={showComparison} showSubject={showSubject} />
                 </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                        {["ラベル", "配信数", "開封数（率）", "クリック数（率）", "CV数（CVR）"].map((h) => (
-                          <TableHead key={h} className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>データがありません</TableCell>
-                        </TableRow>
-                      ) : items.map((item, i) => (
-                        <TableRow key={`${item.label}-${i}`} className="hover:bg-[#FAFAFA] transition-colors" style={{ borderBottom: "1px solid #F9FAFB" }} data-testid={`table-row-${i}`}>
-                          <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: "#6B7280" }}>{item.label}</TableCell>
-                          <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>{formatNumber(item.deliveryCount)}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
-                            {formatNumber(item.openCount)}<span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.openRate)})</span>
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
-                            {formatNumber(item.clickCount)}<span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.clickRate)})</span>
-                          </TableCell>
-                          <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
-                            {formatNumber(item.cvCount)}<span className="text-xs ml-1 font-normal" style={{ color: "#9CA3AF" }}>({formatPercent(item.cvr)})</span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+              )}
             </>
           )}
         </div>
       </main>
+
+      {/* close segment dropdown on outside click */}
+      {segmentDropdownOpen && (
+        <div className="fixed inset-0 z-10" onClick={() => setSegmentDropdownOpen(false)} />
+      )}
     </div>
   );
 }
 
+// ─── KPI Card ────────────────────────────────────────────────────
 function KpiCard({
-  label, value, sub, sub2, accent, testId,
+  label, value, sub, sub2, accent, testId, current, prev,
 }: {
   label: string; value: string; sub?: string; sub2?: string; accent?: boolean; testId: string;
+  current?: number; prev?: number | null;
 }) {
   return (
     <div
@@ -396,7 +554,10 @@ function KpiCard({
           </span>
         )}
       </div>
-      <div className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>{value}</div>
+      <div className="flex items-baseline gap-1 flex-wrap">
+        <div className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>{value}</div>
+        {current != null && prev != null && <DiffBadge current={current} prev={prev} />}
+      </div>
       {sub && <div className="text-xs mt-1 md:mt-1.5 font-medium" style={{ color: accent ? YELLOW_DARK : "#9CA3AF" }}>{sub}</div>}
       {sub2 && <div className="text-xs mt-0.5 md:mt-1" style={{ color: "#6B7280" }}>{sub2}</div>}
     </div>

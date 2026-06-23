@@ -48,8 +48,18 @@ export interface NewsletterSyncResult {
 }
 
 export interface NewsletterMetrics {
-  /** Group label (date, week, month, or scenario name) */
+  /** Group label (date, week, month, or template name) */
   label: string;
+  /**
+     * 件名（テンプレ別・日別など行レベルで意味を持つ場合）
+     * @nullable
+     */
+  subject?: string | null;
+  /**
+     * セグメント名（セグメント別集計の場合）
+     * @nullable
+     */
+  segment?: string | null;
   deliveryCount: number;
   openCount: number;
   clickCount: number;
@@ -60,14 +70,49 @@ export interface NewsletterMetrics {
   clickRate: number;
   /** Conversion rate (cvCount / deliveryCount) */
   cvr: number;
+  /**
+     * 前期間の配信数
+     * @nullable
+     */
+  prevDeliveryCount?: number | null;
+  /**
+     * 前期間の開封率
+     * @nullable
+     */
+  prevOpenRate?: number | null;
+  /**
+     * 前期間のクリック率
+     * @nullable
+     */
+  prevClickRate?: number | null;
+  /**
+     * 前期間のCVR
+     * @nullable
+     */
+  prevCvr?: number | null;
+}
+
+export interface NewsletterSegmentGroup {
+  /** セグメント名 */
+  segment: string;
+  items: NewsletterMetrics[];
+  summary: NewsletterMetrics;
 }
 
 export interface NewsletterReportResponse {
   groupBy: string;
   items: NewsletterMetrics[];
+  /** セグメント別グループ（セグメントフィルタ複数指定時） */
+  segmentGroups?: NewsletterSegmentGroup[];
   summary: NewsletterMetrics;
   /** @nullable */
   lastSyncedAt: string | null;
+  /** 選択可能なセグメント一覧 */
+  availableSegments: string[];
+}
+
+export interface NewsletterSegmentsResponse {
+  segments: string[];
 }
 
 export type GetNewsletterDataParams = {
@@ -85,6 +130,21 @@ dateFrom?: string | null;
  * @nullable
  */
 dateTo?: string | null;
+/**
+ * Filter by segment name (comma-separated for multiple)
+ * @nullable
+ */
+segment?: string | null;
+/**
+ * Comparison period start date (YYYY/MM/DD)
+ * @nullable
+ */
+compareFrom?: string | null;
+/**
+ * Comparison period end date (YYYY/MM/DD)
+ * @nullable
+ */
+compareTo?: string | null;
 };
 
 export type GetNewsletterDataGroupBy = typeof GetNewsletterDataGroupBy[keyof typeof GetNewsletterDataGroupBy];
@@ -94,6 +154,6 @@ export const GetNewsletterDataGroupBy = {
   day: 'day',
   week: 'week',
   month: 'month',
-  scenario: 'scenario',
+  template: 'template',
 } as const;
 

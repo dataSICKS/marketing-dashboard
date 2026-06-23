@@ -6,11 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NewsletterMetrics } from './newsletterMetrics';
+import type { NewsletterSegmentGroup } from './newsletterSegmentGroup';
 
 export interface NewsletterReportResponse {
   groupBy: string;
   items: NewsletterMetrics[];
+  /** セグメント別グループ（セグメントフィルタ複数指定時） */
+  segmentGroups?: NewsletterSegmentGroup[];
   summary: NewsletterMetrics;
   /** @nullable */
   lastSyncedAt: string | null;
+  /** 選択可能なセグメント一覧 */
+  availableSegments: string[];
 }

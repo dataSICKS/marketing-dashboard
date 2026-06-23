@@ -59,7 +59,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [day, week, month, scenario]
+            enum: [day, week, month, template]
             default: day
           description: Aggregation dimension
         - name: dateFrom
@@ -74,6 +74,24 @@ paths:
           schema:
             type: ["string", "null"]
           description: Filter end date (YYYY/MM/DD)
+        - name: segment
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by segment name (comma-separated for multiple)
+        - name: compareFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Comparison period start date (YYYY/MM/DD)
+        - name: compareTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Comparison period end date (YYYY/MM/DD)
       responses:
         "200":
           description: Newsletter report data
@@ -81,6 +99,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NewsletterReportResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /newsletter/segments:
+    get:
+      operationId: getNewsletterSegments
+      tags: [newsletter]
+      summary: Get available segments
+      description: Returns a list of all unique segment values in the data
+      responses:
+        "200":
+          description: Segment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterSegmentsResponse"
         "500":
           description: Fetch failed
           content:
@@ -177,7 +215,13 @@ components:
       properties:
         label:
           type: string
-          description: Group label (date, week, month, or scenario name)
+          description: Group label (date, week, month, or template name)
+        subject:
+          type: ["string", "null"]
+          description: 件名（テンプレ別・日別など行レベルで意味を持つ場合）
+        segment:
+          type: ["string", "null"]
+          description: セグメント名（セグメント別集計の場合）
         deliveryCount:
           type: number
         openCount:
@@ -195,6 +239,18 @@ components:
         cvr:
           type: number
           description: Conversion rate (cvCount / deliveryCount)
+        prevDeliveryCount:
+          type: ["number", "null"]
+          description: 前期間の配信数
+        prevOpenRate:
+          type: ["number", "null"]
+          description: 前期間の開封率
+        prevClickRate:
+          type: ["number", "null"]
+          description: 前期間のクリック率
+        prevCvr:
+          type: ["number", "null"]
+          description: 前期間のCVR
       required:
         - label
         - deliveryCount
@@ -205,6 +261,23 @@ components:
         - clickRate
         - cvr
 
+    NewsletterSegmentGroup:
+      type: object
+      properties:
+        segment:
+          type: string
+          description: セグメント名
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsletterMetrics"
+        summary:
+          $ref: "#/components/schemas/NewsletterMetrics"
+      required:
+        - segment
+        - items
+        - summary
+
     NewsletterReportResponse:
       type: object
       properties:
@@ -214,12 +287,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NewsletterMetrics"
+        segmentGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsletterSegmentGroup"
+          description: セグメント別グループ（セグメントフィルタ複数指定時）
         summary:
           $ref: "#/components/schemas/NewsletterMetrics"
         lastSyncedAt:
           type: ["string", "null"]
+        availableSegments:
+          type: array
+          items:
+            type: string
+          description: 選択可能なセグメント一覧
       required:
         - groupBy
         - items
         - summary
         - lastSyncedAt
+        - availableSegments
+
+    NewsletterSegmentsResponse:
+      type: object
+      properties:
+        segments:
+          type: array
+          items:
+            type: string
+      required:
+        - segments

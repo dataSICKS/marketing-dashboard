@@ -13,4 +13,6 @@ export * from './healthStatus';
 export * from './newsletterMetrics';
 export * from './newsletterReportResponse';
 export * from './newsletterRow';
+export * from './newsletterSegmentGroup';
+export * from './newsletterSegmentsResponse';
 export * from './newsletterSyncResult';

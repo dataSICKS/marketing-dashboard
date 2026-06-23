@@ -34,34 +34,94 @@ export const SyncNewsletterResponse = zod.object({
 export const getNewsletterDataQueryGroupByDefault = `day`;
 
 export const GetNewsletterDataQueryParams = zod.object({
-  "groupBy": zod.enum(['day', 'week', 'month', 'scenario']).default(getNewsletterDataQueryGroupByDefault).describe('Aggregation dimension'),
+  "groupBy": zod.enum(['day', 'week', 'month', 'template']).default(getNewsletterDataQueryGroupByDefault).describe('Aggregation dimension'),
   "dateFrom": zod.coerce.string().nullish().describe('Filter start date (YYYY\/MM\/DD)'),
-  "dateTo": zod.coerce.string().nullish().describe('Filter end date (YYYY\/MM\/DD)')
+  "dateTo": zod.coerce.string().nullish().describe('Filter end date (YYYY\/MM\/DD)'),
+  "segment": zod.coerce.string().nullish().describe('Filter by segment name (comma-separated for multiple)'),
+  "compareFrom": zod.coerce.string().nullish().describe('Comparison period start date (YYYY\/MM\/DD)'),
+  "compareTo": zod.coerce.string().nullish().describe('Comparison period end date (YYYY\/MM\/DD)')
 })
 
 export const GetNewsletterDataResponse = zod.object({
   "groupBy": zod.string(),
   "items": zod.array(zod.object({
-  "label": zod.string().describe('Group label (date, week, month, or scenario name)'),
+  "label": zod.string().describe('Group label (date, week, month, or template name)'),
+  "subject": zod.string().nullish().describe('件名（テンプレ別・日別など行レベルで意味を持つ場合）'),
+  "segment": zod.string().nullish().describe('セグメント名（セグメント別集計の場合）'),
   "deliveryCount": zod.number(),
   "openCount": zod.number(),
   "clickCount": zod.number(),
   "cvCount": zod.number(),
   "openRate": zod.number().describe('Open rate (openCount \/ deliveryCount)'),
   "clickRate": zod.number().describe('Click rate (clickCount \/ deliveryCount)'),
-  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)')
+  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)'),
+  "prevDeliveryCount": zod.number().nullish().describe('前期間の配信数'),
+  "prevOpenRate": zod.number().nullish().describe('前期間の開封率'),
+  "prevClickRate": zod.number().nullish().describe('前期間のクリック率'),
+  "prevCvr": zod.number().nullish().describe('前期間のCVR')
+})),
+  "segmentGroups": zod.array(zod.object({
+  "segment": zod.string().describe('セグメント名'),
+  "items": zod.array(zod.object({
+  "label": zod.string().describe('Group label (date, week, month, or template name)'),
+  "subject": zod.string().nullish().describe('件名（テンプレ別・日別など行レベルで意味を持つ場合）'),
+  "segment": zod.string().nullish().describe('セグメント名（セグメント別集計の場合）'),
+  "deliveryCount": zod.number(),
+  "openCount": zod.number(),
+  "clickCount": zod.number(),
+  "cvCount": zod.number(),
+  "openRate": zod.number().describe('Open rate (openCount \/ deliveryCount)'),
+  "clickRate": zod.number().describe('Click rate (clickCount \/ deliveryCount)'),
+  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)'),
+  "prevDeliveryCount": zod.number().nullish().describe('前期間の配信数'),
+  "prevOpenRate": zod.number().nullish().describe('前期間の開封率'),
+  "prevClickRate": zod.number().nullish().describe('前期間のクリック率'),
+  "prevCvr": zod.number().nullish().describe('前期間のCVR')
 })),
   "summary": zod.object({
-  "label": zod.string().describe('Group label (date, week, month, or scenario name)'),
+  "label": zod.string().describe('Group label (date, week, month, or template name)'),
+  "subject": zod.string().nullish().describe('件名（テンプレ別・日別など行レベルで意味を持つ場合）'),
+  "segment": zod.string().nullish().describe('セグメント名（セグメント別集計の場合）'),
   "deliveryCount": zod.number(),
   "openCount": zod.number(),
   "clickCount": zod.number(),
   "cvCount": zod.number(),
   "openRate": zod.number().describe('Open rate (openCount \/ deliveryCount)'),
   "clickRate": zod.number().describe('Click rate (clickCount \/ deliveryCount)'),
-  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)')
+  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)'),
+  "prevDeliveryCount": zod.number().nullish().describe('前期間の配信数'),
+  "prevOpenRate": zod.number().nullish().describe('前期間の開封率'),
+  "prevClickRate": zod.number().nullish().describe('前期間のクリック率'),
+  "prevCvr": zod.number().nullish().describe('前期間のCVR')
+})
+})).optional().describe('セグメント別グループ（セグメントフィルタ複数指定時）'),
+  "summary": zod.object({
+  "label": zod.string().describe('Group label (date, week, month, or template name)'),
+  "subject": zod.string().nullish().describe('件名（テンプレ別・日別など行レベルで意味を持つ場合）'),
+  "segment": zod.string().nullish().describe('セグメント名（セグメント別集計の場合）'),
+  "deliveryCount": zod.number(),
+  "openCount": zod.number(),
+  "clickCount": zod.number(),
+  "cvCount": zod.number(),
+  "openRate": zod.number().describe('Open rate (openCount \/ deliveryCount)'),
+  "clickRate": zod.number().describe('Click rate (clickCount \/ deliveryCount)'),
+  "cvr": zod.number().describe('Conversion rate (cvCount \/ deliveryCount)'),
+  "prevDeliveryCount": zod.number().nullish().describe('前期間の配信数'),
+  "prevOpenRate": zod.number().nullish().describe('前期間の開封率'),
+  "prevClickRate": zod.number().nullish().describe('前期間のクリック率'),
+  "prevCvr": zod.number().nullish().describe('前期間のCVR')
 }),
-  "lastSyncedAt": zod.string().nullable()
+  "lastSyncedAt": zod.string().nullable(),
+  "availableSegments": zod.array(zod.string()).describe('選択可能なセグメント一覧')
+})
+
+
+/**
+ * Returns a list of all unique segment values in the data
+ * @summary Get available segments
+ */
+export const GetNewsletterSegmentsResponse = zod.object({
+  "segments": zod.array(zod.string())
 })
 
 

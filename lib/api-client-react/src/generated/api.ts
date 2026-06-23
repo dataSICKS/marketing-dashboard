@@ -24,6 +24,7 @@ import type {
   GetNewsletterDataParams,
   HealthStatus,
   NewsletterReportResponse,
+  NewsletterSegmentsResponse,
   NewsletterSyncResult
 } from './api.schemas';
 
@@ -261,6 +262,84 @@ export function useGetNewsletterData<TData = Awaited<ReturnType<typeof getNewsle
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNewsletterDataQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNewsletterSegmentsUrl = () => {
+
+
+
+
+  return `/api/newsletter/segments`
+}
+
+/**
+ * Returns a list of all unique segment values in the data
+ * @summary Get available segments
+ */
+export const getNewsletterSegments = async ( options?: RequestInit): Promise<NewsletterSegmentsResponse> => {
+
+  return customFetch<NewsletterSegmentsResponse>(getGetNewsletterSegmentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNewsletterSegmentsQueryKey = () => {
+    return [
+    `/api/newsletter/segments`
+    ] as const;
+    }
+
+
+export const getGetNewsletterSegmentsQueryOptions = <TData = Awaited<ReturnType<typeof getNewsletterSegments>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSegments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNewsletterSegmentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNewsletterSegments>>> = ({ signal }) => getNewsletterSegments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSegments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNewsletterSegmentsQueryResult = NonNullable<Awaited<ReturnType<typeof getNewsletterSegments>>>
+export type GetNewsletterSegmentsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get available segments
+ */
+
+export function useGetNewsletterSegments<TData = Awaited<ReturnType<typeof getNewsletterSegments>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSegments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNewsletterSegmentsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
