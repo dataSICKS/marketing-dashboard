@@ -32,11 +32,11 @@ import {
   LogOut,
   Menu,
   X,
-  Calendar,
   TrendingUp,
   TrendingDown,
   ChevronDown,
 } from "lucide-react";
+import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 
 type GroupBy = GetNewsletterDataGroupBy;
 
@@ -58,19 +58,7 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "template", label: "テンプレ別" },
 ];
 
-// ─── Date helpers ───────────────────────────────────────────────
-function subtractDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr.replace(/\//g, "-"));
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10).replace(/-/g, "/");
-}
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from.replace(/\//g, "-"));
-  const b = new Date(to.replace(/\//g, "-"));
-  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
-}
-
-// ─── Diff badge ─────────────────────────────────────────────────
+// ─── Diff badge ──────────────────────────────────────────────────
 function DiffBadge({ current, prev }: { current: number; prev: number | null | undefined }) {
   if (prev == null || prev === 0) return null;
   const diff = current - prev;
@@ -87,7 +75,7 @@ function DiffBadge({ current, prev }: { current: number; prev: number | null | u
   );
 }
 
-// ─── Sidebar ────────────────────────────────────────────────────
+// ─── Sidebar ─────────────────────────────────────────────────────
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex flex-col h-full bg-white" style={{ borderRight: "1px solid #EBEBEB" }}>
@@ -128,26 +116,22 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   );
 }
 
-// ─── Metrics table ───────────────────────────────────────────────
+// ─── Metrics table ────────────────────────────────────────────────
 function MetricsTable({
-  items,
-  groupBy,
-  showComparison,
-  showSubject,
+  items, groupBy, showComparison,
 }: {
   items: NewsletterMetrics[];
   groupBy: GroupBy;
   showComparison: boolean;
-  showSubject: boolean;
 }) {
-  const showSub = showSubject && (groupBy === "template" || groupBy === "day");
+  const showSubject = groupBy === "template" || groupBy === "day";
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent" style={{ borderBottom: "1px solid #F3F4F6" }}>
             <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>ラベル</TableHead>
-            {showSub && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>件名</TableHead>}
+            {showSubject && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>件名</TableHead>}
             <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>配信数</TableHead>
             <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>開封数（率）</TableHead>
             <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>クリック数（率）</TableHead>
@@ -157,13 +141,19 @@ function MetricsTable({
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={showSub ? 6 : 5} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>データがありません</TableCell>
+              <TableCell colSpan={showSubject ? 6 : 5} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>
+                データがありません
+              </TableCell>
             </TableRow>
           ) : items.map((item, i) => (
-            <TableRow key={`${item.label}-${i}`} className="hover:bg-[#FAFAFA] transition-colors" style={{ borderBottom: "1px solid #F9FAFB" }}>
+            <TableRow
+              key={`${item.label}-${i}`}
+              className="hover:bg-[#FAFAFA] transition-colors"
+              style={{ borderBottom: "1px solid #F9FAFB" }}
+            >
               <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: "#6B7280" }}>{item.label}</TableCell>
-              {showSub && (
-                <TableCell className="text-xs max-w-[200px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
+              {showSubject && (
+                <TableCell className="text-xs max-w-[220px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
                   {item.subject ?? "—"}
                 </TableCell>
               )}
@@ -194,38 +184,28 @@ function MetricsTable({
   );
 }
 
-// ─── Main Dashboard ──────────────────────────────────────────────
+// ─── Dashboard ───────────────────────────────────────────────────
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // date filter
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-
-  // comparison
+  // date range + comparison — managed by DateRangePicker
+  const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  const [compareRange, setCompareRange] = useState<DateRange | null>(null);
   const [compareEnabled, setCompareEnabled] = useState(false);
 
   // segment filter
   const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [segmentDropdownOpen, setSegmentDropdownOpen] = useState(false);
 
-  // compute comparison range automatically (same length, immediately before)
-  const compareFrom = compareEnabled && dateFrom && dateTo
-    ? subtractDays(dateFrom, daysBetween(dateFrom, dateTo))
-    : undefined;
-  const compareTo = compareEnabled && dateFrom
-    ? subtractDays(dateFrom, 1)
-    : undefined;
-
   const params = {
     groupBy,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
+    dateFrom: dateRange?.from,
+    dateTo: dateRange?.to,
     segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
-    compareFrom,
-    compareTo,
+    compareFrom: compareEnabled && compareRange ? compareRange.from : undefined,
+    compareTo: compareEnabled && compareRange ? compareRange.to : undefined,
   };
 
   const { data, isLoading, isError } = useGetNewsletterData(params, {
@@ -246,9 +226,13 @@ export default function Dashboard() {
   const segmentGroups: NewsletterSegmentGroup[] = (data?.segmentGroups ?? []) as NewsletterSegmentGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableSegments = data?.availableSegments ?? [];
+  const showComparison = compareEnabled && !!compareRange;
 
-  const showComparison = compareEnabled && !!(compareFrom && compareTo);
-  const showSubject = true;
+  const handleDateApply = (range: DateRange | null, cmp: DateRange | null, cmpEnabled: boolean) => {
+    setDateRange(range);
+    setCompareRange(cmp);
+    setCompareEnabled(cmpEnabled);
+  };
 
   const toggleSegment = (seg: string) => {
     setSelectedSegments((prev) =>
@@ -279,20 +263,27 @@ export default function Dashboard() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
-        <div className="bg-white px-4 md:px-8 h-14 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #EBEBEB" }}>
+        <div
+          className="bg-white px-4 md:px-8 h-14 flex items-center justify-between shrink-0"
+          style={{ borderBottom: "1px solid #EBEBEB" }}
+        >
           <div className="flex items-center gap-3">
             <button className="md:hidden p-1.5 rounded-lg" style={{ color: "#6B7280" }} onClick={() => setDrawerOpen(true)}>
               <Menu size={20} />
             </button>
             <div>
               <div className="hidden sm:block text-xs" style={{ color: "#9CA3AF" }}>メルマガ · 配信分析</div>
-              <div className="text-sm md:text-base font-bold leading-tight" style={{ color: "#1A1A1A" }} data-testid="heading-title">メルマガレポート</div>
+              <div className="text-sm md:text-base font-bold leading-tight" style={{ color: "#1A1A1A" }} data-testid="heading-title">
+                メルマガレポート
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ border: "1px solid #EBEBEB", color: "#6B7280", background: "#FAFAFA" }}>
-              <Calendar size={13} color="#9CA3AF" />
-              <span data-testid="text-last-sync">最終更新: {formatDate(lastSyncedAt)}</span>
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ border: "1px solid #EBEBEB", color: "#6B7280", background: "#FAFAFA" }}>
+              <span data-testid="text-last-sync" style={{ color: "#9CA3AF", fontSize: 11 }}>
+                最終更新: {formatDate(lastSyncedAt)}
+              </span>
             </div>
             <button
               onClick={() => syncMutation.mutate(undefined)}
@@ -332,54 +323,25 @@ export default function Dashboard() {
 
           {/* ── Filter bar ── */}
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            {/* Date range */}
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: "#6B7280" }}>
-              <Calendar size={13} color="#9CA3AF" />
-              <input
-                type="date"
-                value={dateFrom.replace(/\//g, "-")}
-                onChange={(e) => setDateFrom(e.target.value.replace(/-/g, "/"))}
-                className="rounded-lg px-2 py-1.5 text-xs outline-none"
-                style={{ border: "1px solid #EBEBEB", background: "#fff", color: "#374151" }}
-              />
-              <span style={{ color: "#BBBBBB" }}>〜</span>
-              <input
-                type="date"
-                value={dateTo.replace(/\//g, "-")}
-                onChange={(e) => setDateTo(e.target.value.replace(/-/g, "/"))}
-                className="rounded-lg px-2 py-1.5 text-xs outline-none"
-                style={{ border: "1px solid #EBEBEB", background: "#fff", color: "#374151" }}
-              />
-              {(dateFrom || dateTo) && (
-                <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs px-2 py-1 rounded-lg" style={{ color: "#9CA3AF", border: "1px solid #EBEBEB" }}>
-                  クリア
-                </button>
-              )}
-            </div>
-
-            {/* Compare toggle */}
-            <button
-              onClick={() => setCompareEnabled((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              style={compareEnabled
-                ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
-                : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB" }}
-            >
-              <TrendingUp size={12} />
-              前期間と比較
-            </button>
+            {/* GA4-style date range picker */}
+            <DateRangePicker
+              value={dateRange}
+              compareValue={compareRange}
+              compareEnabled={compareEnabled}
+              onApply={handleDateApply}
+            />
 
             {/* Segment dropdown */}
             <div className="relative">
               <button
                 onClick={() => setSegmentDropdownOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
                 style={selectedSegments.length > 0
                   ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
-                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB" }}
+                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
               >
                 {selectedSegments.length > 0 ? `セグメント (${selectedSegments.length})` : "セグメント"}
-                <ChevronDown size={12} />
+                <ChevronDown size={13} />
               </button>
               {segmentDropdownOpen && (
                 <div
@@ -398,7 +360,6 @@ export default function Dashboard() {
                         type="checkbox"
                         checked={selectedSegments.includes(seg)}
                         onChange={() => toggleSegment(seg)}
-                        className="rounded"
                         style={{ accentColor: YELLOW }}
                       />
                       {seg}
@@ -419,10 +380,18 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* comparison hint */}
-            {showComparison && compareFrom && compareTo && (
-              <span className="text-[10px] px-2 py-1 rounded-lg" style={{ background: "#F3F4F6", color: "#9CA3AF" }}>
-                比較期間: {compareFrom} 〜 {compareTo}
+            {/* Active filter chips */}
+            {dateRange && (
+              <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ background: "#F3F4F6", color: "#6B7280" }}>
+                {dateRange.from} 〜 {dateRange.to}
+                <button onClick={() => { setDateRange(null); setCompareRange(null); setCompareEnabled(false); }}>
+                  <X size={11} color="#BBBBBB" />
+                </button>
+              </span>
+            )}
+            {showComparison && compareRange && (
+              <span className="text-[11px] px-2 py-1 rounded-lg" style={{ background: "#EFF6FF", color: "#1D4ED8" }}>
+                比較: {compareRange.from} 〜 {compareRange.to}
               </span>
             )}
           </div>
@@ -435,22 +404,35 @@ export default function Dashboard() {
             <>
               {/* KPI cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" data-testid="kpi-grid">
-                <KpiCard label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通" testId="kpi-delivery" accent
-                  prev={showComparison ? summary?.prevDeliveryCount : undefined} current={summary?.deliveryCount} />
-                <KpiCard label="開封率 / クリック率" value={formatPercent(summary?.openRate)}
+                <KpiCard
+                  label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通"
+                  testId="kpi-delivery" accent
+                  current={summary?.deliveryCount} prev={showComparison ? summary?.prevDeliveryCount : undefined}
+                />
+                <KpiCard
+                  label="開封率 / クリック率" value={formatPercent(summary?.openRate)}
                   sub2={`クリック ${formatPercent(summary?.clickRate)}`} testId="kpi-open-rate"
-                  prev={showComparison ? summary?.prevOpenRate : undefined} current={summary?.openRate} />
-                <KpiCard label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
+                  current={summary?.openRate} prev={showComparison ? summary?.prevOpenRate : undefined}
+                />
+                <KpiCard
+                  label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
                   sub2={`CVR ${formatPercent(summary?.cvr)}`} testId="kpi-cv-count"
-                  prev={showComparison ? summary?.prevCvr : undefined} current={summary?.cvr} />
+                  current={summary?.cvr} prev={showComparison ? summary?.prevCvr : undefined}
+                />
               </div>
 
               {/* Chart */}
-              <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-chart">
+              <div
+                className="bg-white rounded-xl p-4 md:p-6"
+                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+                data-testid="card-chart"
+              >
                 <div className="flex items-start justify-between mb-3 gap-2">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>配信トレンド</div>
-                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>棒：配信数　折れ線：開封率 / クリック率</div>
+                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
+                      棒：配信数　折れ線：開封率 / クリック率
+                    </div>
                   </div>
                 </div>
                 {items.length === 0 ? (
@@ -488,33 +470,33 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* ── Tables ── */}
+              {/* Tables */}
               {segmentGroups.length > 0 ? (
-                // セグメント別テーブル
                 segmentGroups.map((group) => (
-                  <div key={group.segment} className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                    <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6", background: YELLOW_LIGHT }}>
+                  <div key={group.segment} className="bg-white rounded-xl overflow-hidden"
+                    style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
+                      style={{ borderBottom: "1px solid #F3F4F6", background: YELLOW_LIGHT }}>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>
-                          セグメント：{group.segment}
-                        </span>
+                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>セグメント：{group.segment}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: YELLOW, color: "#fff" }}>
                           配信数 {formatNumber(group.summary.deliveryCount)}
                         </span>
                       </div>
                       <span className="text-xs" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
                     </div>
-                    <MetricsTable items={group.items} groupBy={groupBy} showComparison={showComparison} showSubject={showSubject} />
+                    <MetricsTable items={group.items} groupBy={groupBy} showComparison={showComparison} />
                   </div>
                 ))
               ) : (
-                // 通常テーブル
-                <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
-                  <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6" }}>
+                <div className="bg-white rounded-xl overflow-hidden"
+                  style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
+                  <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
+                    style={{ borderBottom: "1px solid #F3F4F6" }}>
                     <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
                     <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
                   </div>
-                  <MetricsTable items={items} groupBy={groupBy} showComparison={showComparison} showSubject={showSubject} />
+                  <MetricsTable items={items} groupBy={groupBy} showComparison={showComparison} />
                 </div>
               )}
             </>
@@ -522,7 +504,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* close segment dropdown on outside click */}
       {segmentDropdownOpen && (
         <div className="fixed inset-0 z-10" onClick={() => setSegmentDropdownOpen(false)} />
       )}
