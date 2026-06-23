@@ -26,8 +26,7 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    // Force dark mode
-    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('dark');
   }, []);
 
   return (

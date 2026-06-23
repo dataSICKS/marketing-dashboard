@@ -33,7 +33,7 @@
 
 - Google Sheetsがsource of truth。sync時にSheets→Supabaseへupsert、読み出しはSupabase（またはインメモリキャッシュ）から
 - データ取得優先順位：インメモリキャッシュ → Supabase → Google Sheets（フォールバック）
-- ダッシュボードは常時ダークモード（コックピット感）。`:root`にダーク変数を直接設定
+- ダッシュボードは白ベース×黒サイドバーのミニマルデザイン。サイドバー `#0a0a0a`、メインエリア `#f8f8f8`/`#fff`
 - 集計軸（日別/週別/月別/シナリオ別）はクライアント側のパラメータで切り替え
 - SupabaseにはService Role Keyを使用（RLSをバイパスするサーバーサイド書き込みのため）
 
@@ -50,7 +50,7 @@
 
 ## Gotchas
 
-- Tailwind v4では `@apply dark` は無効。ダークモード強制はCSSのセレクタ（`:root`への直接設定）で対応
+- Tailwind v4では `@apply dark` は無効。テーマ変数は `:root` に直接設定する
 - Google Sheetsの認証は Replit Connectors SDK 経由。`@replit/connectors-sdk` を `artifacts/api-server` にインストール済み
 - APIサーバーのワークフローを再起動するとインメモリキャッシュはリセットされる（次回アクセス時にSupabaseから再ロード）
 - SupabaseのRLSはデフォルト有効。Anon Keyでは書き込み不可。サーバーサイドにはService Role Keyが必須
