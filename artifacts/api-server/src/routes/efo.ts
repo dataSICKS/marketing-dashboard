@@ -89,19 +89,23 @@ router.get("/efo/data", async (req, res): Promise<void> => {
     const profileName = req.query.profileName as string | undefined;
     const adCode = req.query.adCode as string | undefined;
 
+    // Support comma-separated multi-value filters
+    const profileNames = profileName ? profileName.split(",").filter(Boolean) : null;
+    const adCodes = adCode ? adCode.split(",").filter(Boolean) : null;
+
     const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, syncedAt } = await getEfoData(req);
 
     let accessCvRows = allAccessCv;
     if (dateFrom) accessCvRows = accessCvRows.filter((r) => r.date >= dateFrom);
     if (dateTo) accessCvRows = accessCvRows.filter((r) => r.date <= dateTo);
-    if (profileName) accessCvRows = accessCvRows.filter((r) => r.profileName === profileName);
-    if (adCode) accessCvRows = accessCvRows.filter((r) => r.adCode === adCode);
+    if (profileNames?.length) accessCvRows = accessCvRows.filter((r) => profileNames.includes(r.profileName));
+    if (adCodes?.length) accessCvRows = accessCvRows.filter((r) => adCodes.includes(r.adCode));
 
     let exitScenarioRows = allExitScenarios;
     if (dateFrom) exitScenarioRows = exitScenarioRows.filter((r) => r.date >= dateFrom);
     if (dateTo) exitScenarioRows = exitScenarioRows.filter((r) => r.date <= dateTo);
-    if (profileName) exitScenarioRows = exitScenarioRows.filter((r) => r.profileName === profileName);
-    if (adCode) exitScenarioRows = exitScenarioRows.filter((r) => r.adCode === adCode);
+    if (profileNames?.length) exitScenarioRows = exitScenarioRows.filter((r) => profileNames.includes(r.profileName));
+    if (adCodes?.length) exitScenarioRows = exitScenarioRows.filter((r) => adCodes.includes(r.adCode));
 
     const items = aggregateEfoRows(accessCvRows, groupBy);
     const summary = computeEfoSummary(accessCvRows);

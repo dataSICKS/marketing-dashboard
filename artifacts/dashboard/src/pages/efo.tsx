@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp } from "lucide-react";
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
+import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 
 type GroupBy = GetEfoDataGroupBy;
 
@@ -45,7 +46,11 @@ const FUNNEL_LABELS: Record<string, string> = {
 };
 
 // ─── Segment Selector ─────────────────────────────────────────────
-interface SegmentFilter { profileName: string; adCode: string; dateRange: EfoDateRange | null }
+interface SegmentFilter {
+  profileNames: string[];
+  adCodes: string[];
+  dateRange: EfoDateRange | null;
+}
 
 function SegmentSelector({
   seg, filter, profiles, adCodes, onChange,
@@ -64,29 +69,34 @@ function SegmentSelector({
         <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
       </div>
       <div className="px-4 py-3 flex flex-col gap-2" style={{ background: "#fff" }}>
-        <select
-          value={filter.profileName}
-          onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
-          className="w-full text-xs px-2 py-1.5 rounded-md"
-          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB", maxWidth: "100%" }}
-        >
-          <option value="">プロファイル: 全体</option>
-          {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select
-          value={filter.adCode}
-          onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
-          className="w-full text-xs px-2 py-1.5 rounded-md"
-          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB", maxWidth: "100%" }}
-        >
-          <option value="">広告コード: 全体</option>
-          {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <EfoDateRangePicker
-          value={filter.dateRange}
-          onChange={(r) => onChange({ ...filter, dateRange: r })}
-          accentColor={color}
-        />
+        <div>
+          <div className="text-[10px] font-medium mb-1" style={{ color: "#9CA3AF" }}>プロファイル</div>
+          <MultiSelectCombobox
+            options={profiles}
+            selected={filter.profileNames}
+            onChange={(v) => onChange({ ...filter, profileNames: v })}
+            placeholder="全体（複数選択可）"
+            accentColor={color}
+          />
+        </div>
+        <div>
+          <div className="text-[10px] font-medium mb-1" style={{ color: "#9CA3AF" }}>広告コード</div>
+          <MultiSelectCombobox
+            options={adCodes}
+            selected={filter.adCodes}
+            onChange={(v) => onChange({ ...filter, adCodes: v })}
+            placeholder="全体（複数選択可）"
+            accentColor={color}
+          />
+        </div>
+        <div>
+          <div className="text-[10px] font-medium mb-1" style={{ color: "#9CA3AF" }}>期間</div>
+          <EfoDateRangePicker
+            value={filter.dateRange}
+            onChange={(r) => onChange({ ...filter, dateRange: r })}
+            accentColor={color}
+          />
+        </div>
       </div>
     </div>
   );
@@ -200,8 +210,8 @@ function SegmentPanel({
   const color = SEG_COLORS[seg];
   const params = {
     groupBy,
-    ...(filter.profileName ? { profileName: filter.profileName } : {}),
-    ...(filter.adCode ? { adCode: filter.adCode } : {}),
+    ...(filter.profileNames.length ? { profileName: filter.profileNames.join(",") } : {}),
+    ...(filter.adCodes.length ? { adCode: filter.adCodes.join(",") } : {}),
     ...(filter.dateRange?.from ? { dateFrom: filter.dateRange.from.replace(/\//g, "-") } : {}),
     ...(filter.dateRange?.to ? { dateTo: filter.dateRange.to.replace(/\//g, "-") } : {}),
   };
@@ -275,8 +285,8 @@ function SegmentPanel({
 // ─── Main Page ────────────────────────────────────────────────────
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
-  const [filterA, setFilterA] = useState<SegmentFilter>({ profileName: "", adCode: "", dateRange: null });
-  const [filterB, setFilterB] = useState<SegmentFilter>({ profileName: "", adCode: "", dateRange: null });
+  const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
+  const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
   const queryClient = useQueryClient();
 
   const { data: filtersData } = useGetEfoFilters();
