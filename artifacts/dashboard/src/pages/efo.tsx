@@ -64,26 +64,24 @@ function SegmentSelector({
         <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
       </div>
       <div className="px-4 py-3 flex flex-col gap-2" style={{ background: "#fff" }}>
-        <div className="flex gap-2">
-          <select
-            value={filter.profileName}
-            onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
-            className="flex-1 text-xs px-2 py-1.5 rounded-md"
-            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
-          >
-            <option value="">プロファイル: 全体</option>
-            {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select
-            value={filter.adCode}
-            onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
-            className="flex-1 text-xs px-2 py-1.5 rounded-md"
-            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
-          >
-            <option value="">広告コード: 全体</option>
-            {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
+        <select
+          value={filter.profileName}
+          onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
+          className="w-full text-xs px-2 py-1.5 rounded-md"
+          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB", maxWidth: "100%" }}
+        >
+          <option value="">プロファイル: 全体</option>
+          {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select
+          value={filter.adCode}
+          onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
+          className="w-full text-xs px-2 py-1.5 rounded-md"
+          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB", maxWidth: "100%" }}
+        >
+          <option value="">広告コード: 全体</option>
+          {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
         <EfoDateRangePicker
           value={filter.dateRange}
           onChange={(r) => onChange({ ...filter, dateRange: r })}
