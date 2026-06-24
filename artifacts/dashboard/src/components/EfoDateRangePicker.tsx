@@ -167,7 +167,7 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left?: number; right?: number }>({ top: 0, left: 0 });
 
   const [pendingFrom, setPendingFrom] = useState<string | null>(value?.from ?? null);
   const [pendingTo, setPendingTo] = useState<string | null>(value?.to ?? null);
@@ -199,9 +199,14 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
   const handleOpen = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const popupWidth = 580;
-      const left = Math.min(rect.left, window.innerWidth - popupWidth - 8);
-      setPopoverPos({ top: rect.bottom + 6, left: Math.max(8, left) });
+      const rightFromEdge = window.innerWidth - rect.right;
+      if (rect.left > window.innerWidth / 2) {
+        // トリガーが右半分 → ポップアップの右端をトリガー右端に合わせる
+        setPopoverPos({ top: rect.bottom + 6, right: Math.max(8, rightFromEdge) });
+      } else {
+        // トリガーが左半分 → 左端揃え（はみ出し防止）
+        setPopoverPos({ top: rect.bottom + 6, left: Math.max(8, rect.left) });
+      }
     }
     setPendingFrom(value?.from ?? null);
     setPendingTo(value?.to ?? null);
@@ -282,7 +287,7 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
         <div
           ref={popoverRef}
           className="bg-white rounded-2xl shadow-2xl"
-          style={{ position: "fixed", top: popoverPos.top, left: popoverPos.left, zIndex: 9999, border: "1px solid #E5E7EB", minWidth: 580 }}
+          style={{ position: "fixed", top: popoverPos.top, ...(popoverPos.right != null ? { right: popoverPos.right } : { left: popoverPos.left }), zIndex: 9999, border: "1px solid #E5E7EB", minWidth: 580 }}
         >
           <div className="flex">
             {/* Quick presets */}
