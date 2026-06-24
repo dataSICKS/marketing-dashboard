@@ -87,41 +87,53 @@ function TrendChart({ items }: { items: EfoMetrics[] }) {
   );
 }
 
-// ─── Exit Scenario Chart ──────────────────────────────────────────
-function ExitScenarioChart({ scenarios }: { scenarios: EfoExitScenarioCount[] }) {
+// ─── Arrival Funnel Chart ─────────────────────────────────────────
+const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
+
+function ArrivalFunnelChart({ scenarios }: { scenarios: EfoExitScenarioCount[] }) {
   if (scenarios.length === 0) {
     return <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#bbb" }}>データがありません</div>;
   }
 
-  const total = scenarios.reduce((s, r) => s + r.count, 0);
-  const data = scenarios.map((s) => ({
-    name: FUNNEL_LABELS[s.scenario] ?? s.scenario,
-    raw: s.scenario,
-    count: s.count,
-    pct: total > 0 ? (s.count / total) * 100 : 0,
-  }));
+  // exitMap: scenario → 離脱（or完了）セッション数
+  const exitMap = new Map<string, number>(scenarios.map((s) => [s.scenario, s.count]));
 
-  const maxCount = Math.max(...data.map((d) => d.count));
+  // 到達数 = そのステップ以降（そのステップ含む）の離脱数の合計
+  // ファネル順に後ろから累積
+  const orderedSteps = FUNNEL_ORDER.filter((s) => exitMap.has(s));
+  let cumulative = 0;
+  const arrivals: { raw: string; name: string; arrival: number }[] = [];
+  for (let i = orderedSteps.length - 1; i >= 0; i--) {
+    const step = orderedSteps[i];
+    cumulative += exitMap.get(step) ?? 0;
+    arrivals.unshift({ raw: step, name: FUNNEL_LABELS[step] ?? step, arrival: cumulative });
+  }
+
+  const totalArrival = arrivals[0]?.arrival ?? 1;
 
   return (
-    <div className="space-y-2">
-      {data.map((d, i) => (
-        <div key={d.raw} className="flex items-center gap-3">
-          <span className="text-xs font-medium w-20 text-right shrink-0" style={{ color: "#6B7280" }}>{d.name}</span>
-          <div className="flex-1 h-6 rounded-full overflow-hidden" style={{ background: "#F3F4F6" }}>
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${(d.count / maxCount) * 100}%`,
-                background: d.raw === "submission" ? "#10B981" : i % 2 === 0 ? YELLOW : "#FDE68A",
-              }}
-            />
+    <div className="space-y-2.5">
+      {arrivals.map((d) => {
+        const pct = totalArrival > 0 ? (d.arrival / totalArrival) * 100 : 0;
+        const isGoal = d.raw === "submission";
+        return (
+          <div key={d.raw} className="flex items-center gap-3">
+            <span className="text-xs font-medium w-20 text-right shrink-0" style={{ color: "#6B7280" }}>{d.name}</span>
+            <div className="flex-1 h-6 rounded-full overflow-hidden" style={{ background: "#F3F4F6" }}>
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pct}%`,
+                  background: isGoal ? "#10B981" : `hsl(${40 + (1 - pct / 100) * 200}, 90%, 60%)`,
+                }}
+              />
+            </div>
+            <span className="text-xs font-semibold w-20 shrink-0 text-right" style={{ color: "#374151" }}>
+              {formatNumber(d.arrival)}<span className="font-normal ml-1" style={{ color: "#9CA3AF" }}>({pct.toFixed(1)}%)</span>
+            </span>
           </div>
-          <span className="text-xs font-semibold w-16 shrink-0" style={{ color: "#374151" }}>
-            {formatNumber(d.count)} <span style={{ color: "#9CA3AF" }}>({d.pct.toFixed(1)}%)</span>
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -225,15 +237,15 @@ export default function EfoPage() {
         {/* Exit Scenario Chart */}
         <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid #F0F0F0" }}>
           <h2 className="text-sm font-semibold mb-5" style={{ color: "#374151" }}>
-            離脱シナリオ分布
-            <span className="ml-2 text-xs font-normal" style={{ color: "#9CA3AF" }}>（フォーム内のどのステップで離脱したか）</span>
+            ステップ別到達数
+            <span className="ml-2 text-xs font-normal" style={{ color: "#9CA3AF" }}>（各ステップに到達したセッション数の推移）</span>
           </h2>
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 rounded-full" />)}
             </div>
           ) : (
-            <ExitScenarioChart scenarios={exitScenarios} />
+            <ArrivalFunnelChart scenarios={exitScenarios} />
           )}
         </div>
 
