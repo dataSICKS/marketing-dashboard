@@ -128,6 +128,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /efo/filters:
+    get:
+      operationId: getEfoFilters
+      tags: [efo]
+      summary: Get available EFO filter values
+      description: Returns unique profile names and ad codes available in the data
+      responses:
+        "200":
+          description: Available filter values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoFilters"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /efo/sync:
     post:
       operationId: syncEfo
@@ -175,6 +195,18 @@ paths:
           schema:
             type: ["string", "null"]
           description: Filter end date (YYYY/MM/DD)
+        - name: profileName
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by profile name
+        - name: adCode
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by ad code
       responses:
         "200":
           description: EFO report data
@@ -380,6 +412,23 @@ components:
             type: string
       required:
         - segments
+
+    EfoFilters:
+      type: object
+      properties:
+        profileNames:
+          type: array
+          items:
+            type: string
+          description: Unique profile names
+        adCodes:
+          type: array
+          items:
+            type: string
+          description: Unique ad codes
+      required:
+        - profileNames
+        - adCodes
 
     EfoSyncResult:
       type: object

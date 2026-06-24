@@ -22,4 +22,14 @@ dateFrom?: string | null;
  * @nullable
  */
 dateTo?: string | null;
+/**
+ * Filter by profile name
+ * @nullable
+ */
+profileName?: string | null;
+/**
+ * Filter by ad code
+ * @nullable
+ */
+adCode?: string | null;
 };

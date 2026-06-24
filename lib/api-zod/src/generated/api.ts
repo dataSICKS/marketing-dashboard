@@ -126,6 +126,16 @@ export const GetNewsletterSegmentsResponse = zod.object({
 
 
 /**
+ * Returns unique profile names and ad codes available in the data
+ * @summary Get available EFO filter values
+ */
+export const GetEfoFiltersResponse = zod.object({
+  "profileNames": zod.array(zod.string()).describe('Unique profile names'),
+  "adCodes": zod.array(zod.string()).describe('Unique ad codes')
+})
+
+
+/**
  * Fetches latest EFO access/cv and exit scenario data from Google Sheets
  * @summary Sync EFO data from Google Sheets
  */
@@ -145,7 +155,9 @@ export const getEfoDataQueryGroupByDefault = `day`;
 export const GetEfoDataQueryParams = zod.object({
   "groupBy": zod.enum(['day', 'week', 'month']).default(getEfoDataQueryGroupByDefault).describe('Aggregation dimension'),
   "dateFrom": zod.coerce.string().nullish().describe('Filter start date (YYYY\/MM\/DD)'),
-  "dateTo": zod.coerce.string().nullish().describe('Filter end date (YYYY\/MM\/DD)')
+  "dateTo": zod.coerce.string().nullish().describe('Filter end date (YYYY\/MM\/DD)'),
+  "profileName": zod.coerce.string().nullish().describe('Filter by profile name'),
+  "adCode": zod.coerce.string().nullish().describe('Filter by ad code')
 })
 
 export const GetEfoDataResponse = zod.object({

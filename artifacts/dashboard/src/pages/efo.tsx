@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetEfoData, useSyncEfo } from "@workspace/api-client-react";
+import { useGetEfoData, useGetEfoFilters, useSyncEfo } from "@workspace/api-client-react";
 import type { GetEfoDataGroupBy, EfoMetrics, EfoExitScenarioCount } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,7 +19,10 @@ import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp } from "lucide-re
 type GroupBy = GetEfoDataGroupBy;
 
 const YELLOW = "#FBBF24";
-const YELLOW_LIGHT = "#FEF3C7";
+const BLUE = "#6366F1";
+
+const SEG_COLORS = { A: YELLOW, B: BLUE } as const;
+const SEG_TEXT_ON_COLOR = { A: "#1A1A1A", B: "#ffffff" } as const;
 
 const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
@@ -27,6 +30,7 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "month", label: "月別" },
 ];
 
+const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
 const FUNNEL_LABELS: Record<string, string> = {
   start: "開始",
   greeting: "挨拶",
@@ -39,23 +43,76 @@ const FUNNEL_LABELS: Record<string, string> = {
   submission: "送信完了",
 };
 
-// ─── KPI Card ─────────────────────────────────────────────────────
-function KpiCard({ label, value, icon: Icon, accent }: { label: string; value: string; icon: React.ElementType; accent?: boolean }) {
+// ─── Segment Selector ─────────────────────────────────────────────
+interface SegmentFilter { profileName: string; adCode: string }
+
+function SegmentSelector({
+  seg, filter, profiles, adCodes, onChange,
+}: {
+  seg: "A" | "B";
+  filter: SegmentFilter;
+  profiles: string[];
+  adCodes: string[];
+  onChange: (f: SegmentFilter) => void;
+}) {
+  const color = SEG_COLORS[seg];
+  const textOnColor = SEG_TEXT_ON_COLOR[seg];
   return (
-    <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: "#fff", border: "1px solid #F0F0F0" }}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold" style={{ color: "#9CA3AF" }}>{label}</span>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: accent ? YELLOW_LIGHT : "#F9FAFB" }}>
-          <Icon size={14} color={accent ? "#D97706" : "#9CA3AF"} />
-        </div>
+    <div className="rounded-xl overflow-hidden flex-1" style={{ border: `2px solid ${color}` }}>
+      <div className="px-4 py-3 flex items-center justify-between" style={{ background: color }}>
+        <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
       </div>
-      <span className="text-2xl font-bold" style={{ color: "#1A1A1A" }}>{value}</span>
+      <div className="px-4 py-3 flex gap-2" style={{ background: "#fff" }}>
+        <select
+          value={filter.profileName}
+          onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
+          className="flex-1 text-xs px-2 py-1.5 rounded-md"
+          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
+        >
+          <option value="">プロファイル: 全体</option>
+          {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select
+          value={filter.adCode}
+          onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
+          className="flex-1 text-xs px-2 py-1.5 rounded-md"
+          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
+        >
+          <option value="">広告コード: 全体</option>
+          {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
     </div>
   );
 }
 
-// ─── Trend Chart ──────────────────────────────────────────────────
-function TrendChart({ items }: { items: EfoMetrics[] }) {
+// ─── KPI Row ───────────────────────────────────────────────────────
+function KpiRow({ summary, isLoading, color }: { summary: EfoMetrics | undefined; isLoading: boolean; color: string }) {
+  const items = [
+    { label: "起動数", value: formatNumber(summary?.accessCount ?? 0), icon: MousePointerClick },
+    { label: "CV数",   value: formatNumber(summary?.cvCount ?? 0), icon: CheckCircle },
+    { label: "CVR",    value: formatPercent(summary?.cvr ?? 0), icon: TrendingUp },
+  ];
+  return (
+    <div className="flex" style={{ borderBottom: "1px solid #F0F0F0" }}>
+      {items.map((k, i) => (
+        <div
+          key={k.label}
+          className="flex-1 px-4 py-3 text-center"
+          style={{ borderRight: i < 2 ? "1px solid #F0F0F0" : "none" }}
+        >
+          <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>{k.label}</div>
+          {isLoading
+            ? <Skeleton className="h-7 w-20 mx-auto" />
+            : <div className="text-xl font-bold" style={{ color: "#111" }}>{k.value}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── CVR Trend Line Chart ──────────────────────────────────────────
+function CvrTrendChart({ items, color }: { items: EfoMetrics[]; color: string }) {
   const data = items.map((item) => ({
     label: item.label,
     accessCount: item.accessCount,
@@ -64,14 +121,14 @@ function TrendChart({ items }: { items: EfoMetrics[] }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={160}>
+      <ComposedChart data={data} margin={{ top: 16, right: 20, left: -10, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-        <YAxis yAxisId="count" orientation="left" tick={{ fontSize: 11, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 11, fill: "#9CA3AF" }} tickLine={false} axisLine={false} unit="%" />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
+        <YAxis yAxisId="count" orientation="left" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={40} />
+        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} unit="%" width={36} />
         <Tooltip
-          contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 12 }}
+          contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11 }}
           formatter={(value: number, name: string) => {
             if (name === "cvr") return [`${value}%`, "CVR"];
             if (name === "accessCount") return [formatNumber(value), "起動数"];
@@ -79,27 +136,20 @@ function TrendChart({ items }: { items: EfoMetrics[] }) {
             return [value, name];
           }}
         />
-        <Bar yAxisId="count" dataKey="accessCount" fill="#E5E7EB" radius={[3, 3, 0, 0]} maxBarSize={40} name="accessCount" />
-        <Bar yAxisId="count" dataKey="cvCount" fill={YELLOW} radius={[3, 3, 0, 0]} maxBarSize={40} name="cvCount" />
-        <Line yAxisId="rate" type="monotone" dataKey="cvr" stroke="#6366F1" strokeWidth={2} dot={{ r: 3, fill: "#6366F1" }} name="cvr" />
+        <Bar yAxisId="count" dataKey="accessCount" fill="#E5E7EB" radius={[3, 3, 0, 0]} maxBarSize={32} name="accessCount" />
+        <Bar yAxisId="count" dataKey="cvCount" fill={color} radius={[3, 3, 0, 0]} maxBarSize={32} name="cvCount" opacity={0.85} />
+        <Line yAxisId="rate" type="monotone" dataKey="cvr" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} name="cvr" />
       </ComposedChart>
     </ResponsiveContainer>
   );
 }
 
-// ─── Arrival Funnel Chart ─────────────────────────────────────────
-const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
-
-function ArrivalFunnelChart({ scenarios }: { scenarios: EfoExitScenarioCount[] }) {
+// ─── Arrival Funnel ────────────────────────────────────────────────
+function ArrivalFunnel({ scenarios, color }: { scenarios: EfoExitScenarioCount[]; color: string }) {
   if (scenarios.length === 0) {
-    return <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#bbb" }}>データがありません</div>;
+    return <div className="h-28 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>データなし</div>;
   }
-
-  // exitMap: scenario → 離脱（or完了）セッション数
   const exitMap = new Map<string, number>(scenarios.map((s) => [s.scenario, s.count]));
-
-  // 到達数 = そのステップ以降（そのステップ含む）の離脱数の合計
-  // ファネル順に後ろから累積
   const orderedSteps = FUNNEL_ORDER.filter((s) => exitMap.has(s));
   let cumulative = 0;
   const arrivals: { raw: string; name: string; arrival: number }[] = [];
@@ -108,28 +158,23 @@ function ArrivalFunnelChart({ scenarios }: { scenarios: EfoExitScenarioCount[] }
     cumulative += exitMap.get(step) ?? 0;
     arrivals.unshift({ raw: step, name: FUNNEL_LABELS[step] ?? step, arrival: cumulative });
   }
-
-  const totalArrival = arrivals[0]?.arrival ?? 1;
-
+  const total = arrivals[0]?.arrival ?? 1;
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-1.5">
       {arrivals.map((d) => {
-        const pct = totalArrival > 0 ? (d.arrival / totalArrival) * 100 : 0;
+        const pct = total > 0 ? (d.arrival / total) * 100 : 0;
         const isGoal = d.raw === "submission";
         return (
-          <div key={d.raw} className="flex items-center gap-3">
-            <span className="text-xs font-medium w-20 text-right shrink-0" style={{ color: "#6B7280" }}>{d.name}</span>
-            <div className="flex-1 h-6 rounded-full overflow-hidden" style={{ background: "#F3F4F6" }}>
+          <div key={d.raw} className="flex items-center gap-2">
+            <span className="text-xs w-16 text-right shrink-0" style={{ color: "#6B7280" }}>{d.name}</span>
+            <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "#F3F4F6" }}>
               <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${pct}%`,
-                  background: isGoal ? "#10B981" : `hsl(${40 + (1 - pct / 100) * 200}, 90%, 60%)`,
-                }}
+                className="h-full rounded-full"
+                style={{ width: `${pct}%`, background: isGoal ? "#10B981" : color, opacity: isGoal ? 1 : 0.5 + pct / 200 }}
               />
             </div>
-            <span className="text-xs font-semibold w-20 shrink-0 text-right" style={{ color: "#374151" }}>
-              {formatNumber(d.arrival)}<span className="font-normal ml-1" style={{ color: "#9CA3AF" }}>({pct.toFixed(1)}%)</span>
+            <span className="text-xs w-16 text-right shrink-0 font-medium" style={{ color: "#374151" }}>
+              {pct.toFixed(1)}%
             </span>
           </div>
         );
@@ -138,24 +183,109 @@ function ArrivalFunnelChart({ scenarios }: { scenarios: EfoExitScenarioCount[] }
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────
-export default function EfoPage() {
-  const [groupBy, setGroupBy] = useState<GroupBy>("day");
-  const queryClient = useQueryClient();
-
-  const { data, isLoading, error } = useGetEfoData({ groupBy });
-  const { mutate: syncEfo, isPending: isSyncing } = useSyncEfo({
-    mutation: {
-      onSuccess: () => {
-        void queryClient.invalidateQueries({ queryKey: ["/api/efo/data"] });
-      },
-    },
-  });
+// ─── Segment Panel ─────────────────────────────────────────────────
+function SegmentPanel({
+  seg, groupBy, filter,
+}: {
+  seg: "A" | "B";
+  groupBy: GroupBy;
+  filter: SegmentFilter;
+}) {
+  const color = SEG_COLORS[seg];
+  const params = {
+    groupBy,
+    ...(filter.profileName ? { profileName: filter.profileName } : {}),
+    ...(filter.adCode ? { adCode: filter.adCode } : {}),
+  };
+  const { data, isLoading, error } = useGetEfoData(params);
 
   const summary = data?.summary;
   const items = data?.items ?? [];
   const exitScenarios = data?.exitScenarios ?? [];
-  const lastSyncedAt = data?.lastSyncedAt;
+
+  return (
+    <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
+      {/* KPIs */}
+      <KpiRow summary={summary} isLoading={isLoading} color={color} />
+
+      {/* CVR Trend */}
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        <div className="text-xs font-semibold mb-2" style={{ color: "#6B7280" }}>CVR推移</div>
+        {isLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : error ? (
+          <div className="h-40 flex items-center justify-center text-xs" style={{ color: "#EF4444" }}>取得失敗</div>
+        ) : items.length === 0 ? (
+          <div className="h-40 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>データなし</div>
+        ) : (
+          <CvrTrendChart items={items} color={color} />
+        )}
+      </div>
+
+      {/* Arrival Funnel */}
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        <div className="text-xs font-semibold mb-3" style={{ color: "#6B7280" }}>ステップ別到達率</div>
+        {isLoading ? (
+          <div className="space-y-1.5">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4 rounded-full" />)}
+          </div>
+        ) : (
+          <ArrivalFunnel scenarios={exitScenarios} color={color} />
+        )}
+      </div>
+
+      {/* Table */}
+      {!isLoading && items.length > 0 && (
+        <div style={{ background: "#FAFAFA" }}>
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
+                {["ラベル", "起動数", "CV数", "CVR"].map((h) => (
+                  <th key={h} className="px-4 py-2 text-left font-semibold" style={{ color: "#9CA3AF" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={`${item.label}-${i}`} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                  <td className="px-4 py-2 font-medium" style={{ color: "#6B7280" }}>{item.label}</td>
+                  <td className="px-4 py-2" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>
+                  <td className="px-4 py-2" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>
+                  <td className="px-4 py-2 font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>
+                    {formatPercent(item.cvr)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────
+export default function EfoPage() {
+  const [groupBy, setGroupBy] = useState<GroupBy>("week");
+  const [filterA, setFilterA] = useState<SegmentFilter>({ profileName: "", adCode: "" });
+  const [filterB, setFilterB] = useState<SegmentFilter>({ profileName: "", adCode: "" });
+  const queryClient = useQueryClient();
+
+  const { data: filtersData } = useGetEfoFilters();
+  const profiles = filtersData?.profileNames ?? [];
+  const adCodes = filtersData?.adCodes ?? [];
+
+  const { data: anyData } = useGetEfoData({ groupBy });
+  const lastSyncedAt = anyData?.lastSyncedAt;
+
+  const { mutate: syncEfo, isPending: isSyncing } = useSyncEfo({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/data"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/filters"] });
+      },
+    },
+  });
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "#F8F8F8" }}>
@@ -165,45 +295,12 @@ export default function EfoPage() {
           <div>
             <h1 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>EFO CVRレポート</h1>
             <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-              フォーム起動数・CV・CVR・離脱シナリオの分析
+              セグメント比較
               {lastSyncedAt && <> ・最終更新: {new Date(lastSyncedAt).toLocaleString("ja-JP")}</>}
             </p>
           </div>
-          <button
-            onClick={() => syncEfo(undefined)}
-            disabled={isSyncing}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all"
-            style={{ background: "#1A1A1A", color: "#fff", opacity: isSyncing ? 0.6 : 1 }}
-          >
-            <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-            スプレッドシートから更新
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 p-6 space-y-5">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : (
-            <>
-              <KpiCard label="起動数（合計）" value={formatNumber(summary?.accessCount ?? 0)} icon={MousePointerClick} />
-              <KpiCard label="CV数（合計）" value={formatNumber(summary?.cvCount ?? 0)} icon={CheckCircle} />
-              <KpiCard
-                label="CVR"
-                value={formatPercent(summary?.cvr ?? 0)}
-                icon={TrendingUp}
-                accent
-              />
-            </>
-          )}
-        </div>
-
-        {/* Trend Chart */}
-        <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid #F0F0F0" }}>
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-sm font-semibold" style={{ color: "#374151" }}>トレンド（起動数・CV数・CVR）</h2>
+          <div className="flex items-center gap-3">
+            {/* GroupBy tabs */}
             <div className="flex gap-1">
               {GROUP_TABS.map((tab) => (
                 <button
@@ -218,68 +315,31 @@ export default function EfoPage() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => syncEfo(undefined)}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{ background: "#1A1A1A", color: "#fff", opacity: isSyncing ? 0.6 : 1 }}
+            >
+              <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
+              スプレッドシートから更新
+            </button>
           </div>
-          {isLoading ? (
-            <Skeleton className="h-60 w-full rounded-lg" />
-          ) : error ? (
-            <div className="h-60 flex items-center justify-center text-sm" style={{ color: "#EF4444" }}>
-              データ取得に失敗しました
-            </div>
-          ) : items.length === 0 ? (
-            <div className="h-60 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
-              データがありません
-            </div>
-          ) : (
-            <TrendChart items={items} />
-          )}
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 space-y-4">
+        {/* Segment Selectors */}
+        <div className="flex gap-4">
+          <SegmentSelector seg="A" filter={filterA} profiles={profiles} adCodes={adCodes} onChange={setFilterA} />
+          <SegmentSelector seg="B" filter={filterB} profiles={profiles} adCodes={adCodes} onChange={setFilterB} />
         </div>
 
-        {/* Exit Scenario Chart */}
-        <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid #F0F0F0" }}>
-          <h2 className="text-sm font-semibold mb-5" style={{ color: "#374151" }}>
-            ステップ別到達数
-            <span className="ml-2 text-xs font-normal" style={{ color: "#9CA3AF" }}>（各ステップに到達したセッション数の推移）</span>
-          </h2>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 rounded-full" />)}
-            </div>
-          ) : (
-            <ArrivalFunnelChart scenarios={exitScenarios} />
-          )}
+        {/* Side-by-side Panels */}
+        <div className="flex gap-4 items-start">
+          <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} />
+          <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} />
         </div>
-
-        {/* Data Table */}
-        {!isLoading && items.length > 0 && (
-          <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #F0F0F0" }}>
-            <div className="px-5 py-3 border-b" style={{ borderColor: "#F0F0F0" }}>
-              <h2 className="text-sm font-semibold" style={{ color: "#374151" }}>詳細データ</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
-                    {["ラベル", "起動数", "CV数", "CVR"].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold" style={{ color: "#9CA3AF" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, i) => (
-                    <tr key={`${item.label}-${i}`} className="hover:bg-[#FAFAFA] transition-colors" style={{ borderBottom: "1px solid #F9FAFB" }}>
-                      <td className="px-5 py-3 font-medium" style={{ color: "#6B7280" }}>{item.label}</td>
-                      <td className="px-5 py-3" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>
-                      <td className="px-5 py-3" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>
-                      <td className="px-5 py-3 font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>
-                        {formatPercent(item.cvr)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

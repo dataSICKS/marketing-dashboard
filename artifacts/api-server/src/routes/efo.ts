@@ -69,21 +69,39 @@ router.post("/efo/sync", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/efo/filters", async (req, res): Promise<void> => {
+  try {
+    const { accessCvRows } = await getEfoData(req);
+    const profileNames = Array.from(new Set(accessCvRows.map((r) => r.profileName))).sort();
+    const adCodes = Array.from(new Set(accessCvRows.map((r) => r.adCode))).sort();
+    res.json({ profileNames, adCodes });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch EFO filters");
+    res.status(500).json({ error: "EFOフィルター取得に失敗しました" });
+  }
+});
+
 router.get("/efo/data", async (req, res): Promise<void> => {
   try {
     const groupBy = (req.query.groupBy as EfoGroupBy | undefined) ?? "day";
     const dateFrom = req.query.dateFrom as string | undefined;
     const dateTo = req.query.dateTo as string | undefined;
+    const profileName = req.query.profileName as string | undefined;
+    const adCode = req.query.adCode as string | undefined;
 
     const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, syncedAt } = await getEfoData(req);
 
     let accessCvRows = allAccessCv;
     if (dateFrom) accessCvRows = accessCvRows.filter((r) => r.date >= dateFrom);
     if (dateTo) accessCvRows = accessCvRows.filter((r) => r.date <= dateTo);
+    if (profileName) accessCvRows = accessCvRows.filter((r) => r.profileName === profileName);
+    if (adCode) accessCvRows = accessCvRows.filter((r) => r.adCode === adCode);
 
     let exitScenarioRows = allExitScenarios;
     if (dateFrom) exitScenarioRows = exitScenarioRows.filter((r) => r.date >= dateFrom);
     if (dateTo) exitScenarioRows = exitScenarioRows.filter((r) => r.date <= dateTo);
+    if (profileName) exitScenarioRows = exitScenarioRows.filter((r) => r.profileName === profileName);
+    if (adCode) exitScenarioRows = exitScenarioRows.filter((r) => r.adCode === adCode);
 
     const items = aggregateEfoRows(accessCvRows, groupBy);
     const summary = computeEfoSummary(accessCvRows);

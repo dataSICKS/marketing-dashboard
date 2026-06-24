@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  EfoFilters,
   EfoReportResponse,
   EfoSyncResult,
   ErrorResponse,
@@ -343,6 +344,84 @@ export function useGetNewsletterSegments<TData = Awaited<ReturnType<typeof getNe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNewsletterSegmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetEfoFiltersUrl = () => {
+
+
+
+
+  return `/api/efo/filters`
+}
+
+/**
+ * Returns unique profile names and ad codes available in the data
+ * @summary Get available EFO filter values
+ */
+export const getEfoFilters = async ( options?: RequestInit): Promise<EfoFilters> => {
+
+  return customFetch<EfoFilters>(getGetEfoFiltersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEfoFiltersQueryKey = () => {
+    return [
+    `/api/efo/filters`
+    ] as const;
+    }
+
+
+export const getGetEfoFiltersQueryOptions = <TData = Awaited<ReturnType<typeof getEfoFilters>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEfoFilters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEfoFiltersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEfoFilters>>> = ({ signal }) => getEfoFilters({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEfoFilters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEfoFiltersQueryResult = NonNullable<Awaited<ReturnType<typeof getEfoFilters>>>
+export type GetEfoFiltersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get available EFO filter values
+ */
+
+export function useGetEfoFilters<TData = Awaited<ReturnType<typeof getEfoFilters>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEfoFilters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEfoFiltersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

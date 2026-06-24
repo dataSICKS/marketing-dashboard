@@ -115,6 +115,13 @@ export interface NewsletterSegmentsResponse {
   segments: string[];
 }
 
+export interface EfoFilters {
+  /** Unique profile names */
+  profileNames: string[];
+  /** Unique ad codes */
+  adCodes: string[];
+}
+
 export interface EfoSyncResult {
   accessCvRowCount: number;
   exitScenarioRowCount: number;
@@ -200,6 +207,16 @@ dateFrom?: string | null;
  * @nullable
  */
 dateTo?: string | null;
+/**
+ * Filter by profile name
+ * @nullable
+ */
+profileName?: string | null;
+/**
+ * Filter by ad code
+ * @nullable
+ */
+adCode?: string | null;
 };
 
 export type GetEfoDataGroupBy = typeof GetEfoDataGroupBy[keyof typeof GetEfoDataGroupBy];

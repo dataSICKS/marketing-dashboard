@@ -7,6 +7,7 @@
  */
 
 export * from './efoExitScenarioCount';
+export * from './efoFilters';
 export * from './efoMetrics';
 export * from './efoReportResponse';
 export * from './efoSyncResult';
