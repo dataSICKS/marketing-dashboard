@@ -69,14 +69,32 @@ export async function upsertEfoExitScenarios(rows: EfoExitScenarioRow[], syncedA
   logger.info({ rowCount: records.length }, "Upserted efo_exit_scenarios to Supabase");
 }
 
+async function fetchAllPages(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fetcher: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>,
+  pageSize = 1000,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await fetcher(offset, offset + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
+}
+
 export async function fetchEfoAccessCvFromSupabase(): Promise<{ rows: EfoAccessCvRow[]; syncedAt: string | null }> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("efo_access_cv").select("*").order("date", { ascending: true });
-  if (error) {
-    logger.error({ error }, "Supabase fetch efo_access_cv failed");
-    throw new Error(`Supabase fetch失敗: ${error.message}`);
-  }
-  if (!data || data.length === 0) return { rows: [], syncedAt: null };
+  const data = await fetchAllPages((from, to) =>
+    supabase.from("efo_access_cv").select("*").order("date", { ascending: true }).range(from, to),
+  );
+  if (data.length === 0) return { rows: [], syncedAt: null };
   const rows: EfoAccessCvRow[] = data.map((r) => ({
     date: r.date ?? "",
     adCode: r.ad_code ?? "",
@@ -84,17 +102,16 @@ export async function fetchEfoAccessCvFromSupabase(): Promise<{ rows: EfoAccessC
     accessCount: r.access_count ?? 0,
     cvCount: r.cv_count ?? 0,
   }));
+  logger.info({ rowCount: rows.length }, "Fetched efo_access_cv from Supabase");
   return { rows, syncedAt: data[0]?.synced_at ?? null };
 }
 
 export async function fetchEfoExitScenariosFromSupabase(): Promise<{ rows: EfoExitScenarioRow[]; syncedAt: string | null }> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("efo_exit_scenarios").select("*").order("date", { ascending: true });
-  if (error) {
-    logger.error({ error }, "Supabase fetch efo_exit_scenarios failed");
-    throw new Error(`Supabase fetch失敗: ${error.message}`);
-  }
-  if (!data || data.length === 0) return { rows: [], syncedAt: null };
+  const data = await fetchAllPages((from, to) =>
+    supabase.from("efo_exit_scenarios").select("*").order("date", { ascending: true }).range(from, to),
+  );
+  if (data.length === 0) return { rows: [], syncedAt: null };
   const rows: EfoExitScenarioRow[] = data.map((r) => ({
     date: r.date ?? "",
     profileName: r.profile_name ?? "",
@@ -102,5 +119,6 @@ export async function fetchEfoExitScenariosFromSupabase(): Promise<{ rows: EfoEx
     exitScenario: r.exit_scenario ?? "",
     sessionCount: r.session_count ?? 0,
   }));
+  logger.info({ rowCount: rows.length }, "Fetched efo_exit_scenarios from Supabase");
   return { rows, syncedAt: data[0]?.synced_at ?? null };
 }
