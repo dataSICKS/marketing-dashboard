@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 export interface EfoDateRange { from: string; to: string }
@@ -164,7 +165,9 @@ interface Props {
 
 export default function EfoDateRangePicker({ value, onChange, accentColor = "#6366F1" }: Props) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const [pendingFrom, setPendingFrom] = useState<string | null>(value?.from ?? null);
   const [pendingTo, setPendingTo] = useState<string | null>(value?.to ?? null);
@@ -174,7 +177,6 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
   const [viewMonth, setViewMonth] = useState<Date>(() => {
     if (value?.from) {
       const d = fromStr(value.from); d.setDate(1);
-      // show left month = month before `from`, so `from` is visible in right calendar
       return addMonths(d, -1);
     }
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d;
@@ -182,13 +184,23 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const handleOpen = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPopoverPos({ top: rect.bottom + 6, left: rect.left });
+    }
     setPendingFrom(value?.from ?? null);
     setPendingTo(value?.to ?? null);
     setSelecting("from");
@@ -240,9 +252,10 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
   const accentLight = `${accentColor}18`;
 
   return (
-    <div ref={ref} className="relative w-full">
+    <div className="relative w-full">
       {/* Trigger */}
       <button
+        ref={triggerRef}
         onClick={handleOpen}
         className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg w-full"
         style={{
@@ -262,11 +275,12 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
         <ChevronRight size={13} color="#9CA3AF" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} />
       </button>
 
-      {/* Popover */}
-      {open && (
+      {/* Popover — rendered in body via portal to escape overflow:hidden */}
+      {open && createPortal(
         <div
-          className="absolute z-50 bg-white rounded-2xl shadow-2xl"
-          style={{ top: "calc(100% + 6px)", left: 0, border: "1px solid #E5E7EB", minWidth: 580 }}
+          ref={popoverRef}
+          className="bg-white rounded-2xl shadow-2xl"
+          style={{ position: "fixed", top: popoverPos.top, left: popoverPos.left, zIndex: 9999, border: "1px solid #E5E7EB", minWidth: 580 }}
         >
           <div className="flex">
             {/* Quick presets */}
@@ -392,7 +406,7 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
