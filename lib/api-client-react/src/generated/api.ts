@@ -20,7 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  EfoReportResponse,
+  EfoSyncResult,
   ErrorResponse,
+  GetEfoDataParams,
   GetNewsletterDataParams,
   HealthStatus,
   NewsletterReportResponse,
@@ -340,6 +343,162 @@ export function useGetNewsletterSegments<TData = Awaited<ReturnType<typeof getNe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNewsletterSegmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSyncEfoUrl = () => {
+
+
+
+
+  return `/api/efo/sync`
+}
+
+/**
+ * Fetches latest EFO access/cv and exit scenario data from Google Sheets
+ * @summary Sync EFO data from Google Sheets
+ */
+export const syncEfo = async ( options?: RequestInit): Promise<EfoSyncResult> => {
+
+  return customFetch<EfoSyncResult>(getSyncEfoUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncEfoMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncEfo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncEfo>>, TError,void, TContext> => {
+
+const mutationKey = ['syncEfo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncEfo>>, void> = () => {
+
+
+          return  syncEfo(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncEfoMutationResult = NonNullable<Awaited<ReturnType<typeof syncEfo>>>
+
+    export type SyncEfoMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Sync EFO data from Google Sheets
+ */
+export const useSyncEfo = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncEfo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncEfo>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncEfoMutationOptions(options));
+    }
+
+export const getGetEfoDataUrl = (params?: GetEfoDataParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/efo/data?${stringifiedParams}` : `/api/efo/data`
+}
+
+/**
+ * Returns aggregated EFO metrics and exit scenario funnel
+ * @summary Get EFO CVR report data
+ */
+export const getEfoData = async (params?: GetEfoDataParams, options?: RequestInit): Promise<EfoReportResponse> => {
+
+  return customFetch<EfoReportResponse>(getGetEfoDataUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEfoDataQueryKey = (params?: GetEfoDataParams,) => {
+    return [
+    `/api/efo/data`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEfoDataQueryOptions = <TData = Awaited<ReturnType<typeof getEfoData>>, TError = ErrorType<ErrorResponse>>(params?: GetEfoDataParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEfoData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEfoDataQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEfoData>>> = ({ signal }) => getEfoData(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEfoData>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEfoDataQueryResult = NonNullable<Awaited<ReturnType<typeof getEfoData>>>
+export type GetEfoDataQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get EFO CVR report data
+ */
+
+export function useGetEfoData<TData = Awaited<ReturnType<typeof getEfoData>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetEfoDataParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEfoData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEfoDataQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

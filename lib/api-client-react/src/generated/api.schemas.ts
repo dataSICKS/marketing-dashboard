@@ -115,6 +115,34 @@ export interface NewsletterSegmentsResponse {
   segments: string[];
 }
 
+export interface EfoSyncResult {
+  accessCvRowCount: number;
+  exitScenarioRowCount: number;
+  syncedAt: string;
+}
+
+export interface EfoMetrics {
+  label: string;
+  accessCount: number;
+  cvCount: number;
+  cvr: number;
+}
+
+export interface EfoExitScenarioCount {
+  scenario: string;
+  count: number;
+}
+
+export interface EfoReportResponse {
+  groupBy: string;
+  items: EfoMetrics[];
+  summary: EfoMetrics;
+  /** 離脱シナリオ別件数（ファネル順） */
+  exitScenarios: EfoExitScenarioCount[];
+  /** @nullable */
+  lastSyncedAt: string | null;
+}
+
 export type GetNewsletterDataParams = {
 /**
  * Aggregation dimension
@@ -155,5 +183,31 @@ export const GetNewsletterDataGroupBy = {
   week: 'week',
   month: 'month',
   template: 'template',
+} as const;
+
+export type GetEfoDataParams = {
+/**
+ * Aggregation dimension
+ */
+groupBy?: GetEfoDataGroupBy;
+/**
+ * Filter start date (YYYY/MM/DD)
+ * @nullable
+ */
+dateFrom?: string | null;
+/**
+ * Filter end date (YYYY/MM/DD)
+ * @nullable
+ */
+dateTo?: string | null;
+};
+
+export type GetEfoDataGroupBy = typeof GetEfoDataGroupBy[keyof typeof GetEfoDataGroupBy];
+
+
+export const GetEfoDataGroupBy = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
 } as const;
 

@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: newsletter
     description: Newsletter report operations
+  - name: efo
+    description: EFO CVR report operations
 paths:
   /healthz:
     get:
@@ -119,6 +121,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NewsletterSegmentsResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /efo/sync:
+    post:
+      operationId: syncEfo
+      tags: [efo]
+      summary: Sync EFO data from Google Sheets
+      description: Fetches latest EFO access/cv and exit scenario data from Google Sheets
+      responses:
+        "200":
+          description: Synced EFO data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoSyncResult"
+        "500":
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /efo/data:
+    get:
+      operationId: getEfoData
+      tags: [efo]
+      summary: Get EFO CVR report data
+      description: Returns aggregated EFO metrics and exit scenario funnel
+      parameters:
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+          description: Aggregation dimension
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter start date (YYYY/MM/DD)
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter end date (YYYY/MM/DD)
+      responses:
+        "200":
+          description: EFO report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoReportResponse"
         "500":
           description: Fetch failed
           content:
@@ -317,3 +380,70 @@ components:
             type: string
       required:
         - segments
+
+    EfoSyncResult:
+      type: object
+      properties:
+        accessCvRowCount:
+          type: number
+        exitScenarioRowCount:
+          type: number
+        syncedAt:
+          type: string
+      required:
+        - accessCvRowCount
+        - exitScenarioRowCount
+        - syncedAt
+
+    EfoMetrics:
+      type: object
+      properties:
+        label:
+          type: string
+        accessCount:
+          type: number
+        cvCount:
+          type: number
+        cvr:
+          type: number
+      required:
+        - label
+        - accessCount
+        - cvCount
+        - cvr
+
+    EfoExitScenarioCount:
+      type: object
+      properties:
+        scenario:
+          type: string
+        count:
+          type: number
+      required:
+        - scenario
+        - count
+
+    EfoReportResponse:
+      type: object
+      properties:
+        groupBy:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EfoMetrics"
+        summary:
+          $ref: "#/components/schemas/EfoMetrics"
+        exitScenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/EfoExitScenarioCount"
+          description: 離脱シナリオ別件数（ファネル順）
+        lastSyncedAt:
+          type: ["string", "null"]
+      required:
+        - groupBy
+        - items
+        - summary
+        - exitScenarios
+        - lastSyncedAt

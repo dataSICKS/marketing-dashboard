@@ -25,12 +25,7 @@ import {
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import {
   RefreshCw,
-  LayoutDashboard,
   Mail,
-  BarChart2,
-  Settings,
-  LogOut,
-  Menu,
   X,
   TrendingUp,
   TrendingDown,
@@ -43,13 +38,6 @@ type GroupBy = GetNewsletterDataGroupBy;
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
 const YELLOW_DARK = "#D97706";
-
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "ホーム", active: false },
-  { icon: Mail, label: "メルマガ分析", active: true },
-  { icon: BarChart2, label: "シナリオ分析", active: false },
-  { icon: Settings, label: "設定", active: false },
-];
 
 const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
@@ -72,47 +60,6 @@ function DiffBadge({ current, prev }: { current: number; prev: number | null | u
       {isUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
       {isUp ? "+" : ""}{(pct * 100).toFixed(1)}%
     </span>
-  );
-}
-
-// ─── Sidebar ─────────────────────────────────────────────────────
-function SidebarContent({ onClose }: { onClose?: () => void }) {
-  return (
-    <div className="flex flex-col h-full bg-white" style={{ borderRight: "1px solid #EBEBEB" }}>
-      <div className="px-5 h-14 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #EBEBEB" }}>
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: YELLOW }}>
-            <BarChart2 size={14} color="#fff" />
-          </div>
-          <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>Mail Analytics</span>
-        </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "#9CA3AF" }}>
-            <X size={18} />
-          </button>
-        )}
-      </div>
-      <nav className="flex-1 p-3 flex flex-col gap-0.5 overflow-y-auto">
-        <div className="px-3 py-2 text-[10px] font-semibold" style={{ color: "#BBBBBB", letterSpacing: "0.1em" }}>分析</div>
-        {NAV_ITEMS.map(({ icon: Icon, label, active }) => (
-          <div
-            key={label}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-sm"
-            style={active ? { background: YELLOW_LIGHT, color: YELLOW_DARK, fontWeight: 600 } : { color: "#6B7280" }}
-            onClick={onClose}
-          >
-            <Icon size={16} color={active ? YELLOW_DARK : "#9CA3AF"} />
-            {label}
-          </div>
-        ))}
-      </nav>
-      <div className="p-3 shrink-0" style={{ borderTop: "1px solid #EBEBEB" }}>
-        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm" style={{ color: "#9CA3AF" }}>
-          <LogOut size={16} color="#9CA3AF" />
-          ログアウト
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -188,7 +135,6 @@ function MetricsTable({
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // date range + comparison — managed by DateRangePicker
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
@@ -241,26 +187,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ fontFamily: "'Inter','Noto Sans JP',sans-serif", background: "#F7F8FA" }}>
-
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col" style={{ minHeight: "100vh" }}>
-        <div className="sticky top-0 h-screen">
-          <SidebarContent />
-        </div>
-      </aside>
-
-      {/* Mobile Drawer */}
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setDrawerOpen(false)} />
-          <div className="relative w-64 h-full z-10 shadow-xl">
-            <SidebarContent onClose={() => setDrawerOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      <main className="flex-1 flex flex-col min-w-0">
+    <>
+    <main className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
         <div
@@ -268,9 +196,7 @@ export default function Dashboard() {
           style={{ borderBottom: "1px solid #EBEBEB" }}
         >
           <div className="flex items-center gap-3">
-            <button className="md:hidden p-1.5 rounded-lg" style={{ color: "#6B7280" }} onClick={() => setDrawerOpen(true)}>
-              <Menu size={20} />
-            </button>
+            <div className="w-8 md:hidden" />
             <div>
               <div className="hidden sm:block text-xs" style={{ color: "#9CA3AF" }}>メルマガ · 配信分析</div>
               <div className="text-sm md:text-base font-bold leading-tight" style={{ color: "#1A1A1A" }} data-testid="heading-title">
@@ -507,7 +433,7 @@ export default function Dashboard() {
       {segmentDropdownOpen && (
         <div className="fixed inset-0 z-10" onClick={() => setSegmentDropdownOpen(false)} />
       )}
-    </div>
+    </>
   );
 }
 

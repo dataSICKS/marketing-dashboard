@@ -6,7 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './efoExitScenarioCount';
+export * from './efoMetrics';
+export * from './efoReportResponse';
+export * from './efoSyncResult';
 export * from './errorResponse';
+export * from './getEfoDataGroupBy';
+export * from './getEfoDataParams';
 export * from './getNewsletterDataGroupBy';
 export * from './getNewsletterDataParams';
 export * from './healthStatus';

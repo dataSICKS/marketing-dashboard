@@ -125,3 +125,48 @@ export const GetNewsletterSegmentsResponse = zod.object({
 })
 
 
+/**
+ * Fetches latest EFO access/cv and exit scenario data from Google Sheets
+ * @summary Sync EFO data from Google Sheets
+ */
+export const SyncEfoResponse = zod.object({
+  "accessCvRowCount": zod.number(),
+  "exitScenarioRowCount": zod.number(),
+  "syncedAt": zod.string()
+})
+
+
+/**
+ * Returns aggregated EFO metrics and exit scenario funnel
+ * @summary Get EFO CVR report data
+ */
+export const getEfoDataQueryGroupByDefault = `day`;
+
+export const GetEfoDataQueryParams = zod.object({
+  "groupBy": zod.enum(['day', 'week', 'month']).default(getEfoDataQueryGroupByDefault).describe('Aggregation dimension'),
+  "dateFrom": zod.coerce.string().nullish().describe('Filter start date (YYYY\/MM\/DD)'),
+  "dateTo": zod.coerce.string().nullish().describe('Filter end date (YYYY\/MM\/DD)')
+})
+
+export const GetEfoDataResponse = zod.object({
+  "groupBy": zod.string(),
+  "items": zod.array(zod.object({
+  "label": zod.string(),
+  "accessCount": zod.number(),
+  "cvCount": zod.number(),
+  "cvr": zod.number()
+})),
+  "summary": zod.object({
+  "label": zod.string(),
+  "accessCount": zod.number(),
+  "cvCount": zod.number(),
+  "cvr": zod.number()
+}),
+  "exitScenarios": zod.array(zod.object({
+  "scenario": zod.string(),
+  "count": zod.number()
+})).describe('離脱シナリオ別件数（ファネル順）'),
+  "lastSyncedAt": zod.string().nullable()
+})
+
+

@@ -1,0 +1,114 @@
+import { Router, type IRouter } from "express";
+import { fetchEfoAccessSheet, fetchEfoExitScenariosSheet } from "../lib/efo-sheets.js";
+import { aggregateEfoRows, computeEfoSummary, type EfoGroupBy } from "../lib/efo-aggregate.js";
+import {
+  upsertEfoAccessCv,
+  upsertEfoExitScenarios,
+  fetchEfoAccessCvFromSupabase,
+  fetchEfoExitScenariosFromSupabase,
+} from "../lib/efo-supabase.js";
+import type { EfoAccessCvRow, EfoExitScenarioRow, EfoExitScenarioCount } from "../lib/efo-types.js";
+
+const router: IRouter = Router();
+
+const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
+
+let accessCvCache: { rows: EfoAccessCvRow[]; syncedAt: string } | null = null;
+let exitScenariosCache: { rows: EfoExitScenarioRow[]; syncedAt: string } | null = null;
+
+async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void } }) {
+  if (!accessCvCache || !exitScenariosCache) {
+    req.log.info("No EFO in-memory cache, fetching from Supabase");
+    const [{ rows: acRows, syncedAt: acSyncedAt }, { rows: esRows, syncedAt: esSyncedAt }] = await Promise.all([
+      fetchEfoAccessCvFromSupabase(),
+      fetchEfoExitScenariosFromSupabase(),
+    ]);
+    if (acRows.length > 0 && acSyncedAt) {
+      accessCvCache = { rows: acRows, syncedAt: acSyncedAt };
+      exitScenariosCache = { rows: esRows, syncedAt: esSyncedAt ?? acSyncedAt };
+    } else {
+      req.log.info("Supabase EFO empty, fetching from Google Sheets");
+      const [acSheets, esSheets] = await Promise.all([
+        fetchEfoAccessSheet(),
+        fetchEfoExitScenariosSheet(),
+      ]);
+      const syncedAt = new Date().toISOString();
+      await Promise.all([
+        upsertEfoAccessCv(acSheets, syncedAt),
+        upsertEfoExitScenarios(esSheets, syncedAt),
+      ]);
+      accessCvCache = { rows: acSheets, syncedAt };
+      exitScenariosCache = { rows: esSheets, syncedAt };
+    }
+  }
+  return {
+    accessCvRows: accessCvCache.rows,
+    exitScenarioRows: exitScenariosCache.rows,
+    syncedAt: accessCvCache.syncedAt,
+  };
+}
+
+router.post("/efo/sync", async (req, res): Promise<void> => {
+  try {
+    req.log.info("Syncing EFO data from Google Sheets");
+    const [acRows, esRows] = await Promise.all([
+      fetchEfoAccessSheet(),
+      fetchEfoExitScenariosSheet(),
+    ]);
+    const syncedAt = new Date().toISOString();
+    await Promise.all([
+      upsertEfoAccessCv(acRows, syncedAt),
+      upsertEfoExitScenarios(esRows, syncedAt),
+    ]);
+    accessCvCache = { rows: acRows, syncedAt };
+    exitScenariosCache = { rows: esRows, syncedAt };
+    res.json({ accessCvRowCount: acRows.length, exitScenarioRowCount: esRows.length, syncedAt });
+  } catch (err) {
+    req.log.error({ err }, "Failed to sync EFO data");
+    res.status(500).json({ error: "Google Sheets からのEFOデータ取得に失敗しました" });
+  }
+});
+
+router.get("/efo/data", async (req, res): Promise<void> => {
+  try {
+    const groupBy = (req.query.groupBy as EfoGroupBy | undefined) ?? "day";
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+
+    const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, syncedAt } = await getEfoData(req);
+
+    let accessCvRows = allAccessCv;
+    if (dateFrom) accessCvRows = accessCvRows.filter((r) => r.date >= dateFrom);
+    if (dateTo) accessCvRows = accessCvRows.filter((r) => r.date <= dateTo);
+
+    let exitScenarioRows = allExitScenarios;
+    if (dateFrom) exitScenarioRows = exitScenarioRows.filter((r) => r.date >= dateFrom);
+    if (dateTo) exitScenarioRows = exitScenarioRows.filter((r) => r.date <= dateTo);
+
+    const items = aggregateEfoRows(accessCvRows, groupBy);
+    const summary = computeEfoSummary(accessCvRows);
+
+    // aggregate exit scenarios
+    const scenarioMap = new Map<string, number>();
+    for (const r of exitScenarioRows) {
+      scenarioMap.set(r.exitScenario, (scenarioMap.get(r.exitScenario) ?? 0) + r.sessionCount);
+    }
+    const exitScenarios: EfoExitScenarioCount[] = Array.from(scenarioMap.entries())
+      .map(([scenario, count]) => ({ scenario, count }))
+      .sort((a, b) => {
+        const ai = FUNNEL_ORDER.indexOf(a.scenario);
+        const bi = FUNNEL_ORDER.indexOf(b.scenario);
+        if (ai === -1 && bi === -1) return a.scenario.localeCompare(b.scenario);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+
+    res.json({ groupBy, items, summary, exitScenarios, lastSyncedAt: syncedAt });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch EFO data");
+    res.status(500).json({ error: "EFOデータ取得に失敗しました" });
+  }
+});
+
+export default router;
