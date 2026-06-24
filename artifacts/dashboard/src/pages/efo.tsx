@@ -44,7 +44,7 @@ const FUNNEL_LABELS: Record<string, string> = {
 };
 
 // ─── Segment Selector ─────────────────────────────────────────────
-interface SegmentFilter { profileName: string; adCode: string }
+interface SegmentFilter { profileName: string; adCode: string; dateFrom: string; dateTo: string }
 
 function SegmentSelector({
   seg, filter, profiles, adCodes, onChange,
@@ -62,25 +62,54 @@ function SegmentSelector({
       <div className="px-4 py-3 flex items-center justify-between" style={{ background: color }}>
         <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
       </div>
-      <div className="px-4 py-3 flex gap-2" style={{ background: "#fff" }}>
-        <select
-          value={filter.profileName}
-          onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
-          className="flex-1 text-xs px-2 py-1.5 rounded-md"
-          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
-        >
-          <option value="">プロファイル: 全体</option>
-          {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select
-          value={filter.adCode}
-          onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
-          className="flex-1 text-xs px-2 py-1.5 rounded-md"
-          style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
-        >
-          <option value="">広告コード: 全体</option>
-          {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
+      <div className="px-4 py-3 flex flex-col gap-2" style={{ background: "#fff" }}>
+        <div className="flex gap-2">
+          <select
+            value={filter.profileName}
+            onChange={(e) => onChange({ ...filter, profileName: e.target.value })}
+            className="flex-1 text-xs px-2 py-1.5 rounded-md"
+            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
+          >
+            <option value="">プロファイル: 全体</option>
+            {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select
+            value={filter.adCode}
+            onChange={(e) => onChange({ ...filter, adCode: e.target.value })}
+            className="flex-1 text-xs px-2 py-1.5 rounded-md"
+            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#F9FAFB" }}
+          >
+            <option value="">広告コード: 全体</option>
+            {adCodes.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs shrink-0" style={{ color: "#9CA3AF" }}>期間</span>
+          <input
+            type="date"
+            value={filter.dateFrom}
+            onChange={(e) => onChange({ ...filter, dateFrom: e.target.value })}
+            className="flex-1 text-xs px-2 py-1.5 rounded-md"
+            style={{ border: "1px solid #E5E7EB", color: filter.dateFrom ? "#374151" : "#9CA3AF", background: "#F9FAFB" }}
+          />
+          <span className="text-xs shrink-0" style={{ color: "#9CA3AF" }}>〜</span>
+          <input
+            type="date"
+            value={filter.dateTo}
+            onChange={(e) => onChange({ ...filter, dateTo: e.target.value })}
+            className="flex-1 text-xs px-2 py-1.5 rounded-md"
+            style={{ border: "1px solid #E5E7EB", color: filter.dateTo ? "#374151" : "#9CA3AF", background: "#F9FAFB" }}
+          />
+          {(filter.dateFrom || filter.dateTo) && (
+            <button
+              onClick={() => onChange({ ...filter, dateFrom: "", dateTo: "" })}
+              className="text-xs px-2 py-1 rounded shrink-0"
+              style={{ color: "#9CA3AF", background: "#F3F4F6" }}
+            >
+              クリア
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -196,6 +225,8 @@ function SegmentPanel({
     groupBy,
     ...(filter.profileName ? { profileName: filter.profileName } : {}),
     ...(filter.adCode ? { adCode: filter.adCode } : {}),
+    ...(filter.dateFrom ? { dateFrom: filter.dateFrom } : {}),
+    ...(filter.dateTo ? { dateTo: filter.dateTo } : {}),
   };
   const { data, isLoading, error } = useGetEfoData(params);
 
@@ -267,8 +298,8 @@ function SegmentPanel({
 // ─── Main Page ────────────────────────────────────────────────────
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
-  const [filterA, setFilterA] = useState<SegmentFilter>({ profileName: "", adCode: "" });
-  const [filterB, setFilterB] = useState<SegmentFilter>({ profileName: "", adCode: "" });
+  const [filterA, setFilterA] = useState<SegmentFilter>({ profileName: "", adCode: "", dateFrom: "", dateTo: "" });
+  const [filterB, setFilterB] = useState<SegmentFilter>({ profileName: "", adCode: "", dateFrom: "", dateTo: "" });
   const queryClient = useQueryClient();
 
   const { data: filtersData } = useGetEfoFilters();
