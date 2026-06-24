@@ -48,7 +48,9 @@ export default function MultiSelectCombobox({
   function openDropdown() {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      const popupWidth = Math.max(rect.width, 260);
+      const left = Math.min(rect.left, window.innerWidth - popupWidth - 8);
+      setPos({ top: rect.bottom + 4, left: Math.max(8, left), width: rect.width });
     }
     setOpen(true);
     setTimeout(() => inputRef.current?.focus(), 50);

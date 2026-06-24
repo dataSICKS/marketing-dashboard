@@ -199,7 +199,9 @@ export default function EfoDateRangePicker({ value, onChange, accentColor = "#63
   const handleOpen = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPopoverPos({ top: rect.bottom + 6, left: rect.left });
+      const popupWidth = 580;
+      const left = Math.min(rect.left, window.innerWidth - popupWidth - 8);
+      setPopoverPos({ top: rect.bottom + 6, left: Math.max(8, left) });
     }
     setPendingFrom(value?.from ?? null);
     setPendingTo(value?.to ?? null);
