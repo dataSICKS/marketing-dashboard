@@ -13,19 +13,26 @@ const router: IRouter = Router();
 
 const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
 
-let accessCvCache: { rows: EfoAccessCvRow[]; syncedAt: string } | null = null;
-let exitScenariosCache: { rows: EfoExitScenarioRow[]; syncedAt: string } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5分
+let accessCvCache: { rows: EfoAccessCvRow[]; syncedAt: string; loadedAt: number } | null = null;
+let exitScenariosCache: { rows: EfoExitScenarioRow[]; syncedAt: string; loadedAt: number } | null = null;
+
+function isCacheStale(): boolean {
+  if (!accessCvCache || !exitScenariosCache) return true;
+  return Date.now() - accessCvCache.loadedAt > CACHE_TTL_MS;
+}
 
 async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void } }) {
-  if (!accessCvCache || !exitScenariosCache) {
-    req.log.info("No EFO in-memory cache, fetching from Supabase");
+  if (isCacheStale()) {
+    req.log.info("EFO cache stale or empty, fetching from Supabase");
     const [{ rows: acRows, syncedAt: acSyncedAt }, { rows: esRows, syncedAt: esSyncedAt }] = await Promise.all([
       fetchEfoAccessCvFromSupabase(),
       fetchEfoExitScenariosFromSupabase(),
     ]);
+    const now = Date.now();
     if (acRows.length > 0 && acSyncedAt) {
-      accessCvCache = { rows: acRows, syncedAt: acSyncedAt };
-      exitScenariosCache = { rows: esRows, syncedAt: esSyncedAt ?? acSyncedAt };
+      accessCvCache = { rows: acRows, syncedAt: acSyncedAt, loadedAt: now };
+      exitScenariosCache = { rows: esRows, syncedAt: esSyncedAt ?? acSyncedAt, loadedAt: now };
     } else {
       req.log.info("Supabase EFO empty, fetching from Google Sheets");
       const [acSheets, esSheets] = await Promise.all([
@@ -37,10 +44,11 @@ async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: 
         upsertEfoAccessCv(acSheets, syncedAt),
         upsertEfoExitScenarios(esSheets, syncedAt),
       ]);
-      accessCvCache = { rows: acSheets, syncedAt };
-      exitScenariosCache = { rows: esSheets, syncedAt };
+      accessCvCache = { rows: acSheets, syncedAt, loadedAt: now };
+      exitScenariosCache = { rows: esSheets, syncedAt, loadedAt: now };
     }
   }
+  if (!accessCvCache || !exitScenariosCache) throw new Error("EFO cache failed to populate");
   return {
     accessCvRows: accessCvCache.rows,
     exitScenarioRows: exitScenariosCache.rows,
@@ -60,8 +68,9 @@ router.post("/efo/sync", async (req, res): Promise<void> => {
       upsertEfoAccessCv(acRows, syncedAt),
       upsertEfoExitScenarios(esRows, syncedAt),
     ]);
-    accessCvCache = { rows: acRows, syncedAt };
-    exitScenariosCache = { rows: esRows, syncedAt };
+    const loadedAt = Date.now();
+    accessCvCache = { rows: acRows, syncedAt, loadedAt };
+    exitScenariosCache = { rows: esRows, syncedAt, loadedAt };
     res.json({ accessCvRowCount: acRows.length, exitScenarioRowCount: esRows.length, syncedAt });
   } catch (err) {
     req.log.error({ err }, "Failed to sync EFO data");

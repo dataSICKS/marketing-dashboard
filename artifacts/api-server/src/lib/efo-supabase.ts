@@ -103,7 +103,11 @@ export async function fetchEfoAccessCvFromSupabase(): Promise<{ rows: EfoAccessC
     cvCount: r.cv_count ?? 0,
   }));
   logger.info({ rowCount: rows.length }, "Fetched efo_access_cv from Supabase");
-  return { rows, syncedAt: data[0]?.synced_at ?? null };
+  const syncedAt = data.reduce((max: string | null, r) => {
+    if (!r.synced_at) return max;
+    return !max || r.synced_at > max ? r.synced_at : max;
+  }, null);
+  return { rows, syncedAt };
 }
 
 export async function fetchEfoExitScenariosFromSupabase(): Promise<{ rows: EfoExitScenarioRow[]; syncedAt: string | null }> {
