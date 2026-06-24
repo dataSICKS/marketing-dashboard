@@ -285,8 +285,15 @@ function SegmentPanel({
 // ─── Main Page ────────────────────────────────────────────────────
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
-  const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
-  const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
+  const defaultDateRange = (() => {
+    const toD = new Date();
+    const fromD = new Date(toD);
+    fromD.setDate(fromD.getDate() - 29);
+    const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+    return { from: fmt(fromD), to: fmt(toD) };
+  })();
+  const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
+  const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
   const queryClient = useQueryClient();
 
   const { data: filtersData } = useGetEfoFilters();

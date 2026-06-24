@@ -96,14 +96,15 @@ router.get("/efo/data", async (req, res): Promise<void> => {
     const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, syncedAt } = await getEfoData(req);
 
     let accessCvRows = allAccessCv;
-    if (dateFrom) accessCvRows = accessCvRows.filter((r) => r.date >= dateFrom);
-    if (dateTo) accessCvRows = accessCvRows.filter((r) => r.date <= dateTo);
+    const isoDate = (d: string) => d.replace(/\//g, "-");
+    if (dateFrom) accessCvRows = accessCvRows.filter((r) => isoDate(r.date) >= dateFrom);
+    if (dateTo) accessCvRows = accessCvRows.filter((r) => isoDate(r.date) <= dateTo);
     if (profileNames?.length) accessCvRows = accessCvRows.filter((r) => profileNames.includes(r.profileName));
     if (adCodes?.length) accessCvRows = accessCvRows.filter((r) => adCodes.includes(r.adCode));
 
     let exitScenarioRows = allExitScenarios;
-    if (dateFrom) exitScenarioRows = exitScenarioRows.filter((r) => r.date >= dateFrom);
-    if (dateTo) exitScenarioRows = exitScenarioRows.filter((r) => r.date <= dateTo);
+    if (dateFrom) exitScenarioRows = exitScenarioRows.filter((r) => isoDate(r.date) >= dateFrom);
+    if (dateTo) exitScenarioRows = exitScenarioRows.filter((r) => isoDate(r.date) <= dateTo);
     if (profileNames?.length) exitScenarioRows = exitScenarioRows.filter((r) => profileNames.includes(r.profileName));
     if (adCodes?.length) exitScenarioRows = exitScenarioRows.filter((r) => adCodes.includes(r.adCode));
 
