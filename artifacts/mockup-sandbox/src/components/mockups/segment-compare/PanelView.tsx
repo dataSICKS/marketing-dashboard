@@ -22,13 +22,54 @@ const FUNNEL = [
 ];
 
 const WEEKLY = [
-  { wk: "5/19", a: 420, b: 310, aCV: 224, bCV: 149 },
-  { wk: "5/26", a: 510, b: 380, aCV: 272, bCV: 183 },
-  { wk: "6/2",  a: 480, b: 360, aCV: 257, bCV: 173 },
-  { wk: "6/9",  a: 560, b: 410, aCV: 299, bCV: 197 },
-  { wk: "6/16", a: 540, b: 395, aCV: 288, bCV: 190 },
-  { wk: "6/23", a: 490, b: 340, aCV: 262, bCV: 164 },
+  { wk: "5/19", a: 420, b: 310, aCV: 224, bCV: 149, aCVR: 53.3, bCVR: 48.1 },
+  { wk: "5/26", a: 510, b: 380, aCV: 272, bCV: 183, aCVR: 53.3, bCVR: 48.2 },
+  { wk: "6/2",  a: 480, b: 360, aCV: 257, bCV: 173, aCVR: 53.5, bCVR: 48.1 },
+  { wk: "6/9",  a: 560, b: 410, aCV: 299, bCV: 197, aCVR: 53.4, bCVR: 48.0 },
+  { wk: "6/16", a: 540, b: 395, aCV: 290, bCV: 192, aCVR: 53.7, bCVR: 48.6 },
+  { wk: "6/23", a: 490, b: 340, aCV: 264, bCV: 165, aCVR: 53.9, bCVR: 48.5 },
 ];
+
+function CvrLineChart({ seg, color }: { seg: "A" | "B"; color: string }) {
+  const cvrValues = WEEKLY.map(w => seg === "A" ? w.aCVR : w.bCVR);
+  const labels = WEEKLY.map(w => w.wk);
+  const n = cvrValues.length;
+  const W = 280, H = 56;
+  const min = Math.min(...cvrValues) - 1;
+  const max = Math.max(...cvrValues) + 1;
+  const toX = (i: number) => (i / (n - 1)) * W;
+  const toY = (v: number) => H - ((v - min) / (max - min)) * (H - 8) - 4;
+  const points = cvrValues.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+  const fillPts = `0,${H} ${points} ${W},${H}`;
+
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
+        <defs>
+          <linearGradient id={`grad-${seg}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={fillPts} fill={`url(#grad-${seg})`} />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {cvrValues.map((v, i) => (
+          <circle key={i} cx={toX(i)} cy={toY(v)} r="3.5" fill="#fff" stroke={color} strokeWidth="2" />
+        ))}
+        {cvrValues.map((v, i) => (
+          <text key={i} x={toX(i)} y={toY(v) - 7} textAnchor="middle" fontSize="8" fill={color} fontWeight="600">
+            {v}%
+          </text>
+        ))}
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        {labels.map(l => (
+          <span key={l} style={{ fontSize: 9, color: "#9CA3AF" }}>{l}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Panel({ seg, color }: { seg: "A" | "B"; color: string }) {
   const d = mockData[seg];
@@ -70,6 +111,12 @@ function Panel({ seg, color }: { seg: "A" | "B"; color: string }) {
             <div style={{ fontSize: 20, fontWeight: 700, color: "#111" }}>{k.value}</div>
           </div>
         ))}
+      </div>
+
+      {/* CVR Trend Line Chart */}
+      <div style={{ background: "#fff", padding: "12px 14px", borderBottom: "1px solid #F0F0F0" }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: "#6B7280", marginBottom: 8 }}>CVR推移（週別）</div>
+        <CvrLineChart seg={seg} color={color} />
       </div>
 
       {/* Funnel */}
