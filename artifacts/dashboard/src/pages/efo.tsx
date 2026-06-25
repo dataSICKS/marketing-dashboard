@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useGetEfoData,
   useGetEfoFilters,
@@ -15,8 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   ComposedChart,
-  AreaChart,
-  Area,
+  BarChart,
   XAxis,
   YAxis,
   Tooltip,
@@ -297,158 +296,151 @@ function SegmentPanel({
   );
 }
 
-// ─── Clarity Scroll Depth Chart ────────────────────────────────────
-function ClarityScrollSection() {
-  const [selectedDate, setSelectedDate] = useState<string>("");
+// ─── Clarity Panel (per-segment) ───────────────────────────────────
+type DeviceTab = "合計" | "Desktop" | "Mobile";
+const DEVICE_TABS: DeviceTab[] = ["合計", "Desktop", "Mobile"];
+const CLARITY_SEG_COLORS = { A: YELLOW, B: BLUE } as const;
+const CLARITY_SEG_TEXT = { A: "#1A1A1A", B: "#ffffff" } as const;
+
+function ClarityPanel({
+  seg,
+  activeDate,
+  adCodeOptions,
+  filesLoading,
+}: {
+  seg: "A" | "B";
+  activeDate: string;
+  adCodeOptions: Array<{ adCode: string; devices: string[] }>;
+  filesLoading: boolean;
+}) {
+  const color = CLARITY_SEG_COLORS[seg];
+  const textOnColor = CLARITY_SEG_TEXT[seg];
   const [selectedAdCode, setSelectedAdCode] = useState<string>("");
+  const [device, setDevice] = useState<DeviceTab>("合計");
 
-  const { data: datesData, isLoading: datesLoading } = useGetClarityFiles();
-  const dates = datesData?.dates ?? [];
-
-  // selectedDateが未設定の場合は最新日付を使用
-  const activeDate = selectedDate || (dates[0] ?? "");
-
-  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
-    activeDate ? { date: activeDate } : undefined,
-    { query: { enabled: !!activeDate } },
-  );
-  const adCodeOptions = filesData?.adCodes ?? [];
+  // adCodeOptionsが変わったら選択をリセット
+  useEffect(() => { setSelectedAdCode(""); }, [activeDate]);
 
   const effectiveAdCode = selectedAdCode || (adCodeOptions[0]?.adCode ?? "");
-  const effectiveDate = activeDate;
 
-  const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
-    { date: effectiveDate, adCode: effectiveAdCode },
-    { query: { enabled: !!(effectiveDate && effectiveAdCode) } },
+  const { data: scrollData, isLoading } = useGetClarityScroll(
+    { date: activeDate, adCode: effectiveAdCode },
+    { query: { enabled: !!(activeDate && effectiveAdCode) } },
   );
 
   const points = scrollData?.points ?? [];
   const pageViews = scrollData?.pageViews ?? {};
 
+  // 縦グラフ用: depth を Y軸カテゴリとして上から下へ（5%→100%）
   const chartData = points.map((p) => ({
     depth: `${p.depth}%`,
-    Desktop: p.desktop,
-    Mobile: p.mobile,
+    Desktop: p.desktop ?? null,
+    Mobile: p.mobile ?? null,
   }));
 
-  const isChartLoading = scrollLoading || (!!effectiveDate && filesLoading);
+  const chartHeight = Math.max(220, chartData.length * 16 + 48);
+  const isChartLoading = isLoading || filesLoading;
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
-      {/* Section header */}
-      <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ borderBottom: "1px solid #F0F0F0" }}>
-        <div>
-          <div className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>スクロール深度分析</div>
-          <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>Microsoft Clarity — 広告コード別スクロール到達率</div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Date selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs" style={{ color: "#6B7280" }}>日付</span>
-            {datesLoading ? (
-              <Skeleton className="h-8 w-28" />
-            ) : (
-              <select
-                value={selectedDate || (dates[0] ?? "")}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setSelectedAdCode("");
-                }}
-                className="text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
-                style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
-              >
-                {dates.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Ad code selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs" style={{ color: "#6B7280" }}>広告コード</span>
-            {filesLoading && selectedDate ? (
-              <Skeleton className="h-8 w-28" />
-            ) : (
-              <select
-                value={selectedAdCode || (adCodeOptions[0]?.adCode ?? "")}
-                onChange={(e) => setSelectedAdCode(e.target.value)}
-                className="text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
-                style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
-                disabled={adCodeOptions.length === 0}
-              >
-                {adCodeOptions.map((a) => (
-                  <option key={a.adCode} value={a.adCode}>
-                    {a.adCode}（{a.devices.join(" / ")}）
-                  </option>
-                ))}
-                {adCodeOptions.length === 0 && <option value="">—</option>}
-              </select>
-            )}
-          </div>
-        </div>
+    <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", minWidth: 0 }}>
+      {/* Panel header */}
+      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: color }}>
+        <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
       </div>
 
-      {/* Page views summary */}
-      {!isChartLoading && (Object.keys(pageViews).length > 0) && (
-        <div className="px-5 py-2 flex items-center gap-4" style={{ borderBottom: "1px solid #F5F5F5", background: "#FAFAFA" }}>
+      {/* Ad code selector */}
+      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        <div className="text-[10px] font-medium mb-1.5" style={{ color: "#9CA3AF" }}>広告コード</div>
+        {filesLoading ? (
+          <Skeleton className="h-8 w-full" />
+        ) : (
+          <select
+            value={effectiveAdCode}
+            onChange={(e) => setSelectedAdCode(e.target.value)}
+            className="w-full text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
+            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
+            disabled={adCodeOptions.length === 0}
+          >
+            {adCodeOptions.map((a) => (
+              <option key={a.adCode} value={a.adCode}>{a.adCode}</option>
+            ))}
+            {adCodeOptions.length === 0 && <option value="">データなし</option>}
+          </select>
+        )}
+      </div>
+
+      {/* Device tabs */}
+      <div className="px-4 py-2 flex gap-1" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        {DEVICE_TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setDevice(tab)}
+            className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+            style={device === tab
+              ? { background: color, color: textOnColor }
+              : { background: "#F3F4F6", color: "#6B7280" }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Page views */}
+      {!isChartLoading && Object.keys(pageViews).length > 0 && (
+        <div className="px-4 py-1.5 flex gap-4" style={{ borderBottom: "1px solid #F5F5F5", background: "#FAFAFA" }}>
           {pageViews.Desktop != null && (
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: CLARITY_DESKTOP }} />
-              <span className="text-xs" style={{ color: "#6B7280" }}>Desktop PV:</span>
-              <span className="text-xs font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Desktop)}</span>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CLARITY_DESKTOP }} />
+              <span className="text-[10px]" style={{ color: "#6B7280" }}>Desktop PV:</span>
+              <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Desktop)}</span>
             </div>
           )}
           {pageViews.Mobile != null && (
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: CLARITY_MOBILE }} />
-              <span className="text-xs" style={{ color: "#6B7280" }}>Mobile PV:</span>
-              <span className="text-xs font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Mobile)}</span>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CLARITY_MOBILE }} />
+              <span className="text-[10px]" style={{ color: "#6B7280" }}>Mobile PV:</span>
+              <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Mobile)}</span>
             </div>
           )}
         </div>
       )}
 
-      {/* Chart */}
-      <div className="px-5 py-4">
+      {/* 縦グラフ: Y軸=深度, X軸=訪問者数 */}
+      <div className="px-4 py-3" style={{ background: "#fff" }}>
         {isChartLoading ? (
-          <Skeleton className="h-56 w-full" />
-        ) : !effectiveDate || !effectiveAdCode ? (
-          <div className="h-56 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>
-            日付と広告コードを選択してください
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
+        ) : !activeDate || !effectiveAdCode ? (
+          <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
+            データを取得中…
           </div>
         ) : chartData.length === 0 ? (
-          <div className="h-56 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>
+          <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
             データなし
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData} margin={{ top: 8, right: 20, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="clarityDesktop" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CLARITY_DESKTOP} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={CLARITY_DESKTOP} stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="clarityMobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CLARITY_MOBILE} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={CLARITY_MOBILE} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart
+              layout="vertical"
+              data={chartData}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+              barCategoryGap="20%"
+              barGap={2}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#F3F4F6" />
               <XAxis
-                dataKey="depth"
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                type="number"
+                tick={{ fontSize: 9, fill: "#9CA3AF" }}
                 tickLine={false}
                 axisLine={false}
-                interval={4}
-                label={{ value: "スクロール深度", position: "insideBottomRight", offset: -4, fontSize: 10, fill: "#9CA3AF" }}
+                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                type="category"
+                dataKey="depth"
+                tick={{ fontSize: 9, fill: "#9CA3AF" }}
                 tickLine={false}
                 axisLine={false}
-                width={44}
-                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                width={30}
               />
               <Tooltip
                 contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11 }}
@@ -459,35 +451,67 @@ function ClarityScrollSection() {
                 }}
                 labelFormatter={(label) => `スクロール深度: ${label}`}
               />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                formatter={(value) => value === "Desktop" ? "Desktop" : "Mobile"}
-              />
-              <Area
-                type="monotone"
-                dataKey="Desktop"
-                stroke={CLARITY_DESKTOP}
-                strokeWidth={2}
-                fill="url(#clarityDesktop)"
-                dot={false}
-                activeDot={{ r: 4 }}
-                connectNulls
-              />
-              <Area
-                type="monotone"
-                dataKey="Mobile"
-                stroke={CLARITY_MOBILE}
-                strokeWidth={2}
-                fill="url(#clarityMobile)"
-                dot={false}
-                activeDot={{ r: 4 }}
-                connectNulls
-              />
-            </AreaChart>
+              {(device === "合計" || device === "Desktop") && (
+                <Bar dataKey="Desktop" fill={CLARITY_DESKTOP} radius={[0, 2, 2, 0]} maxBarSize={8} />
+              )}
+              {(device === "合計" || device === "Mobile") && (
+                <Bar dataKey="Mobile" fill={CLARITY_MOBILE} radius={[0, 2, 2, 0]} maxBarSize={8} />
+              )}
+            </BarChart>
           </ResponsiveContainer>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Clarity Scroll Depth Section ──────────────────────────────────
+function ClarityScrollSection() {
+  const [dateRange, setDateRange] = useState<EfoDateRange | null>(null);
+
+  const { data: datesData } = useGetClarityFiles();
+  const dates = datesData?.dates ?? []; // ["2026-06-24", ...] 降順
+
+  // 日付ピッカーの選択から最適なフォルダ日付を導出
+  const activeDate = useMemo(() => {
+    if (dates.length === 0) return "";
+    if (!dateRange) return dates[0];
+    const toFmt = dateRange.to.replace(/\//g, "-");
+    const fromFmt = dateRange.from.replace(/\//g, "-");
+    // 範囲内で最新のフォルダを優先
+    const inRange = dates.filter((d) => d >= fromFmt && d <= toFmt);
+    if (inRange.length > 0) return inRange[0];
+    // 範囲より前の最新フォルダ
+    const before = dates.filter((d) => d <= toFmt);
+    return before[0] ?? dates[0];
+  }, [dates, dateRange]);
+
+  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
+    activeDate ? { date: activeDate } : undefined,
+    { query: { enabled: !!activeDate } },
+  );
+  const adCodeOptions = filesData?.adCodes ?? [];
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
+      {/* Section header + date picker */}
+      <div className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap" style={{ borderBottom: "1px solid #F0F0F0" }}>
+        <div>
+          <div className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>スクロール深度分析</div>
+          <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
+            Microsoft Clarity — 広告コード別スクロール到達率
+            {activeDate && <span className="ml-1.5">（{activeDate}）</span>}
+          </div>
+        </div>
+        <div style={{ width: 280 }}>
+          <EfoDateRangePicker value={dateRange} onChange={setDateRange} accentColor="#1A1A1A" />
+        </div>
+      </div>
+
+      {/* Two panels side by side */}
+      <div className="p-4 flex gap-4 items-start">
+        <ClarityPanel seg="A" activeDate={activeDate} adCodeOptions={adCodeOptions} filesLoading={filesLoading} />
+        <ClarityPanel seg="B" activeDate={activeDate} adCodeOptions={adCodeOptions} filesLoading={filesLoading} />
       </div>
     </div>
   );
