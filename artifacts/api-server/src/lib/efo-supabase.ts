@@ -73,18 +73,26 @@ async function fetchAllPages(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fetcher: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>,
   pageSize = 1000,
+  parallelBatch = 20,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all: any[] = [];
   let offset = 0;
   while (true) {
-    const { data, error } = await fetcher(offset, offset + pageSize - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length < pageSize) break;
-    offset += pageSize;
+    const promises = Array.from({ length: parallelBatch }, (_, i) =>
+      fetcher(offset + i * pageSize, offset + (i + 1) * pageSize - 1),
+    );
+    const results = await Promise.all(promises);
+    let done = false;
+    for (const { data, error } of results) {
+      if (error) throw error;
+      if (!data || data.length === 0) { done = true; break; }
+      all.push(...data);
+      if (data.length < pageSize) { done = true; break; }
+    }
+    if (done) break;
+    offset += parallelBatch * pageSize;
   }
   return all;
 }

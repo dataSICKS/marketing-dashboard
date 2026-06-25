@@ -14,7 +14,7 @@ const router: IRouter = Router();
 
 const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5分
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30分
 let accessCvCache: { rows: EfoAccessCvRow[]; syncedAt: string; loadedAt: number } | null = null;
 let exitScenariosCache: { rows: EfoExitScenarioRow[]; syncedAt: string; loadedAt: number } | null = null;
 let ecfCache: { rows: EcfAdAccessCvRow[]; loadedAt: number } | null = null;
