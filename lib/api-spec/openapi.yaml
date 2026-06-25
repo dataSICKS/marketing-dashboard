@@ -108,6 +108,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /newsletter/change-events:
+    get:
+      operationId: getNewsletterChangeEvents
+      tags: [newsletter]
+      summary: Get template/subject change events
+      description: Returns dates when email subject or template name changed, used for before/after comparison
+      parameters:
+        - name: scenarioName
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by scenario name
+        - name: segment
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by segment name
+      responses:
+        "200":
+          description: Change events list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterChangeEventsResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /newsletter/segments:
     get:
       operationId: getNewsletterSegments
@@ -412,6 +445,42 @@ components:
             type: string
       required:
         - segments
+
+    NewsletterChangeEvent:
+      type: object
+      properties:
+        date:
+          type: string
+          description: 変更日 (YYYY/MM/DD)
+        type:
+          type: string
+          enum: [subject, template]
+          description: 変更種別（subject=件名変更, template=テンプレート変更）
+        scenarioName:
+          type: string
+          description: シナリオ名
+        before:
+          type: string
+          description: 変更前の値
+        after:
+          type: string
+          description: 変更後の値
+      required:
+        - date
+        - type
+        - scenarioName
+        - before
+        - after
+
+    NewsletterChangeEventsResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsletterChangeEvent"
+      required:
+        - events
 
     EfoFilters:
       type: object

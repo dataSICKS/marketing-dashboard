@@ -126,6 +126,63 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/newsletter/change-events", async (req, res): Promise<void> => {
+  try {
+    const { rows: allRows } = await getRows(req);
+
+    const scenarioNameParam = typeof req.query.scenarioName === "string" ? req.query.scenarioName : undefined;
+    const segmentParam = typeof req.query.segment === "string" ? req.query.segment : undefined;
+
+    let rows = allRows;
+    if (scenarioNameParam) rows = rows.filter((r) => r.scenarioName === scenarioNameParam);
+    if (segmentParam) rows = rows.filter((r) => r.segment === segmentParam);
+
+    // Group by scenarioName
+    const byScenario = new Map<string, typeof rows>();
+    for (const row of rows) {
+      if (!byScenario.has(row.scenarioName)) byScenario.set(row.scenarioName, []);
+      byScenario.get(row.scenarioName)!.push(row);
+    }
+
+    const eventMap = new Map<string, { date: string; type: string; scenarioName: string; before: string; after: string }>();
+
+    for (const [scenarioName, scenarioRows] of byScenario) {
+      // One representative row per date (deduplicate within same date)
+      const byDate = new Map<string, (typeof rows)[number]>();
+      for (const row of scenarioRows) {
+        if (!byDate.has(row.deliveryDate)) byDate.set(row.deliveryDate, row);
+      }
+      const sorted = Array.from(byDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, row]) => row);
+
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+
+        if (prev.subject !== curr.subject) {
+          const key = `${curr.deliveryDate}|subject|${scenarioName}`;
+          if (!eventMap.has(key)) {
+            eventMap.set(key, { date: curr.deliveryDate, type: "subject", scenarioName, before: prev.subject, after: curr.subject });
+          }
+        }
+        if (prev.templateName !== curr.templateName) {
+          const key = `${curr.deliveryDate}|template|${scenarioName}`;
+          if (!eventMap.has(key)) {
+            eventMap.set(key, { date: curr.deliveryDate, type: "template", scenarioName, before: prev.templateName, after: curr.templateName });
+          }
+        }
+      }
+    }
+
+    const events = Array.from(eventMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+    res.json({ events });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch change events");
+    res.status(500).json({ error: "変更イベント取得に失敗しました" });
+  }
+});
+
 router.get("/newsletter/segments", async (req, res): Promise<void> => {
   try {
     const { rows } = await getRows(req);

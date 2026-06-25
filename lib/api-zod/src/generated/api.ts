@@ -117,6 +117,26 @@ export const GetNewsletterDataResponse = zod.object({
 
 
 /**
+ * Returns dates when email subject or template name changed, used for before/after comparison
+ * @summary Get template/subject change events
+ */
+export const GetNewsletterChangeEventsQueryParams = zod.object({
+  "scenarioName": zod.coerce.string().nullish().describe('Filter by scenario name'),
+  "segment": zod.coerce.string().nullish().describe('Filter by segment name')
+})
+
+export const GetNewsletterChangeEventsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "date": zod.string().describe('変更日 (YYYY\/MM\/DD)'),
+  "type": zod.enum(['subject', 'template']).describe('変更種別（subject=件名変更, template=テンプレート変更）'),
+  "scenarioName": zod.string().describe('シナリオ名'),
+  "before": zod.string().describe('変更前の値'),
+  "after": zod.string().describe('変更後の値')
+}))
+})
+
+
+/**
  * Returns a list of all unique segment values in the data
  * @summary Get available segments
  */

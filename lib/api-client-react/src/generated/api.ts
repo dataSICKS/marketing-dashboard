@@ -25,8 +25,10 @@ import type {
   EfoSyncResult,
   ErrorResponse,
   GetEfoDataParams,
+  GetNewsletterChangeEventsParams,
   GetNewsletterDataParams,
   HealthStatus,
+  NewsletterChangeEventsResponse,
   NewsletterReportResponse,
   NewsletterSegmentsResponse,
   NewsletterSyncResult
@@ -266,6 +268,91 @@ export function useGetNewsletterData<TData = Awaited<ReturnType<typeof getNewsle
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNewsletterDataQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNewsletterChangeEventsUrl = (params?: GetNewsletterChangeEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/newsletter/change-events?${stringifiedParams}` : `/api/newsletter/change-events`
+}
+
+/**
+ * Returns dates when email subject or template name changed, used for before/after comparison
+ * @summary Get template/subject change events
+ */
+export const getNewsletterChangeEvents = async (params?: GetNewsletterChangeEventsParams, options?: RequestInit): Promise<NewsletterChangeEventsResponse> => {
+
+  return customFetch<NewsletterChangeEventsResponse>(getGetNewsletterChangeEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNewsletterChangeEventsQueryKey = (params?: GetNewsletterChangeEventsParams,) => {
+    return [
+    `/api/newsletter/change-events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNewsletterChangeEventsQueryOptions = <TData = Awaited<ReturnType<typeof getNewsletterChangeEvents>>, TError = ErrorType<ErrorResponse>>(params?: GetNewsletterChangeEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterChangeEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNewsletterChangeEventsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNewsletterChangeEvents>>> = ({ signal }) => getNewsletterChangeEvents(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNewsletterChangeEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNewsletterChangeEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getNewsletterChangeEvents>>>
+export type GetNewsletterChangeEventsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get template/subject change events
+ */
+
+export function useGetNewsletterChangeEvents<TData = Awaited<ReturnType<typeof getNewsletterChangeEvents>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetNewsletterChangeEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterChangeEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNewsletterChangeEventsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

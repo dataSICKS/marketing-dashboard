@@ -115,6 +115,34 @@ export interface NewsletterSegmentsResponse {
   segments: string[];
 }
 
+/**
+ * 変更種別（subject=件名変更, template=テンプレート変更）
+ */
+export type NewsletterChangeEventType = typeof NewsletterChangeEventType[keyof typeof NewsletterChangeEventType];
+
+
+export const NewsletterChangeEventType = {
+  subject: 'subject',
+  template: 'template',
+} as const;
+
+export interface NewsletterChangeEvent {
+  /** 変更日 (YYYY/MM/DD) */
+  date: string;
+  /** 変更種別（subject=件名変更, template=テンプレート変更） */
+  type: NewsletterChangeEventType;
+  /** シナリオ名 */
+  scenarioName: string;
+  /** 変更前の値 */
+  before: string;
+  /** 変更後の値 */
+  after: string;
+}
+
+export interface NewsletterChangeEventsResponse {
+  events: NewsletterChangeEvent[];
+}
+
 export interface EfoFilters {
   /** Unique profile names */
   profileNames: string[];
@@ -191,6 +219,19 @@ export const GetNewsletterDataGroupBy = {
   month: 'month',
   template: 'template',
 } as const;
+
+export type GetNewsletterChangeEventsParams = {
+/**
+ * Filter by scenario name
+ * @nullable
+ */
+scenarioName?: string | null;
+/**
+ * Filter by segment name
+ * @nullable
+ */
+segment?: string | null;
+};
 
 export type GetEfoDataParams = {
 /**

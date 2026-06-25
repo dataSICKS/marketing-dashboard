@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   useGetNewsletterData,
   useSyncNewsletter,
+  useGetNewsletterChangeEvents,
   getGetNewsletterDataQueryKey,
 } from "@workspace/api-client-react";
 import type {
   GetNewsletterDataGroupBy,
   NewsletterMetrics,
   NewsletterSegmentGroup,
+  NewsletterChangeEvent,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +23,8 @@ import {
   Bar,
   Line,
   CartesianGrid,
+  ReferenceLine,
+  Cell,
 } from "recharts";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import {
@@ -30,6 +34,10 @@ import {
   TrendingUp,
   TrendingDown,
   ChevronDown,
+  BookmarkPlus,
+  Trash2,
+  GitCommitHorizontal,
+  ArrowRight,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 
@@ -38,6 +46,9 @@ type GroupBy = GetNewsletterDataGroupBy;
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
 const YELLOW_DARK = "#D97706";
+const BEFORE_COLOR = "#60A5FA";
+const AFTER_COLOR = "#F472B6";
+const CHANGE_COLOR = "#A855F7";
 
 const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
@@ -45,6 +56,41 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "month", label: "月別" },
   { value: "template", label: "テンプレ別" },
 ];
+
+// ─── Preset helpers ───────────────────────────────────────────────
+interface Preset {
+  id: string;
+  name: string;
+  groupBy: GroupBy;
+  dateFrom?: string;
+  dateTo?: string;
+  segments: string[];
+}
+
+function loadPresets(): Preset[] {
+  try {
+    return JSON.parse(localStorage.getItem("nl_presets") ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function savePresetsToStorage(presets: Preset[]) {
+  localStorage.setItem("nl_presets", JSON.stringify(presets));
+}
+
+// ─── Summary helper ────────────────────────────────────────────────
+function sumItems(items: NewsletterMetrics[]) {
+  const d = items.reduce((s, r) => s + r.deliveryCount, 0);
+  const o = items.reduce((s, r) => s + r.openCount, 0);
+  const c = items.reduce((s, r) => s + r.clickCount, 0);
+  const cv = items.reduce((s, r) => s + r.cvCount, 0);
+  return {
+    deliveryCount: d, openCount: o, clickCount: c, cvCount: cv,
+    openRate: d > 0 ? o / d : 0,
+    clickRate: d > 0 ? c / d : 0,
+    cvr: d > 0 ? cv / d : 0,
+  };
+}
 
 // ─── Diff badge ──────────────────────────────────────────────────
 function DiffBadge({ current, prev }: { current: number; prev: number | null | undefined }) {
@@ -63,13 +109,151 @@ function DiffBadge({ current, prev }: { current: number; prev: number | null | u
   );
 }
 
+function DiffBadgePt({ current, prev, isRate }: { current: number; prev: number; isRate?: boolean }) {
+  const diff = current - prev;
+  const isUp = diff >= 0;
+  const label = isRate
+    ? `${diff >= 0 ? "+" : ""}${(diff * 100).toFixed(1)}pt`
+    : `${diff >= 0 ? "+" : ""}${(((current - prev) / Math.abs(prev)) * 100).toFixed(1)}%`;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded"
+      style={{ background: isUp ? "#DCFCE7" : "#FEE2E2", color: isUp ? "#16A34A" : "#DC2626" }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── Before/After KPI row ─────────────────────────────────────────
+function BeforeAfterKpiRow({
+  event,
+  before,
+  after,
+}: {
+  event: NewsletterChangeEvent;
+  before: ReturnType<typeof sumItems>;
+  after: ReturnType<typeof sumItems>;
+}) {
+  const kpis = [
+    { label: "配信数", bVal: formatNumber(before.deliveryCount), aVal: formatNumber(after.deliveryCount), b: before.deliveryCount, a: after.deliveryCount, isRate: false },
+    { label: "開封率", bVal: formatPercent(before.openRate), aVal: formatPercent(after.openRate), b: before.openRate, a: after.openRate, isRate: true },
+    { label: "クリック率", bVal: formatPercent(before.clickRate), aVal: formatPercent(after.clickRate), b: before.clickRate, a: after.clickRate, isRate: true },
+    { label: "CVR", bVal: formatPercent(before.cvr), aVal: formatPercent(after.cvr), b: before.cvr, a: after.cvr, isRate: true },
+    { label: "CV数", bVal: formatNumber(before.cvCount), aVal: formatNumber(after.cvCount), b: before.cvCount, a: after.cvCount, isRate: false },
+  ];
+
+  return (
+    <div className="bg-white rounded-xl overflow-hidden" style={{ border: `1.5px solid ${CHANGE_COLOR}` }}>
+      <div className="px-4 md:px-6 py-2.5 flex items-center gap-2 flex-wrap" style={{ background: "#FDF4FF", borderBottom: "1px solid #F3E8FF" }}>
+        <GitCommitHorizontal size={13} color={CHANGE_COLOR} />
+        <span className="text-xs font-bold" style={{ color: CHANGE_COLOR }}>
+          {event.date} 「{event.type === "subject" ? "件名" : "テンプレート"}変更」前後比較
+        </span>
+        <span className="text-[10px] truncate max-w-[240px]" style={{ color: "#9CA3AF" }}>
+          {event.before} → {event.after}
+        </span>
+        <div className="flex items-center gap-3 ml-auto text-[10px]" style={{ color: "#9CA3AF" }}>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: BEFORE_COLOR }} /> 変更前
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: AFTER_COLOR }} /> 変更後
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-5">
+        {kpis.map((k, i) => (
+          <div key={k.label} className="px-3 md:px-4 py-3 flex flex-col gap-1.5" style={{ borderRight: i < 4 ? "1px solid #F3F4F6" : "none" }}>
+            <div className="text-[10px] font-medium" style={{ color: "#9CA3AF" }}>{k.label}</div>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: BEFORE_COLOR }} />
+              <span className="text-sm font-semibold" style={{ color: "#6B7280" }}>{k.bVal}</span>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              <ArrowRight size={9} color="#D1D5DB" />
+              <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{k.aVal}</span>
+              {k.b > 0 && <DiffBadgePt current={k.a} prev={k.b} isRate={k.isRate} />}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Change event picker ───────────────────────────────────────────
+function ChangeEventPicker({
+  events,
+  selectedId,
+  onSelect,
+}: {
+  events: NewsletterChangeEvent[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (events.length === 0) {
+    return (
+      <div className="bg-white rounded-xl px-4 py-3 text-xs" style={{ border: `1.5px solid ${CHANGE_COLOR}`, color: "#9CA3AF" }}>
+        変更イベントが検出されませんでした（件名・テンプレートが一定の場合）
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white rounded-xl px-4 py-3" style={{ border: `1.5px solid ${CHANGE_COLOR}` }}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <GitCommitHorizontal size={13} color={CHANGE_COLOR} />
+        <span className="text-xs font-semibold" style={{ color: CHANGE_COLOR }}>変更タイミングを選択</span>
+        <span className="text-[10px]" style={{ color: "#9CA3AF" }}>選択した日を起点に前後を比較します</span>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {events.map((ev) => {
+          const id = `${ev.date}|${ev.type}|${ev.scenarioName}`;
+          const isSelected = id === selectedId;
+          return (
+            <button
+              key={id}
+              onClick={() => onSelect(id)}
+              className="flex items-start gap-2 px-3 py-2 rounded-xl text-left transition-all"
+              style={isSelected
+                ? { background: "#FDF4FF", border: `1.5px solid ${CHANGE_COLOR}` }
+                : { background: "#F9FAFB", border: "1px solid #E5E7EB" }}
+            >
+              <span className="text-base leading-none mt-0.5">{ev.type === "subject" ? "✏️" : "📝"}</span>
+              <div>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[10px] font-bold" style={{ color: isSelected ? CHANGE_COLOR : "#374151" }}>{ev.date}</span>
+                  <span
+                    className="text-[9px] px-1 py-0.5 rounded font-medium"
+                    style={{
+                      background: ev.type === "subject" ? "#DBEAFE" : "#D1FAE5",
+                      color: ev.type === "subject" ? "#1D4ED8" : "#065F46",
+                    }}
+                  >
+                    {ev.type === "subject" ? "件名変更" : "テンプレ変更"}
+                  </span>
+                </div>
+                <div className="text-[10px] max-w-[200px] truncate" style={{ color: "#6B7280" }} title={`${ev.before} → ${ev.after}`}>
+                  {ev.before} → {ev.after}
+                </div>
+                <div className="text-[9px] mt-0.5" style={{ color: "#9CA3AF" }}>{ev.scenarioName}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Metrics table ────────────────────────────────────────────────
 function MetricsTable({
-  items, groupBy, showComparison,
+  items, groupBy, showComparison, getRowPhase,
 }: {
   items: NewsletterMetrics[];
   groupBy: GroupBy;
   showComparison: boolean;
+  getRowPhase?: (label: string) => "before" | "after" | null;
 }) {
   const showSubject = groupBy === "template" || groupBy === "day";
   return (
@@ -92,41 +276,146 @@ function MetricsTable({
                 データがありません
               </TableCell>
             </TableRow>
-          ) : items.map((item, i) => (
-            <TableRow
-              key={`${item.label}-${i}`}
-              className="hover:bg-[#FAFAFA] transition-colors"
-              style={{ borderBottom: "1px solid #F9FAFB" }}
-            >
-              <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: "#6B7280" }}>{item.label}</TableCell>
-              {showSubject && (
-                <TableCell className="text-xs max-w-[220px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
-                  {item.subject ?? "—"}
+          ) : items.map((item, i) => {
+            const phase = getRowPhase ? getRowPhase(item.label) : null;
+            return (
+              <TableRow
+                key={`${item.label}-${i}`}
+                className="hover:bg-[#FAFAFA] transition-colors"
+                style={{
+                  borderBottom: "1px solid #F9FAFB",
+                  background: phase === "before" ? "#EFF6FF" : phase === "after" ? "#FDF2F8" : undefined,
+                }}
+              >
+                <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: phase === "before" ? "#1D4ED8" : phase === "after" ? "#9D174D" : "#6B7280" }}>
+                  {phase && (
+                    <span className="inline-block w-2 h-2 rounded-full mr-1.5 shrink-0 align-middle" style={{ background: phase === "before" ? BEFORE_COLOR : AFTER_COLOR }} />
+                  )}
+                  {item.label}
                 </TableCell>
-              )}
-              <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
-                {formatNumber(item.deliveryCount)}
-                {showComparison && <DiffBadge current={item.deliveryCount} prev={item.prevDeliveryCount} />}
-              </TableCell>
-              <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
-                {formatNumber(item.openCount)}
-                <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.openRate)})</span>
-                {showComparison && <DiffBadge current={item.openRate} prev={item.prevOpenRate} />}
-              </TableCell>
-              <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
-                {formatNumber(item.clickCount)}
-                <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.clickRate)})</span>
-                {showComparison && <DiffBadge current={item.clickRate} prev={item.prevClickRate} />}
-              </TableCell>
-              <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
-                {formatNumber(item.cvCount)}
-                <span className="text-xs ml-1 font-normal" style={{ color: "#9CA3AF" }}>({formatPercent(item.cvr)})</span>
-                {showComparison && <DiffBadge current={item.cvr} prev={item.prevCvr} />}
-              </TableCell>
-            </TableRow>
-          ))}
+                {showSubject && (
+                  <TableCell className="text-xs max-w-[220px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
+                    {item.subject ?? "—"}
+                  </TableCell>
+                )}
+                <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
+                  {formatNumber(item.deliveryCount)}
+                  {showComparison && <DiffBadge current={item.deliveryCount} prev={item.prevDeliveryCount} />}
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                  {formatNumber(item.openCount)}
+                  <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.openRate)})</span>
+                  {showComparison && <DiffBadge current={item.openRate} prev={item.prevOpenRate} />}
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                  {formatNumber(item.clickCount)}
+                  <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.clickRate)})</span>
+                  {showComparison && <DiffBadge current={item.clickRate} prev={item.prevClickRate} />}
+                </TableCell>
+                <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
+                  {formatNumber(item.cvCount)}
+                  <span className="text-xs ml-1 font-normal" style={{ color: "#9CA3AF" }}>({formatPercent(item.cvr)})</span>
+                  {showComparison && <DiffBadge current={item.cvr} prev={item.prevCvr} />}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+// ─── Preset Bar ───────────────────────────────────────────────────
+function PresetBar({
+  presets,
+  activeId,
+  onSelect,
+  onSave,
+  onDelete,
+}: {
+  presets: Preset[];
+  activeId: string | null;
+  onSelect: (p: Preset) => void;
+  onSave: (name: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    onSave(name.trim());
+    setName("");
+    setSaving(false);
+  };
+
+  if (presets.length === 0 && !saving) {
+    return (
+      <div className="bg-white px-4 md:px-8 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
+        <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>保存済みビュー</span>
+        <button
+          onClick={() => setSaving(true)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+          style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
+        >
+          <BookmarkPlus size={11} /> 現在の設定を保存
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white px-4 md:px-8 py-2 flex items-center gap-2 overflow-x-auto" style={{ borderBottom: "1px solid #F3F4F6" }}>
+      <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>保存済み</span>
+      <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+        {presets.map((p) => (
+          <div key={p.id} className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={() => onSelect(p)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-l-full text-xs font-medium whitespace-nowrap"
+              style={activeId === p.id
+                ? { background: YELLOW, color: "#fff" }
+                : { background: "#F3F4F6", color: "#6B7280" }}
+            >
+              {p.name}
+            </button>
+            <button
+              onClick={() => onDelete(p.id)}
+              className="px-1.5 py-1 rounded-r-full flex items-center"
+              style={activeId === p.id
+                ? { background: YELLOW_DARK, color: "#fff" }
+                : { background: "#E5E7EB", color: "#9CA3AF" }}
+              title="削除"
+            >
+              <Trash2 size={9} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {saving ? (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <input
+            className="text-xs px-2 py-1 rounded-lg outline-none"
+            style={{ border: `1.5px solid ${YELLOW}`, width: 120 }}
+            placeholder="ビュー名を入力…"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            autoFocus
+          />
+          <button className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: YELLOW, color: "#fff" }} onClick={handleSave}>保存</button>
+          <button className="text-xs px-2 py-1 rounded-lg" style={{ color: "#9CA3AF" }} onClick={() => setSaving(false)}>×</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setSaving(true)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
+          style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
+        >
+          <BookmarkPlus size={11} /> 保存
+        </button>
+      )}
     </div>
   );
 }
@@ -136,33 +425,62 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
 
-  // date range + comparison — managed by DateRangePicker
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [compareRange, setCompareRange] = useState<DateRange | null>(null);
   const [compareEnabled, setCompareEnabled] = useState(false);
 
-  // segment filter
   const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [segmentDropdownOpen, setSegmentDropdownOpen] = useState(false);
 
+  // Compare mode: "none" | "date" | "change"
+  const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
+  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+
+  // Preset state
+  const [presets, setPresets] = useState<Preset[]>(loadPresets);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+
+  // When compareMode changes
+  useEffect(() => {
+    if (compareMode === "date") {
+      setCompareEnabled(true);
+    } else {
+      setCompareEnabled(false);
+    }
+  }, [compareMode]);
+
+  // Force day grouping when in change compare mode
+  const effectiveGroupBy: GroupBy = compareMode === "change" ? "day" : groupBy;
+
   const params = {
-    groupBy,
+    groupBy: effectiveGroupBy,
     dateFrom: dateRange?.from,
     dateTo: dateRange?.to,
     segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
-    compareFrom: compareEnabled && compareRange ? compareRange.from : undefined,
-    compareTo: compareEnabled && compareRange ? compareRange.to : undefined,
+    compareFrom: compareMode === "date" && compareEnabled && compareRange ? compareRange.from : undefined,
+    compareTo: compareMode === "date" && compareEnabled && compareRange ? compareRange.to : undefined,
   };
 
   const { data, isLoading, isError } = useGetNewsletterData(params, {
     query: { queryKey: getGetNewsletterDataQueryKey(params) },
   });
 
+  const { data: changeEventsData } = useGetNewsletterChangeEvents();
+
+  // Auto-select first change event
+  useEffect(() => {
+    if (changeEventsData?.events && changeEventsData.events.length > 0 && !selectedChangeId) {
+      const ev = changeEventsData.events[0];
+      setSelectedChangeId(`${ev.date}|${ev.type}|${ev.scenarioName}`);
+    }
+  }, [changeEventsData, selectedChangeId]);
+
   const syncMutation = useSyncNewsletter({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/change-events"] });
       },
     },
   });
@@ -172,12 +490,35 @@ export default function Dashboard() {
   const segmentGroups: NewsletterSegmentGroup[] = (data?.segmentGroups ?? []) as NewsletterSegmentGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableSegments = data?.availableSegments ?? [];
-  const showComparison = compareEnabled && !!compareRange;
+  const showComparison = compareMode === "date" && compareEnabled && !!compareRange;
+
+  // Resolve selected change event
+  const allChangeEvents = changeEventsData?.events ?? [];
+  const selectedChangeEvent = allChangeEvents.find(
+    (ev) => `${ev.date}|${ev.type}|${ev.scenarioName}` === selectedChangeId
+  ) ?? null;
+
+  // Before/after splits for change compare mode
+  const beforeItems = compareMode === "change" && selectedChangeEvent
+    ? items.filter((item) => item.label < selectedChangeEvent.date)
+    : [];
+  const afterItems = compareMode === "change" && selectedChangeEvent
+    ? items.filter((item) => item.label >= selectedChangeEvent.date)
+    : [];
+  const beforeSummary = sumItems(beforeItems);
+  const afterSummary = sumItems(afterItems);
+
+  // Row phase for table coloring
+  const getRowPhase = useCallback((label: string): "before" | "after" | null => {
+    if (compareMode !== "change" || !selectedChangeEvent) return null;
+    return label < selectedChangeEvent.date ? "before" : "after";
+  }, [compareMode, selectedChangeEvent]);
 
   const handleDateApply = (range: DateRange | null, cmp: DateRange | null, cmpEnabled: boolean) => {
     setDateRange(range);
     setCompareRange(cmp);
     setCompareEnabled(cmpEnabled);
+    if (cmpEnabled) setCompareMode("date");
   };
 
   const toggleSegment = (seg: string) => {
@@ -186,9 +527,46 @@ export default function Dashboard() {
     );
   };
 
+  // Preset operations
+  const applyPreset = (p: Preset) => {
+    setGroupBy(p.groupBy);
+    setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
+    setSelectedSegments(p.segments);
+    setActivePresetId(p.id);
+    setCompareMode("none");
+  };
+
+  const saveCurrentAsPreset = (name: string) => {
+    const newPreset: Preset = {
+      id: Date.now().toString(),
+      name,
+      groupBy,
+      dateFrom: dateRange?.from,
+      dateTo: dateRange?.to,
+      segments: selectedSegments,
+    };
+    const updated = [...presets, newPreset];
+    setPresets(updated);
+    savePresetsToStorage(updated);
+    setActivePresetId(newPreset.id);
+  };
+
+  const deletePreset = (id: string) => {
+    const updated = presets.filter((p) => p.id !== id);
+    setPresets(updated);
+    savePresetsToStorage(updated);
+    if (activePresetId === id) setActivePresetId(null);
+  };
+
+  // Chart bar fill by phase
+  const getBarFill = (label: string) => {
+    if (compareMode !== "change" || !selectedChangeEvent) return YELLOW;
+    return label < selectedChangeEvent.date ? BEFORE_COLOR : AFTER_COLOR;
+  };
+
   return (
     <>
-    <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
         <div
@@ -225,6 +603,15 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Preset Bar ── */}
+        <PresetBar
+          presets={presets}
+          activeId={activePresetId}
+          onSelect={applyPreset}
+          onSave={saveCurrentAsPreset}
+          onDelete={deletePreset}
+        />
+
         <div className="flex-1 px-4 md:px-8 py-4 md:py-6 flex flex-col gap-4 md:gap-5">
 
           {/* ── Tabs ── */}
@@ -233,13 +620,16 @@ export default function Dashboard() {
               {GROUP_TABS.map((tab) => (
                 <button
                   key={tab.value}
-                  onClick={() => setGroupBy(tab.value)}
+                  onClick={() => { setGroupBy(tab.value); if (compareMode === "change") setCompareMode("none"); }}
                   className="px-4 py-2.5 text-sm font-medium transition-all relative whitespace-nowrap"
-                  style={{ color: groupBy === tab.value ? YELLOW_DARK : "#9CA3AF" }}
+                  style={{ color: effectiveGroupBy === tab.value ? YELLOW_DARK : "#9CA3AF" }}
                   data-testid={`tab-${tab.value}`}
                 >
                   {tab.label}
-                  {groupBy === tab.value && (
+                  {compareMode === "change" && tab.value === "day" && (
+                    <span className="text-[9px] ml-1" style={{ color: CHANGE_COLOR }}>(強制)</span>
+                  )}
+                  {effectiveGroupBy === tab.value && (
                     <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: YELLOW }} />
                   )}
                 </button>
@@ -249,7 +639,7 @@ export default function Dashboard() {
 
           {/* ── Filter bar ── */}
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            {/* GA4-style date range picker */}
+            {/* Date picker */}
             <DateRangePicker
               value={dateRange}
               compareValue={compareRange}
@@ -270,36 +660,18 @@ export default function Dashboard() {
                 <ChevronDown size={13} />
               </button>
               {segmentDropdownOpen && (
-                <div
-                  className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden"
-                  style={{ border: "1px solid #EBEBEB", minWidth: 180 }}
-                >
+                <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden" style={{ border: "1px solid #EBEBEB", minWidth: 180 }}>
                   {availableSegments.length === 0 ? (
                     <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>セグメントなし</div>
                   ) : availableSegments.map((seg) => (
-                    <label
-                      key={seg}
-                      className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs"
-                      style={{ color: "#374151" }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedSegments.includes(seg)}
-                        onChange={() => toggleSegment(seg)}
-                        style={{ accentColor: YELLOW }}
-                      />
+                    <label key={seg} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
+                      <input type="checkbox" checked={selectedSegments.includes(seg)} onChange={() => toggleSegment(seg)} style={{ accentColor: YELLOW }} />
                       {seg}
                     </label>
                   ))}
                   {selectedSegments.length > 0 && (
                     <div style={{ borderTop: "1px solid #F3F4F6" }}>
-                      <button
-                        onClick={() => { setSelectedSegments([]); setSegmentDropdownOpen(false); }}
-                        className="w-full px-4 py-2.5 text-xs text-left"
-                        style={{ color: "#9CA3AF" }}
-                      >
-                        クリア
-                      </button>
+                      <button onClick={() => { setSelectedSegments([]); setSegmentDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
                     </div>
                   )}
                 </div>
@@ -320,7 +692,39 @@ export default function Dashboard() {
                 比較: {compareRange.from} 〜 {compareRange.to}
               </span>
             )}
+
+            {/* ── Compare mode toggle ── */}
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>比較軸</span>
+              <button
+                onClick={() => setCompareMode("none")}
+                className="px-2.5 py-1.5 text-xs rounded-lg font-medium transition-all"
+                style={compareMode === "none"
+                  ? { background: "#F3F4F6", color: "#374151", border: "1.5px solid #D1D5DB" }
+                  : { background: "#fff", color: "#9CA3AF", border: "1px solid #EBEBEB" }}
+              >
+                なし
+              </button>
+              <button
+                onClick={() => setCompareMode("change")}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg font-medium transition-all whitespace-nowrap"
+                style={compareMode === "change"
+                  ? { background: "#FDF4FF", color: CHANGE_COLOR, border: `1.5px solid ${CHANGE_COLOR}` }
+                  : { background: "#fff", color: "#9CA3AF", border: "1px solid #EBEBEB" }}
+              >
+                <GitCommitHorizontal size={11} /> 変更タイミング
+              </button>
+            </div>
           </div>
+
+          {/* ── Change event picker ── */}
+          {compareMode === "change" && (
+            <ChangeEventPicker
+              events={allChangeEvents}
+              selectedId={selectedChangeId}
+              onSelect={setSelectedChangeId}
+            />
+          )}
 
           {isLoading ? (
             <LoadingSkeleton />
@@ -328,36 +732,49 @@ export default function Dashboard() {
             <ErrorState onRetry={() => queryClient.invalidateQueries()} />
           ) : (
             <>
-              {/* KPI cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" data-testid="kpi-grid">
-                <KpiCard
-                  label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通"
-                  testId="kpi-delivery" accent
-                  current={summary?.deliveryCount} prev={showComparison ? summary?.prevDeliveryCount : undefined}
+              {/* ── Before/After KPI row (change compare mode) ── */}
+              {compareMode === "change" && selectedChangeEvent ? (
+                <BeforeAfterKpiRow
+                  event={selectedChangeEvent}
+                  before={beforeSummary}
+                  after={afterSummary}
                 />
-                <KpiCard
-                  label="開封率 / クリック率" value={formatPercent(summary?.openRate)}
-                  sub2={`クリック ${formatPercent(summary?.clickRate)}`} testId="kpi-open-rate"
-                  current={summary?.openRate} prev={showComparison ? summary?.prevOpenRate : undefined}
-                />
-                <KpiCard
-                  label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
-                  sub2={`CVR ${formatPercent(summary?.cvr)}`} testId="kpi-cv-count"
-                  current={summary?.cvr} prev={showComparison ? summary?.prevCvr : undefined}
-                />
-              </div>
+              ) : (
+                /* Normal KPI cards */
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" data-testid="kpi-grid">
+                  <KpiCard
+                    label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通"
+                    testId="kpi-delivery" accent
+                    current={summary?.deliveryCount} prev={showComparison ? summary?.prevDeliveryCount : undefined}
+                  />
+                  <KpiCard
+                    label="開封率 / クリック率" value={formatPercent(summary?.openRate)}
+                    sub2={`クリック ${formatPercent(summary?.clickRate)}`} testId="kpi-open-rate"
+                    current={summary?.openRate} prev={showComparison ? summary?.prevOpenRate : undefined}
+                  />
+                  <KpiCard
+                    label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
+                    sub2={`CVR ${formatPercent(summary?.cvr)}`} testId="kpi-cv-count"
+                    current={summary?.cvr} prev={showComparison ? summary?.prevCvr : undefined}
+                  />
+                </div>
+              )}
 
-              {/* Chart */}
+              {/* ── Chart ── */}
               <div
                 className="bg-white rounded-xl p-4 md:p-6"
                 style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
                 data-testid="card-chart"
               >
-                <div className="flex items-start justify-between mb-3 gap-2">
+                <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
-                    <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>配信トレンド</div>
+                    <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
+                      {compareMode === "change" ? "前後トレンド" : "配信トレンド"}
+                    </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
-                      棒：配信数　折れ線：開封率 / クリック率
+                      {compareMode === "change"
+                        ? `破線 = 変更タイミング（${selectedChangeEvent?.date ?? ""}）　青 = 変更前 / ピンク = 変更後`
+                        : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
                 </div>
@@ -378,25 +795,65 @@ export default function Dashboard() {
                               name === "配信数" ? [formatNumber(value), name] : [formatPercent(value), name]
                             }
                           />
-                          <Bar yAxisId="left" dataKey="deliveryCount" name="配信数" fill={YELLOW} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9} />
-                          <Line yAxisId="right" type="monotone" dataKey="openRate" name="開封率" stroke="#60A5FA" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                          {/* Change point reference line */}
+                          {compareMode === "change" && selectedChangeEvent && (
+                            <ReferenceLine
+                              yAxisId="left"
+                              x={selectedChangeEvent.date}
+                              stroke={CHANGE_COLOR}
+                              strokeDasharray="5 4"
+                              strokeWidth={2}
+                              label={{ value: "変更", fill: CHANGE_COLOR, fontSize: 9, position: "insideTopRight" }}
+                            />
+                          )}
+                          <Bar yAxisId="left" dataKey="deliveryCount" name="配信数" radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
+                            {items.map((item, index) => (
+                              <Cell key={index} fill={getBarFill(item.label)} />
+                            ))}
+                          </Bar>
+                          <Line
+                            yAxisId="right" type="monotone" dataKey="openRate" name="開封率"
+                            stroke={compareMode === "change" ? "#94A3B8" : "#60A5FA"}
+                            strokeWidth={2} dot={false} activeDot={{ r: 4 }}
+                            strokeDasharray={compareMode === "change" ? "4 2" : undefined}
+                          />
                           <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
-                      {[{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }].map((l) => (
-                        <div key={l.label} className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
-                          {l.label}
-                        </div>
-                      ))}
+                      {compareMode === "change" ? (
+                        <>
+                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: BEFORE_COLOR }} /> 変更前・配信数
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 変更後・配信数
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                            <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,2" /></svg>
+                            開封率
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: CHANGE_COLOR }}>
+                            <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={CHANGE_COLOR} strokeWidth="1.5" strokeDasharray="5,4" /></svg>
+                            変更タイミング
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {[{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }].map((l) => (
+                            <div key={l.label} className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />{l.label}
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Tables */}
+              {/* ── Tables ── */}
               {segmentGroups.length > 0 ? (
                 segmentGroups.map((group) => (
                   <div key={group.segment} className="bg-white rounded-xl overflow-hidden"
@@ -411,7 +868,7 @@ export default function Dashboard() {
                       </div>
                       <span className="text-xs" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
                     </div>
-                    <MetricsTable items={group.items} groupBy={groupBy} showComparison={showComparison} />
+                    <MetricsTable items={group.items} groupBy={effectiveGroupBy} showComparison={showComparison} getRowPhase={getRowPhase} />
                   </div>
                 ))
               ) : (
@@ -422,7 +879,7 @@ export default function Dashboard() {
                     <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
                     <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
                   </div>
-                  <MetricsTable items={items} groupBy={groupBy} showComparison={showComparison} />
+                  <MetricsTable items={items} groupBy={effectiveGroupBy} showComparison={showComparison} getRowPhase={getRowPhase} />
                 </div>
               )}
             </>
@@ -437,7 +894,7 @@ export default function Dashboard() {
   );
 }
 
-// ─── KPI Card ────────────────────────────────────────────────────
+// ─── KPI Card ─────────────────────────────────────────────────────
 function KpiCard({
   label, value, sub, sub2, accent, testId, current, prev,
 }: {
@@ -486,10 +943,15 @@ function LoadingSkeleton() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center p-8 md:p-12 rounded-xl"
-      style={{ border: "1px solid #FEE2E2", background: "#FEF2F2" }} data-testid="error-state">
-      <p className="text-sm font-medium mb-4" style={{ color: "#EF4444" }}>データの取得に失敗しました</p>
-      <button onClick={onRetry} className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-        style={{ background: "#1A1A1A" }}>再試行</button>
+      style={{ background: "#FEF2F2", border: "1px solid #FECACA" }}>
+      <div className="text-sm font-medium mb-2" style={{ color: "#DC2626" }}>データの取得に失敗しました</div>
+      <button
+        onClick={onRetry}
+        className="text-xs px-3 py-1.5 rounded-lg font-medium"
+        style={{ background: "#DC2626", color: "#fff" }}
+      >
+        再試行
+      </button>
     </div>
   );
 }
