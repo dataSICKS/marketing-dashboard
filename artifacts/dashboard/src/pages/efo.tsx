@@ -1,16 +1,29 @@
 import { useState } from "react";
-import { useGetEfoData, useGetEfoFilters, useSyncEfo } from "@workspace/api-client-react";
-import type { GetEfoDataGroupBy, EfoMetrics, EfoExitScenarioCount } from "@workspace/api-client-react";
+import {
+  useGetEfoData,
+  useGetEfoFilters,
+  useSyncEfo,
+  useGetClarityFiles,
+  useGetClarityScroll,
+} from "@workspace/api-client-react";
+import type {
+  GetEfoDataGroupBy,
+  EfoMetrics,
+  EfoExitScenarioCount,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   ComposedChart,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   Bar,
   Line,
   CartesianGrid,
+  Legend,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
@@ -22,6 +35,8 @@ type GroupBy = GetEfoDataGroupBy;
 
 const YELLOW = "#FBBF24";
 const BLUE = "#6366F1";
+const CLARITY_DESKTOP = "#60A5FA";
+const CLARITY_MOBILE = "#F472B6";
 
 const SEG_COLORS = { A: YELLOW, B: BLUE } as const;
 const SEG_TEXT_ON_COLOR = { A: "#1A1A1A", B: "#ffffff" } as const;
@@ -282,6 +297,202 @@ function SegmentPanel({
   );
 }
 
+// ─── Clarity Scroll Depth Chart ────────────────────────────────────
+function ClarityScrollSection() {
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedAdCode, setSelectedAdCode] = useState<string>("");
+
+  const { data: datesData, isLoading: datesLoading } = useGetClarityFiles();
+  const dates = datesData?.dates ?? [];
+
+  // selectedDateが未設定の場合は最新日付を使用
+  const activeDate = selectedDate || (dates[0] ?? "");
+
+  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
+    activeDate ? { date: activeDate } : undefined,
+    { query: { enabled: !!activeDate } },
+  );
+  const adCodeOptions = filesData?.adCodes ?? [];
+
+  const effectiveAdCode = selectedAdCode || (adCodeOptions[0]?.adCode ?? "");
+  const effectiveDate = activeDate;
+
+  const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
+    { date: effectiveDate, adCode: effectiveAdCode },
+    { query: { enabled: !!(effectiveDate && effectiveAdCode) } },
+  );
+
+  const points = scrollData?.points ?? [];
+  const pageViews = scrollData?.pageViews ?? {};
+
+  const chartData = points.map((p) => ({
+    depth: `${p.depth}%`,
+    Desktop: p.desktop,
+    Mobile: p.mobile,
+  }));
+
+  const isChartLoading = scrollLoading || (!!effectiveDate && filesLoading);
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
+      {/* Section header */}
+      <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ borderBottom: "1px solid #F0F0F0" }}>
+        <div>
+          <div className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>スクロール深度分析</div>
+          <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>Microsoft Clarity — 広告コード別スクロール到達率</div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Date selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: "#6B7280" }}>日付</span>
+            {datesLoading ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <select
+                value={selectedDate || (dates[0] ?? "")}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedAdCode("");
+                }}
+                className="text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
+                style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
+              >
+                {dates.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Ad code selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: "#6B7280" }}>広告コード</span>
+            {filesLoading && selectedDate ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <select
+                value={selectedAdCode || (adCodeOptions[0]?.adCode ?? "")}
+                onChange={(e) => setSelectedAdCode(e.target.value)}
+                className="text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
+                style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
+                disabled={adCodeOptions.length === 0}
+              >
+                {adCodeOptions.map((a) => (
+                  <option key={a.adCode} value={a.adCode}>
+                    {a.adCode}（{a.devices.join(" / ")}）
+                  </option>
+                ))}
+                {adCodeOptions.length === 0 && <option value="">—</option>}
+              </select>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Page views summary */}
+      {!isChartLoading && (Object.keys(pageViews).length > 0) && (
+        <div className="px-5 py-2 flex items-center gap-4" style={{ borderBottom: "1px solid #F5F5F5", background: "#FAFAFA" }}>
+          {pageViews.Desktop != null && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: CLARITY_DESKTOP }} />
+              <span className="text-xs" style={{ color: "#6B7280" }}>Desktop PV:</span>
+              <span className="text-xs font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Desktop)}</span>
+            </div>
+          )}
+          {pageViews.Mobile != null && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: CLARITY_MOBILE }} />
+              <span className="text-xs" style={{ color: "#6B7280" }}>Mobile PV:</span>
+              <span className="text-xs font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Mobile)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="px-5 py-4">
+        {isChartLoading ? (
+          <Skeleton className="h-56 w-full" />
+        ) : !effectiveDate || !effectiveAdCode ? (
+          <div className="h-56 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>
+            日付と広告コードを選択してください
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="h-56 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>
+            データなし
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 20, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="clarityDesktop" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CLARITY_DESKTOP} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={CLARITY_DESKTOP} stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="clarityMobile" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CLARITY_MOBILE} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={CLARITY_MOBILE} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+              <XAxis
+                dataKey="depth"
+                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                tickLine={false}
+                axisLine={false}
+                interval={4}
+                label={{ value: "スクロール深度", position: "insideBottomRight", offset: -4, fontSize: 10, fill: "#9CA3AF" }}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                tickLine={false}
+                axisLine={false}
+                width={44}
+                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11 }}
+                formatter={(value, name: string) => {
+                  const num = typeof value === "number" ? value : typeof value === "string" ? parseFloat(value) : null;
+                  if (num == null || isNaN(num)) return ["—", name];
+                  return [formatNumber(num), name === "Desktop" ? "Desktop 訪問者数" : "Mobile 訪問者数"];
+                }}
+                labelFormatter={(label) => `スクロール深度: ${label}`}
+              />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                formatter={(value) => value === "Desktop" ? "Desktop" : "Mobile"}
+              />
+              <Area
+                type="monotone"
+                dataKey="Desktop"
+                stroke={CLARITY_DESKTOP}
+                strokeWidth={2}
+                fill="url(#clarityDesktop)"
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls
+              />
+              <Area
+                type="monotone"
+                dataKey="Mobile"
+                stroke={CLARITY_MOBILE}
+                strokeWidth={2}
+                fill="url(#clarityMobile)"
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
@@ -365,6 +576,9 @@ export default function EfoPage() {
           <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} />
           <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} />
         </div>
+
+        {/* Clarity Scroll Depth */}
+        <ClarityScrollSection />
       </div>
     </div>
   );

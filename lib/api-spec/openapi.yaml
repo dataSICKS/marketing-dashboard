@@ -14,6 +14,8 @@ tags:
     description: Newsletter report operations
   - name: efo
     description: EFO CVR report operations
+  - name: clarity
+    description: Microsoft Clarity heatmap scroll depth data
 paths:
   /healthz:
     get:
@@ -154,6 +156,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NewsletterSegmentsResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clarity/files:
+    get:
+      operationId: getClarityFiles
+      tags: [clarity]
+      summary: List available Clarity heatmap files
+      description: Returns available dates and ad codes stored in Supabase Storage
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Date folder to list (YYYY-MM-DD). Omit to get all available dates.
+      responses:
+        "200":
+          description: Available dates and ad codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClarityFilesResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clarity/scroll:
+    get:
+      operationId: getClarityScroll
+      tags: [clarity]
+      summary: Get scroll depth data for an ad code
+      description: Returns scroll depth visitor counts for Desktop and/or Mobile devices
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date folder (YYYY-MM-DD)
+        - name: adCode
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Ad code to fetch scroll data for
+      responses:
+        "200":
+          description: Scroll depth data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClarityScrollResponse"
+        "400":
+          description: Missing required parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Fetch failed
           content:
@@ -481,6 +549,77 @@ components:
             $ref: "#/components/schemas/NewsletterChangeEvent"
       required:
         - events
+
+    ClarityAdCodeEntry:
+      type: object
+      properties:
+        adCode:
+          type: string
+          description: Ad code identifier
+        devices:
+          type: array
+          items:
+            type: string
+          description: Available devices (Desktop, Mobile)
+      required:
+        - adCode
+        - devices
+
+    ClarityFilesResponse:
+      type: object
+      properties:
+        dates:
+          type: array
+          items:
+            type: string
+          description: Available date folders
+        adCodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClarityAdCodeEntry"
+          description: Available ad codes with their devices
+      required:
+        - dates
+        - adCodes
+
+    ClarityScrollPoint:
+      type: object
+      properties:
+        depth:
+          type: number
+          description: Scroll depth percentage (5, 10, ..., 100)
+        desktop:
+          type: ["number", "null"]
+          description: Visitor count at this depth for Desktop
+        mobile:
+          type: ["number", "null"]
+          description: Visitor count at this depth for Mobile
+      required:
+        - depth
+        - desktop
+        - mobile
+
+    ClarityScrollResponse:
+      type: object
+      properties:
+        adCode:
+          type: string
+        date:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClarityScrollPoint"
+        pageViews:
+          type: object
+          additionalProperties:
+            type: number
+          description: Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })
+      required:
+        - adCode
+        - date
+        - points
+        - pageViews
 
     EfoFilters:
       type: object
