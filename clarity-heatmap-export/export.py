@@ -85,7 +85,7 @@ def download_one(page, adcode, device, date_str):
         print(f"    [{adcode}/{device}] ダウンロードボタンなし（データ無し?）", flush=True)
         return saved
 
-    for kind, label in [("csv", "CSV をダウンロード"), ("png", "PNG をダウンロード")]:
+    for kind, label in [("csv", "CSV をダウンロード")]:   # CSVのみ（PNGは保存しない）
         # ダウンロードボタンを押してメニュー項目（CSV=menuitem / PNG=role=button）を出す。
         # ダウンロード後はメニュー再オープンが不安定なので、ボタン再クリックをリトライ。
         item = None
