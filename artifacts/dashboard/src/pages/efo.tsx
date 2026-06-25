@@ -15,14 +15,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   ComposedChart,
-  BarChart,
   XAxis,
   YAxis,
   Tooltip,
   Bar,
   Line,
   CartesianGrid,
-  Legend,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
@@ -296,34 +294,50 @@ function SegmentPanel({
   );
 }
 
-// ─── Clarity Panel (per-segment) ───────────────────────────────────
+// ─── Clarity Panel (fully self-contained) ──────────────────────────
 type DeviceTab = "合計" | "Desktop" | "Mobile";
 const DEVICE_TABS: DeviceTab[] = ["合計", "Desktop", "Mobile"];
 const CLARITY_SEG_COLORS = { A: YELLOW, B: BLUE } as const;
 const CLARITY_SEG_TEXT = { A: "#1A1A1A", B: "#ffffff" } as const;
 
-function ClarityPanel({
-  seg,
-  activeDate,
-  adCodeOptions,
-  filesLoading,
-}: {
-  seg: "A" | "B";
-  activeDate: string;
-  adCodeOptions: Array<{ adCode: string; devices: string[] }>;
-  filesLoading: boolean;
-}) {
+function resolveActiveDate(dates: string[], dateRange: EfoDateRange | null): string {
+  if (dates.length === 0) return "";
+  if (!dateRange) return dates[0];
+  const toFmt = dateRange.to.replace(/\//g, "-");
+  const fromFmt = dateRange.from.replace(/\//g, "-");
+  const inRange = dates.filter((d) => d >= fromFmt && d <= toFmt);
+  if (inRange.length > 0) return inRange[0];
+  const before = dates.filter((d) => d <= toFmt);
+  return before[0] ?? dates[0];
+}
+
+function ClarityPanel({ seg }: { seg: "A" | "B" }) {
   const color = CLARITY_SEG_COLORS[seg];
   const textOnColor = CLARITY_SEG_TEXT[seg];
+
+  const [dateRange, setDateRange] = useState<EfoDateRange | null>(null);
   const [selectedAdCode, setSelectedAdCode] = useState<string>("");
   const [device, setDevice] = useState<DeviceTab>("合計");
 
-  // adCodeOptionsが変わったら選択をリセット
+  // 利用可能な日付フォルダ一覧（両パネルで共有キャッシュ）
+  const { data: datesData } = useGetClarityFiles();
+  const dates = datesData?.dates ?? [];
+
+  const activeDate = useMemo(() => resolveActiveDate(dates, dateRange), [dates, dateRange]);
+
+  // 選択日付のadCode一覧
+  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
+    activeDate ? { date: activeDate } : undefined,
+    { query: { enabled: !!activeDate } },
+  );
+  const adCodeOptions = filesData?.adCodes ?? [];
+
+  // 日付変更時にadCode選択をリセット
   useEffect(() => { setSelectedAdCode(""); }, [activeDate]);
 
   const effectiveAdCode = selectedAdCode || (adCodeOptions[0]?.adCode ?? "");
 
-  const { data: scrollData, isLoading } = useGetClarityScroll(
+  const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
     { date: activeDate, adCode: effectiveAdCode },
     { query: { enabled: !!(activeDate && effectiveAdCode) } },
   );
@@ -331,21 +345,30 @@ function ClarityPanel({
   const points = scrollData?.points ?? [];
   const pageViews = scrollData?.pageViews ?? {};
 
-  // 縦グラフ用: depth を Y軸カテゴリとして上から下へ（5%→100%）
+  // Y軸=スクロール深度（5%→100%）、X軸=訪問者数
   const chartData = points.map((p) => ({
     depth: `${p.depth}%`,
     Desktop: p.desktop ?? null,
     Mobile: p.mobile ?? null,
   }));
 
-  const chartHeight = Math.max(220, chartData.length * 16 + 48);
-  const isChartLoading = isLoading || filesLoading;
+  const chartHeight = Math.max(240, chartData.length * 18 + 48);
+  const isChartLoading = scrollLoading || (!!activeDate && filesLoading);
 
   return (
     <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", minWidth: 0 }}>
-      {/* Panel header */}
-      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: color }}>
+      {/* Header */}
+      <div className="px-4 py-2.5" style={{ background: color }}>
         <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
+      </div>
+
+      {/* Date picker */}
+      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        <div className="text-[10px] font-medium mb-1.5" style={{ color: "#9CA3AF" }}>
+          期間
+          {activeDate && <span className="ml-1 font-normal">（{activeDate}）</span>}
+        </div>
+        <EfoDateRangePicker value={dateRange} onChange={setDateRange} accentColor={color} />
       </div>
 
       {/* Ad code selector */}
@@ -385,17 +408,17 @@ function ClarityPanel({
         ))}
       </div>
 
-      {/* Page views */}
+      {/* PV summary */}
       {!isChartLoading && Object.keys(pageViews).length > 0 && (
         <div className="px-4 py-1.5 flex gap-4" style={{ borderBottom: "1px solid #F5F5F5", background: "#FAFAFA" }}>
-          {pageViews.Desktop != null && (
+          {pageViews.Desktop != null && (device === "合計" || device === "Desktop") && (
             <div className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CLARITY_DESKTOP }} />
               <span className="text-[10px]" style={{ color: "#6B7280" }}>Desktop PV:</span>
               <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pageViews.Desktop)}</span>
             </div>
           )}
-          {pageViews.Mobile != null && (
+          {pageViews.Mobile != null && (device === "合計" || device === "Mobile") && (
             <div className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CLARITY_MOBILE }} />
               <span className="text-[10px]" style={{ color: "#6B7280" }}>Mobile PV:</span>
@@ -405,26 +428,20 @@ function ClarityPanel({
         </div>
       )}
 
-      {/* 縦グラフ: Y軸=深度, X軸=訪問者数 */}
+      {/* 縦・滑らか線グラフ: Y軸=深度カテゴリ, X軸=訪問者数 */}
       <div className="px-4 py-3" style={{ background: "#fff" }}>
         {isChartLoading ? (
           <Skeleton className="w-full" style={{ height: chartHeight }} />
-        ) : !activeDate || !effectiveAdCode ? (
-          <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
-            データを取得中…
-          </div>
         ) : chartData.length === 0 ? (
           <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
-            データなし
+            {activeDate && effectiveAdCode ? "データなし" : "データを取得中…"}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={chartHeight}>
-            <BarChart
+            <ComposedChart
               layout="vertical"
               data={chartData}
-              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
-              barCategoryGap="20%"
-              barGap={2}
+              margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#F3F4F6" />
               <XAxis
@@ -452,12 +469,28 @@ function ClarityPanel({
                 labelFormatter={(label) => `スクロール深度: ${label}`}
               />
               {(device === "合計" || device === "Desktop") && (
-                <Bar dataKey="Desktop" fill={CLARITY_DESKTOP} radius={[0, 2, 2, 0]} maxBarSize={8} />
+                <Line
+                  type="monotone"
+                  dataKey="Desktop"
+                  stroke={CLARITY_DESKTOP}
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 3, fill: CLARITY_DESKTOP }}
+                  connectNulls
+                />
               )}
               {(device === "合計" || device === "Mobile") && (
-                <Bar dataKey="Mobile" fill={CLARITY_MOBILE} radius={[0, 2, 2, 0]} maxBarSize={8} />
+                <Line
+                  type="monotone"
+                  dataKey="Mobile"
+                  stroke={CLARITY_MOBILE}
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 3, fill: CLARITY_MOBILE }}
+                  connectNulls
+                />
               )}
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -467,51 +500,17 @@ function ClarityPanel({
 
 // ─── Clarity Scroll Depth Section ──────────────────────────────────
 function ClarityScrollSection() {
-  const [dateRange, setDateRange] = useState<EfoDateRange | null>(null);
-
-  const { data: datesData } = useGetClarityFiles();
-  const dates = datesData?.dates ?? []; // ["2026-06-24", ...] 降順
-
-  // 日付ピッカーの選択から最適なフォルダ日付を導出
-  const activeDate = useMemo(() => {
-    if (dates.length === 0) return "";
-    if (!dateRange) return dates[0];
-    const toFmt = dateRange.to.replace(/\//g, "-");
-    const fromFmt = dateRange.from.replace(/\//g, "-");
-    // 範囲内で最新のフォルダを優先
-    const inRange = dates.filter((d) => d >= fromFmt && d <= toFmt);
-    if (inRange.length > 0) return inRange[0];
-    // 範囲より前の最新フォルダ
-    const before = dates.filter((d) => d <= toFmt);
-    return before[0] ?? dates[0];
-  }, [dates, dateRange]);
-
-  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
-    activeDate ? { date: activeDate } : undefined,
-    { query: { enabled: !!activeDate } },
-  );
-  const adCodeOptions = filesData?.adCodes ?? [];
-
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
-      {/* Section header + date picker */}
-      <div className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap" style={{ borderBottom: "1px solid #F0F0F0" }}>
-        <div>
-          <div className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>スクロール深度分析</div>
-          <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-            Microsoft Clarity — 広告コード別スクロール到達率
-            {activeDate && <span className="ml-1.5">（{activeDate}）</span>}
-          </div>
-        </div>
-        <div style={{ width: 280 }}>
-          <EfoDateRangePicker value={dateRange} onChange={setDateRange} accentColor="#1A1A1A" />
-        </div>
+      {/* Section header */}
+      <div className="px-5 py-4" style={{ borderBottom: "1px solid #F0F0F0" }}>
+        <div className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>スクロール深度分析</div>
+        <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>Microsoft Clarity — 広告コード別スクロール到達率</div>
       </div>
-
-      {/* Two panels side by side */}
+      {/* Two independent panels */}
       <div className="p-4 flex gap-4 items-start">
-        <ClarityPanel seg="A" activeDate={activeDate} adCodeOptions={adCodeOptions} filesLoading={filesLoading} />
-        <ClarityPanel seg="B" activeDate={activeDate} adCodeOptions={adCodeOptions} filesLoading={filesLoading} />
+        <ClarityPanel seg="A" />
+        <ClarityPanel seg="B" />
       </div>
     </div>
   );
