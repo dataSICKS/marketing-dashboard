@@ -6,8 +6,9 @@ import {
   upsertEfoExitScenarios,
   fetchEfoAccessCvFromSupabase,
   fetchEfoExitScenariosFromSupabase,
+  fetchEcfAdAccessCvFromSupabase,
 } from "../lib/efo-supabase.js";
-import type { EfoAccessCvRow, EfoExitScenarioRow, EfoExitScenarioCount } from "../lib/efo-types.js";
+import type { EfoAccessCvRow, EfoExitScenarioRow, EcfAdAccessCvRow, EfoExitScenarioCount } from "../lib/efo-types.js";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,7 @@ const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "produc
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5分
 let accessCvCache: { rows: EfoAccessCvRow[]; syncedAt: string; loadedAt: number } | null = null;
 let exitScenariosCache: { rows: EfoExitScenarioRow[]; syncedAt: string; loadedAt: number } | null = null;
+let ecfCache: { rows: EcfAdAccessCvRow[]; loadedAt: number } | null = null;
 
 function isCacheStale(): boolean {
   if (!accessCvCache || !exitScenariosCache) return true;
@@ -25,11 +27,13 @@ function isCacheStale(): boolean {
 async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void } }) {
   if (isCacheStale()) {
     req.log.info("EFO cache stale or empty, fetching from Supabase");
-    const [{ rows: acRows, syncedAt: acSyncedAt }, { rows: esRows, syncedAt: esSyncedAt }] = await Promise.all([
+    const [{ rows: acRows, syncedAt: acSyncedAt }, { rows: esRows, syncedAt: esSyncedAt }, ecfRows] = await Promise.all([
       fetchEfoAccessCvFromSupabase(),
       fetchEfoExitScenariosFromSupabase(),
+      fetchEcfAdAccessCvFromSupabase(),
     ]);
     const now = Date.now();
+    ecfCache = { rows: ecfRows, loadedAt: now };
     if (acRows.length > 0 && acSyncedAt) {
       accessCvCache = { rows: acRows, syncedAt: acSyncedAt, loadedAt: now };
       exitScenariosCache = { rows: esRows, syncedAt: esSyncedAt ?? acSyncedAt, loadedAt: now };
@@ -52,6 +56,7 @@ async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: 
   return {
     accessCvRows: accessCvCache.rows,
     exitScenarioRows: exitScenariosCache.rows,
+    ecfRows: ecfCache?.rows ?? [],
     syncedAt: accessCvCache.syncedAt,
   };
 }
@@ -102,7 +107,7 @@ router.get("/efo/data", async (req, res): Promise<void> => {
     const profileNames = profileName ? profileName.split(",").filter(Boolean) : null;
     const adCodes = adCode ? adCode.split(",").filter(Boolean) : null;
 
-    const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, syncedAt } = await getEfoData(req);
+    const { accessCvRows: allAccessCv, exitScenarioRows: allExitScenarios, ecfRows: allEcf, syncedAt } = await getEfoData(req);
 
     let accessCvRows = allAccessCv;
     const isoDate = (d: string) => d.replace(/\//g, "-");
@@ -117,8 +122,13 @@ router.get("/efo/data", async (req, res): Promise<void> => {
     if (profileNames?.length) exitScenarioRows = exitScenarioRows.filter((r) => profileNames.includes(r.profileName));
     if (adCodes?.length) exitScenarioRows = exitScenarioRows.filter((r) => adCodes.includes(r.adCode));
 
-    const items = aggregateEfoRows(accessCvRows, groupBy);
-    const summary = computeEfoSummary(accessCvRows);
+    let ecfRows = allEcf;
+    if (dateFrom) ecfRows = ecfRows.filter((r) => r.adDate >= dateFrom);
+    if (dateTo) ecfRows = ecfRows.filter((r) => r.adDate <= dateTo);
+    if (adCodes?.length) ecfRows = ecfRows.filter((r) => adCodes.includes(r.adUrl));
+
+    const items = aggregateEfoRows(accessCvRows, groupBy, ecfRows);
+    const summary = computeEfoSummary(accessCvRows, ecfRows);
 
     // aggregate exit scenarios
     const scenarioMap = new Map<string, number>();

@@ -14,11 +14,20 @@ export interface EfoExitScenarioRow {
   sessionCount: number;
 }
 
+export interface EcfAdAccessCvRow {
+  adUrl: string;
+  adDate: string; // YYYY-MM-DD
+  lpAccessCount: number;
+}
+
 export interface EfoMetrics {
   label: string;
   accessCount: number;
   cvCount: number;
   cvr: number;
+  lpAccessCount: number | null;
+  chatLaunchRate: number | null;
+  lpCvr: number | null;
 }
 
 export interface EfoExitScenarioCount {

@@ -113,6 +113,9 @@ export type EfoMetrics = {
   accessCount: number;
   cvCount: number;
   cvr: number;
+  lpAccessCount: number | null;
+  chatLaunchRate: number | null;
+  lpCvr: number | null;
 };
 
 export type EfoExitScenarioCount = {

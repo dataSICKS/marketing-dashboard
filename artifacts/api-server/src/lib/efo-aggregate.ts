@@ -1,4 +1,4 @@
-import type { EfoAccessCvRow, EfoMetrics } from "./efo-types.js";
+import type { EfoAccessCvRow, EcfAdAccessCvRow, EfoMetrics } from "./efo-types.js";
 
 export type EfoGroupBy = "day" | "week" | "month";
 
@@ -23,46 +23,77 @@ function getMonthLabel(dateStr: string): string {
   return dateStr.slice(0, 7);
 }
 
-function computeMetrics(label: string, rows: EfoAccessCvRow[]): EfoMetrics {
+function ecfGroupKey(adDate: string, groupBy: EfoGroupBy): string {
+  switch (groupBy) {
+    case "week": return getWeekLabel(adDate);
+    case "month": return adDate.slice(0, 7);
+    default: return adDate;
+  }
+}
+
+function efoGroupKey(date: string, groupBy: EfoGroupBy): string {
+  const iso = toISO(date);
+  switch (groupBy) {
+    case "week": return getWeekLabel(iso);
+    case "month": return iso.slice(0, 7);
+    default: return iso;
+  }
+}
+
+function buildEcfLpMap(ecfRows: EcfAdAccessCvRow[], groupBy: EfoGroupBy): Map<string, number> {
+  // key: "{groupKey}|{adUrl}" → sum of lpAccessCount
+  const map = new Map<string, number>();
+  for (const r of ecfRows) {
+    const key = `${ecfGroupKey(r.adDate, groupBy)}|${r.adUrl}`;
+    map.set(key, (map.get(key) ?? 0) + r.lpAccessCount);
+  }
+  return map;
+}
+
+function computeMetrics(
+  label: string,
+  rows: EfoAccessCvRow[],
+  lpAccessCount: number | null,
+): EfoMetrics {
   const accessCount = rows.reduce((s, r) => s + r.accessCount, 0);
   const cvCount = rows.reduce((s, r) => s + r.cvCount, 0);
-  return {
-    label,
-    accessCount,
-    cvCount,
-    cvr: accessCount > 0 ? cvCount / accessCount : 0,
-  };
+  const cvr = accessCount > 0 ? cvCount / accessCount : 0;
+  const chatLaunchRate = lpAccessCount != null && lpAccessCount > 0 ? accessCount / lpAccessCount : null;
+  const lpCvr = lpAccessCount != null && lpAccessCount > 0 ? cvCount / lpAccessCount : null;
+  return { label, accessCount, cvCount, cvr, lpAccessCount, chatLaunchRate, lpCvr };
 }
 
 export function aggregateEfoRows(
   rows: EfoAccessCvRow[],
-  groupBy: EfoGroupBy
+  groupBy: EfoGroupBy,
+  ecfRows: EcfAdAccessCvRow[] = [],
 ): EfoMetrics[] {
-  const map = new Map<string, EfoAccessCvRow[]>();
-
+  const efoMap = new Map<string, EfoAccessCvRow[]>();
   for (const row of rows) {
-    let key: string;
-    switch (groupBy) {
-      case "day":
-        key = row.date;
-        break;
-      case "week":
-        key = getWeekLabel(row.date);
-        break;
-      case "month":
-        key = getMonthLabel(row.date);
-        break;
-      default:
-        key = row.date;
-    }
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(row);
+    const key = efoGroupKey(row.date, groupBy);
+    if (!efoMap.has(key)) efoMap.set(key, []);
+    efoMap.get(key)!.push(row);
   }
 
-  const entries = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  return entries.map(([key, groupRows]) => computeMetrics(key, groupRows));
+  const ecfLpMap = buildEcfLpMap(ecfRows, groupBy);
+
+  // aggregate ECF LP access per group (summing over all adCodes in that group)
+  const ecfGroupTotals = new Map<string, number>();
+  for (const [key, lp] of ecfLpMap) {
+    const groupKey = key.split("|")[0];
+    ecfGroupTotals.set(groupKey, (ecfGroupTotals.get(groupKey) ?? 0) + lp);
+  }
+
+  const entries = Array.from(efoMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+  return entries.map(([key, groupRows]) => {
+    const lp = ecfGroupTotals.has(key) ? ecfGroupTotals.get(key)! : null;
+    return computeMetrics(key, groupRows, lp);
+  });
 }
 
-export function computeEfoSummary(rows: EfoAccessCvRow[]): EfoMetrics {
-  return computeMetrics("合計", rows);
+export function computeEfoSummary(rows: EfoAccessCvRow[], ecfRows: EcfAdAccessCvRow[] = []): EfoMetrics {
+  const lpAccessCount = ecfRows.length > 0
+    ? ecfRows.reduce((s, r) => s + r.lpAccessCount, 0)
+    : null;
+  return computeMetrics("合計", rows, lpAccessCount);
 }

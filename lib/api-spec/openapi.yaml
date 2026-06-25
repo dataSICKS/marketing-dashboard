@@ -659,10 +659,24 @@ components:
           type: string
         accessCount:
           type: number
+          description: チャット起動数
         cvCount:
           type: number
         cvr:
           type: number
+          description: チャット内CVR (cvCount / accessCount)
+        lpAccessCount:
+          type: number
+          nullable: true
+          description: LPアクセス数（ecf_ad_access_cvより）
+        chatLaunchRate:
+          type: number
+          nullable: true
+          description: チャット起動率 (accessCount / lpAccessCount)
+        lpCvr:
+          type: number
+          nullable: true
+          description: LP CVR (cvCount / lpAccessCount)
       required:
         - label
         - accessCount

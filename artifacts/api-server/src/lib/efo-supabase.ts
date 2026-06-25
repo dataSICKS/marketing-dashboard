@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { EfoAccessCvRow, EfoExitScenarioRow } from "./efo-types.js";
+import type { EfoAccessCvRow, EfoExitScenarioRow, EcfAdAccessCvRow } from "./efo-types.js";
 import { logger } from "./logger.js";
 
 function getSupabaseClient() {
@@ -125,4 +125,18 @@ export async function fetchEfoExitScenariosFromSupabase(): Promise<{ rows: EfoEx
   }));
   logger.info({ rowCount: rows.length }, "Fetched efo_exit_scenarios from Supabase");
   return { rows, syncedAt: data[0]?.synced_at ?? null };
+}
+
+export async function fetchEcfAdAccessCvFromSupabase(): Promise<EcfAdAccessCvRow[]> {
+  const supabase = getSupabaseClient();
+  const data = await fetchAllPages((from, to) =>
+    supabase.from("ecf_ad_access_cv").select("ad_url,ad_date,access_count").order("ad_date", { ascending: true }).range(from, to),
+  );
+  const rows: EcfAdAccessCvRow[] = data.map((r) => ({
+    adUrl: r.ad_url ?? "",
+    adDate: r.ad_date ?? "",
+    lpAccessCount: r.access_count ?? 0,
+  }));
+  logger.info({ rowCount: rows.length }, "Fetched ecf_ad_access_cv from Supabase");
+  return rows;
 }

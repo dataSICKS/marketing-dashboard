@@ -116,23 +116,29 @@ function SegmentSelector({
 
 // ─── KPI Row ───────────────────────────────────────────────────────
 function KpiRow({ summary, isLoading, color }: { summary: EfoMetrics | undefined; isLoading: boolean; color: string }) {
+  const hasLp = summary?.lpAccessCount != null;
   const items = [
-    { label: "起動数", value: formatNumber(summary?.accessCount ?? 0), icon: MousePointerClick },
-    { label: "CV数",   value: formatNumber(summary?.cvCount ?? 0), icon: CheckCircle },
-    { label: "CVR",    value: formatPercent(summary?.cvr ?? 0), icon: TrendingUp },
+    ...(hasLp ? [{ label: "LPアクセス数", value: formatNumber(summary!.lpAccessCount ?? 0), sub: null }] : []),
+    { label: "起動数", value: formatNumber(summary?.accessCount ?? 0), sub: hasLp && summary?.chatLaunchRate != null ? `起動率 ${formatPercent(summary.chatLaunchRate)}` : null },
+    { label: "CV数",   value: formatNumber(summary?.cvCount ?? 0), sub: null },
+    { label: "チャットCVR", value: formatPercent(summary?.cvr ?? 0), sub: null },
+    ...(hasLp ? [{ label: "LP CVR", value: formatPercent(summary!.lpCvr ?? 0), sub: null }] : []),
   ];
   return (
-    <div className="flex" style={{ borderBottom: "1px solid #F0F0F0" }}>
+    <div className="flex flex-wrap" style={{ borderBottom: "1px solid #F0F0F0" }}>
       {items.map((k, i) => (
         <div
           key={k.label}
           className="flex-1 px-4 py-3 text-center"
-          style={{ borderRight: i < 2 ? "1px solid #F0F0F0" : "none" }}
+          style={{ borderRight: i < items.length - 1 ? "1px solid #F0F0F0" : "none", minWidth: 80 }}
         >
           <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>{k.label}</div>
           {isLoading
             ? <Skeleton className="h-7 w-20 mx-auto" />
-            : <div className="text-xl font-bold" style={{ color: "#111" }}>{k.value}</div>}
+            : <>
+                <div className="text-xl font-bold" style={{ color: "#111" }}>{k.value}</div>
+                {k.sub && <div className="text-[10px] mt-0.5" style={{ color: color }}>{k.sub}</div>}
+              </>}
         </div>
       ))}
     </div>
@@ -265,31 +271,44 @@ function SegmentPanel({
       </div>
 
       {/* Table */}
-      {!isLoading && items.length > 0 && (
-        <div style={{ background: "#FAFAFA" }}>
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
-                {["ラベル", "起動数", "CV数", "CVR"].map((h) => (
-                  <th key={h} className="px-4 py-2 text-left font-semibold" style={{ color: "#9CA3AF" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <tr key={`${item.label}-${i}`} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                  <td className="px-4 py-2 font-medium" style={{ color: "#6B7280" }}>{item.label}</td>
-                  <td className="px-4 py-2" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>
-                  <td className="px-4 py-2" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>
-                  <td className="px-4 py-2 font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>
-                    {formatPercent(item.cvr)}
-                  </td>
+      {!isLoading && items.length > 0 && (() => {
+        const hasLpData = items.some((it) => it.lpAccessCount != null);
+        const headers = [
+          "ラベル",
+          ...(hasLpData ? ["LPアクセス"] : []),
+          "起動数",
+          ...(hasLpData ? ["起動率"] : []),
+          "CV数",
+          "チャットCVR",
+          ...(hasLpData ? ["LP CVR"] : []),
+        ];
+        return (
+          <div style={{ background: "#FAFAFA" }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
+                  {headers.map((h) => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold" style={{ color: "#9CA3AF" }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {items.map((item, i) => (
+                  <tr key={`${item.label}-${i}`} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                    <td className="px-3 py-2 font-medium" style={{ color: "#6B7280" }}>{item.label}</td>
+                    {hasLpData && <td className="px-3 py-2" style={{ color: "#374151" }}>{item.lpAccessCount != null ? formatNumber(item.lpAccessCount) : "—"}</td>}
+                    <td className="px-3 py-2" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>
+                    {hasLpData && <td className="px-3 py-2 font-semibold" style={{ color: "#374151" }}>{item.chatLaunchRate != null ? formatPercent(item.chatLaunchRate) : "—"}</td>}
+                    <td className="px-3 py-2" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>
+                    <td className="px-3 py-2 font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>{formatPercent(item.cvr)}</td>
+                    {hasLpData && <td className="px-3 py-2 font-semibold" style={{ color: item.lpCvr != null && item.lpCvr > 0.05 ? "#10B981" : "#374151" }}>{item.lpCvr != null ? formatPercent(item.lpCvr) : "—"}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
