@@ -52,17 +52,30 @@ def settle(page, t=20000):
         pass
 
 
-def heatmap_url(adcode, date_param):
+def _day_epoch_ms(date_str):
+    """'YYYY-MM-DD' をその日のJST 00:00:00 / 23:59:59.999 のエポックms(start,end)に。"""
+    d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    s = int(datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=JST).timestamp() * 1000)
+    e = int(datetime(d.year, d.month, d.day, 23, 59, 59, 999000, tzinfo=JST).timestamp() * 1000)
+    return s, e
+
+
+def heatmap_url(adcode, date_str):
+    """date_str=None→前日(date=Yesterday)、指定日→date=Custom&start&end（エポックms）。"""
     flt = f"2;2;{CL['url_match_prefix']}{adcode}"   # field=2(URL);match=2(を含む);値
-    return (f"https://clarity.microsoft.com/projects/view/{PROJECT_ID}/heatmaps"
-            f"?date={quote(date_param)}&heatmapType=0&URL={quote(flt, safe='')}")
+    base = f"https://clarity.microsoft.com/projects/view/{PROJECT_ID}/heatmaps"
+    if date_str is None:
+        datepart = "date=Yesterday"
+    else:
+        s, e = _day_epoch_ms(date_str)
+        datepart = f"date=Custom&start={s}&end={e}"
+    return f"{base}?{datepart}&heatmapType=0&URL={quote(flt, safe='')}"
 
 
 def download_one(page, adcode, device, date_str):
-    """1ページ×1デバイスのスクロールヒートマップ CSV/PNG を取得。保存パスのリストを返す。"""
+    """1ページ×1デバイスのスクロールヒートマップ CSV を取得。保存パスのリストを返す。"""
     saved = []
-    page.goto(heatmap_url(adcode, "Yesterday" if date_str is None else date_str),
-              wait_until="networkidle")
+    page.goto(heatmap_url(adcode, date_str), wait_until="networkidle")
     page.wait_for_timeout(8000)
 
     sc = vis(page, "#button_heatmapType_Scroll")
@@ -141,9 +154,10 @@ def upload_to_supabase(path, date_str):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    date_str = args[0] if args else None
-    label_date = date_str or (datetime.now(JST) - timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"対象日: {label_date}（{'指定' if date_str else '前日/Yesterday'}）", flush=True)
+    # 未指定なら前日(JST)。常に日付文字列を使い、ファイル名・保存先を日付で統一。
+    date_str = args[0] if args else (datetime.now(JST) - timedelta(days=1)).strftime("%Y-%m-%d")
+    label_date = date_str
+    print(f"対象日: {label_date}", flush=True)
 
     n_files, n_up = 0, 0
     with sync_playwright() as p:
