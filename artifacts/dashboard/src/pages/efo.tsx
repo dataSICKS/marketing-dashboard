@@ -146,35 +146,60 @@ function KpiRow({ summary, isLoading, color }: { summary: EfoMetrics | undefined
 }
 
 // ─── CVR Trend Line Chart ──────────────────────────────────────────
+const LAUNCH_RATE_COLOR = "#10B981";
+
 function CvrTrendChart({ items, color }: { items: EfoMetrics[]; color: string }) {
+  const LAUNCH_RATE_MAX = 0.5;
+  const hasLaunchRate = items.some((item) => item.chatLaunchRate != null && item.chatLaunchRate <= LAUNCH_RATE_MAX);
   const data = items.map((item) => ({
     label: item.label,
     accessCount: item.accessCount,
     cvCount: item.cvCount,
     cvr: parseFloat((item.cvr * 100).toFixed(2)),
+    ...(hasLaunchRate && item.chatLaunchRate != null && item.chatLaunchRate <= LAUNCH_RATE_MAX
+      ? { launchRate: parseFloat((item.chatLaunchRate * 100).toFixed(2)) }
+      : {}),
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={160}>
-      <ComposedChart data={data} margin={{ top: 16, right: 20, left: -10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-        <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-        <YAxis yAxisId="count" orientation="left" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={40} />
-        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} unit="%" width={36} />
-        <Tooltip
-          contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11 }}
-          formatter={(value: number, name: string) => {
-            if (name === "cvr") return [`${value}%`, "CVR"];
-            if (name === "accessCount") return [formatNumber(value), "起動数"];
-            if (name === "cvCount") return [formatNumber(value), "CV数"];
-            return [value, name];
-          }}
-        />
-        <Bar yAxisId="count" dataKey="accessCount" fill="#E5E7EB" radius={[3, 3, 0, 0]} maxBarSize={32} name="accessCount" />
-        <Bar yAxisId="count" dataKey="cvCount" fill={color} radius={[3, 3, 0, 0]} maxBarSize={32} name="cvCount" opacity={0.85} />
-        <Line yAxisId="rate" type="monotone" dataKey="cvr" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} name="cvr" />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div>
+      {hasLaunchRate && (
+        <div className="flex gap-3 justify-end mb-1 px-1">
+          <span className="flex items-center gap-1 text-[10px]" style={{ color: "#9CA3AF" }}>
+            <span style={{ display: "inline-block", width: 12, height: 2, background: color, borderRadius: 1 }} />
+            CVR
+          </span>
+          <span className="flex items-center gap-1 text-[10px]" style={{ color: "#9CA3AF" }}>
+            <span style={{ display: "inline-block", width: 12, height: 2, background: LAUNCH_RATE_COLOR, borderRadius: 1, borderTop: `2px dashed ${LAUNCH_RATE_COLOR}` }} />
+            起動率
+          </span>
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={160}>
+        <ComposedChart data={data} margin={{ top: 4, right: 20, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
+          <YAxis yAxisId="count" orientation="left" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={40} />
+          <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false} unit="%" width={36} domain={[0, "auto"]} />
+          <Tooltip
+            contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11 }}
+            formatter={(value: number, name: string) => {
+              if (name === "cvr") return [`${value}%`, "CVR"];
+              if (name === "launchRate") return [`${value}%`, "起動率"];
+              if (name === "accessCount") return [formatNumber(value), "起動数"];
+              if (name === "cvCount") return [formatNumber(value), "CV数"];
+              return [value, name];
+            }}
+          />
+          <Bar yAxisId="count" dataKey="accessCount" fill="#E5E7EB" radius={[3, 3, 0, 0]} maxBarSize={32} name="accessCount" />
+          <Bar yAxisId="count" dataKey="cvCount" fill={color} radius={[3, 3, 0, 0]} maxBarSize={32} name="cvCount" opacity={0.85} />
+          <Line yAxisId="rate" type="monotone" dataKey="cvr" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} name="cvr" />
+          {hasLaunchRate && (
+            <Line yAxisId="rate" type="monotone" dataKey="launchRate" stroke={LAUNCH_RATE_COLOR} strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: LAUNCH_RATE_COLOR }} name="launchRate" />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
