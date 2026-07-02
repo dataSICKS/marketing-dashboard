@@ -516,9 +516,11 @@ export default function Dashboard() {
   const campaignLines = useMemo<Campaign[]>(() => {
     const camps = campaignsData?.campaigns ?? [];
     if (camps.length === 0 || items.length === 0) return [];
-    const minLabel = items[0].label;
-    const maxLabel = items[items.length - 1].label;
-    return camps.filter((c) => c.startDate <= maxLabel && c.endDate >= minLabel);
+    // labels are "YYYY/MM/DD", convert to "YYYY-MM-DD" for ISO comparison
+    const toIso = (s: string) => s.replace(/\//g, "-");
+    const minIso = toIso(items[0].label);
+    const maxIso = toIso(items[items.length - 1].label);
+    return camps.filter((c) => c.startDate <= maxIso && c.endDate >= minIso);
   }, [campaignsData, items]);
 
   // Row phase for table coloring
@@ -824,7 +826,7 @@ export default function Dashboard() {
                             <ReferenceLine
                               key={c.id}
                               yAxisId="left"
-                              x={c.startDate}
+                              x={c.startDate.replace(/-/g, "/")}
                               stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
                               strokeDasharray="4 3"
                               strokeWidth={1.5}

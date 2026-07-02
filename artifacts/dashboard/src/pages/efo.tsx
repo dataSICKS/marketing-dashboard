@@ -200,7 +200,7 @@ function CvrTrendChart({ items, color, campaigns = [] }: { items: EfoMetrics[]; 
             <ReferenceLine
               key={c.id}
               yAxisId="count"
-              x={c.startDate}
+              x={c.startDate.replace(/-/g, "/")}
               stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
               strokeDasharray="4 3"
               strokeWidth={1.5}
@@ -403,10 +403,10 @@ function SegmentPanel({
 
   const campaignLines = useMemo<Campaign[]>(() => {
     if (campaigns.length === 0 || items.length === 0) return [];
-    const labels = items.map((it) => it.label);
-    const minLabel = labels[0];
-    const maxLabel = labels[labels.length - 1];
-    return campaigns.filter((c) => c.startDate <= maxLabel && c.endDate >= minLabel);
+    const toIso = (s: string) => s.replace(/\//g, "-");
+    const minIso = toIso(items[0].label);
+    const maxIso = toIso(items[items.length - 1].label);
+    return campaigns.filter((c) => c.startDate <= maxIso && c.endDate >= minIso);
   }, [campaigns, items]);
 
   return (
