@@ -5,6 +5,7 @@ import {
   computeSummary,
   mergeComparisonMetrics,
   getUniqueSegments,
+  getUniqueTemplates,
   type GroupBy,
 } from "../lib/newsletter-aggregate.js";
 import { getCache, setCache } from "../lib/newsletter-cache.js";
@@ -55,6 +56,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const dateFrom = parsed.success ? (parsed.data.dateFrom ?? undefined) : undefined;
     const dateTo = parsed.success ? (parsed.data.dateTo ?? undefined) : undefined;
     const segmentParam = parsed.success ? ((parsed.data as Record<string, unknown>).segment as string | undefined) : undefined;
+    const templateNameParam = parsed.success ? ((parsed.data as Record<string, unknown>).templateName as string | undefined) : undefined;
     const compareFrom = parsed.success ? ((parsed.data as Record<string, unknown>).compareFrom as string | undefined) : undefined;
     const compareTo = parsed.success ? ((parsed.data as Record<string, unknown>).compareTo as string | undefined) : undefined;
 
@@ -67,10 +69,16 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       ? segmentParam.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
+    // parse comma-separated template names
+    const selectedTemplates = templateNameParam
+      ? templateNameParam.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+
     // filter current period
     let rows = allRows;
     if (dateFrom) rows = rows.filter((r) => r.deliveryDate >= dateFrom);
     if (dateTo) rows = rows.filter((r) => r.deliveryDate <= dateTo);
+    if (selectedTemplates.length > 0) rows = rows.filter((r) => selectedTemplates.includes(r.templateName));
 
     // filter prev period
     let prevRows: NewsletterRow[] = [];
@@ -79,6 +87,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       prevRows = allRows;
       if (compareFrom) prevRows = prevRows.filter((r) => r.deliveryDate >= compareFrom);
       if (compareTo) prevRows = prevRows.filter((r) => r.deliveryDate <= compareTo);
+      if (selectedTemplates.length > 0) prevRows = prevRows.filter((r) => selectedTemplates.includes(r.templateName));
     }
 
     // no segment filter → single flat aggregation
@@ -191,6 +200,17 @@ router.get("/newsletter/segments", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch segments");
     res.status(500).json({ error: "セグメント取得に失敗しました" });
+  }
+});
+
+router.get("/newsletter/templates", async (req, res): Promise<void> => {
+  try {
+    const { rows } = await getRows(req);
+    const templates = getUniqueTemplates(rows);
+    res.json({ templates });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch templates");
+    res.status(500).json({ error: "テンプレート取得に失敗しました" });
   }
 });
 

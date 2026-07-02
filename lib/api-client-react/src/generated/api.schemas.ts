@@ -62,6 +62,10 @@ export type NewsletterSegmentsResponse = {
   segments: string[];
 };
 
+export type NewsletterTemplatesResponse = {
+  templates: string[];
+};
+
 export type NewsletterChangeEvent = {
   date: string;
   type: "subject" | "template";

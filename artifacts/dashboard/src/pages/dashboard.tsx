@@ -3,6 +3,7 @@ import {
   useGetNewsletterData,
   useSyncNewsletter,
   useGetNewsletterChangeEvents,
+  useGetNewsletterTemplates,
   getGetNewsletterDataQueryKey,
   useListCampaigns,
 } from "@workspace/api-client-react";
@@ -434,6 +435,8 @@ export default function Dashboard() {
 
   const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [segmentDropdownOpen, setSegmentDropdownOpen] = useState(false);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
+  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
@@ -460,6 +463,7 @@ export default function Dashboard() {
     dateFrom: dateRange?.from,
     dateTo: dateRange?.to,
     segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
+    templateName: selectedTemplates.length > 0 ? selectedTemplates.join(",") : undefined,
     compareFrom: compareMode === "date" && compareEnabled && compareRange ? compareRange.from : undefined,
     compareTo: compareMode === "date" && compareEnabled && compareRange ? compareRange.to : undefined,
   };
@@ -470,6 +474,7 @@ export default function Dashboard() {
 
   const { data: changeEventsData } = useGetNewsletterChangeEvents();
   const { data: campaignsData } = useListCampaigns();
+  const { data: templatesData } = useGetNewsletterTemplates();
 
   // Auto-select first change event
   useEffect(() => {
@@ -687,6 +692,42 @@ export default function Dashboard() {
                   {selectedSegments.length > 0 && (
                     <div style={{ borderTop: "1px solid #F3F4F6" }}>
                       <button onClick={() => { setSelectedSegments([]); setSegmentDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Template dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setTemplateDropdownOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+                style={selectedTemplates.length > 0
+                  ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
+                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+              >
+                {selectedTemplates.length > 0 ? `テンプレ (${selectedTemplates.length})` : "テンプレ"}
+                <ChevronDown size={13} />
+              </button>
+              {templateDropdownOpen && (
+                <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-y-auto" style={{ border: "1px solid #EBEBEB", minWidth: 240, maxHeight: 320 }}>
+                  {(templatesData?.templates ?? []).length === 0 ? (
+                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>テンプレートなし</div>
+                  ) : (templatesData?.templates ?? []).map((tmpl) => (
+                    <label key={tmpl} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedTemplates.includes(tmpl)}
+                        onChange={() => setSelectedTemplates((prev) => prev.includes(tmpl) ? prev.filter((t) => t !== tmpl) : [...prev, tmpl])}
+                        style={{ accentColor: YELLOW }}
+                      />
+                      <span className="truncate" style={{ maxWidth: 190 }}>{tmpl}</span>
+                    </label>
+                  ))}
+                  {selectedTemplates.length > 0 && (
+                    <div style={{ borderTop: "1px solid #F3F4F6" }}>
+                      <button onClick={() => { setSelectedTemplates([]); setTemplateDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
                     </div>
                   )}
                 </div>
@@ -916,6 +957,9 @@ export default function Dashboard() {
 
       {segmentDropdownOpen && (
         <div className="fixed inset-0 z-10" onClick={() => setSegmentDropdownOpen(false)} />
+      )}
+      {templateDropdownOpen && (
+        <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />
       )}
     </>
   );

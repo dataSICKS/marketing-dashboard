@@ -14,6 +14,7 @@ import type {
   NewsletterSyncResult,
   NewsletterChangeEventsResponse,
   NewsletterSegmentsResponse,
+  NewsletterTemplatesResponse,
   ClarityFilesResponse,
   ClarityScrollResponse,
   EfoFilters,
@@ -164,6 +165,27 @@ export const useGetNewsletterSegments = <TError = ErrorType<ErrorResponse>>(opti
   const queryKey = getGetNewsletterSegmentsQueryKey();
   const queryFn: QueryFunction<NewsletterSegmentsResponse, GetNewsletterSegmentsQueryKey> = () =>
     getNewsletterSegments();
+  return useQuery({ queryKey, queryFn, ...queryOptions });
+};
+
+// ---------------------------------------------------------------------------
+// Newsletter — templates
+// ---------------------------------------------------------------------------
+
+export const getNewsletterTemplates = () =>
+  customFetch<NewsletterTemplatesResponse>("/api/newsletter/templates");
+
+export const getGetNewsletterTemplatesQueryKey = () => ["/api/newsletter/templates"] as const;
+
+export type GetNewsletterTemplatesQueryKey = ReturnType<typeof getGetNewsletterTemplatesQueryKey>;
+
+export const useGetNewsletterTemplates = <TError = ErrorType<ErrorResponse>>(options?: {
+  query?: QueryOpts<NewsletterTemplatesResponse, TError, GetNewsletterTemplatesQueryKey>;
+}) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = getGetNewsletterTemplatesQueryKey();
+  const queryFn: QueryFunction<NewsletterTemplatesResponse, GetNewsletterTemplatesQueryKey> = () =>
+    getNewsletterTemplates();
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 

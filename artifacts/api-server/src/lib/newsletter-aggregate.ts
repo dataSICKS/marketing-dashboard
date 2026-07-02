@@ -106,3 +106,11 @@ export function getUniqueSegments(rows: NewsletterRow[]): string[] {
   }
   return Array.from(set).sort();
 }
+
+export function getUniqueTemplates(rows: NewsletterRow[]): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    if (r.templateName) set.add(r.templateName);
+  }
+  return Array.from(set).sort();
+}
