@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   useGetNewsletterData,
   useSyncNewsletter,
-  useGetNewsletterChangeEvents,
   useGetNewsletterTemplates,
   getGetNewsletterDataQueryKey,
   useListCampaigns,
@@ -11,7 +10,6 @@ import type {
   GetNewsletterDataGroupBy,
   NewsletterMetrics,
   NewsletterSegmentGroup,
-  NewsletterChangeEvent,
   Campaign,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -131,11 +129,11 @@ function DiffBadgePt({ current, prev, isRate }: { current: number; prev: number;
 
 // ─── Before/After KPI row ─────────────────────────────────────────
 function BeforeAfterKpiRow({
-  event,
+  campaign,
   before,
   after,
 }: {
-  event: NewsletterChangeEvent;
+  campaign: Campaign;
   before: ReturnType<typeof sumItems>;
   after: ReturnType<typeof sumItems>;
 }) {
@@ -152,17 +150,17 @@ function BeforeAfterKpiRow({
       <div className="px-4 md:px-6 py-2.5 flex items-center gap-2 flex-wrap" style={{ background: "#FDF4FF", borderBottom: "1px solid #F3E8FF" }}>
         <GitCommitHorizontal size={13} color={CHANGE_COLOR} />
         <span className="text-xs font-bold" style={{ color: CHANGE_COLOR }}>
-          {event.date} 「{event.type === "subject" ? "件名" : "テンプレート"}変更」前後比較
+          施策「{campaign.title}」開始前後比較（{campaign.startDate}〜）
         </span>
-        <span className="text-[10px] truncate max-w-[240px]" style={{ color: "#9CA3AF" }}>
-          {event.before} → {event.after}
-        </span>
+        {campaign.memo && (
+          <span className="text-[10px] truncate max-w-[240px]" style={{ color: "#9CA3AF" }}>{campaign.memo}</span>
+        )}
         <div className="flex items-center gap-3 ml-auto text-[10px]" style={{ color: "#9CA3AF" }}>
           <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: BEFORE_COLOR }} /> 変更前
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: BEFORE_COLOR }} /> 施策前
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: AFTER_COLOR }} /> 変更後
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: AFTER_COLOR }} /> 施策後
           </span>
         </div>
       </div>
@@ -186,20 +184,20 @@ function BeforeAfterKpiRow({
   );
 }
 
-// ─── Change event picker ───────────────────────────────────────────
-function ChangeEventPicker({
-  events,
+// ─── Campaign picker ───────────────────────────────────────────────
+function CampaignPicker({
+  campaigns,
   selectedId,
   onSelect,
 }: {
-  events: NewsletterChangeEvent[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
+  campaigns: Campaign[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
 }) {
-  if (events.length === 0) {
+  if (campaigns.length === 0) {
     return (
       <div className="bg-white rounded-xl px-4 py-3 text-xs" style={{ border: `1.5px solid ${CHANGE_COLOR}`, color: "#9CA3AF" }}>
-        変更イベントが検出されませんでした（件名・テンプレートが一定の場合）
+        施策カレンダーに施策が登録されていません。先に施策を追加してください。
       </div>
     );
   }
@@ -207,40 +205,29 @@ function ChangeEventPicker({
     <div className="bg-white rounded-xl px-4 py-3" style={{ border: `1.5px solid ${CHANGE_COLOR}` }}>
       <div className="flex items-center gap-2 mb-2.5">
         <GitCommitHorizontal size={13} color={CHANGE_COLOR} />
-        <span className="text-xs font-semibold" style={{ color: CHANGE_COLOR }}>変更タイミングを選択</span>
-        <span className="text-[10px]" style={{ color: "#9CA3AF" }}>選択した日を起点に前後を比較します</span>
+        <span className="text-xs font-semibold" style={{ color: CHANGE_COLOR }}>施策を選択</span>
+        <span className="text-[10px]" style={{ color: "#9CA3AF" }}>施策の開始日を起点に前後を比較します</span>
       </div>
       <div className="flex gap-2 flex-wrap">
-        {events.map((ev) => {
-          const id = `${ev.date}|${ev.type}|${ev.scenarioName}`;
-          const isSelected = id === selectedId;
+        {campaigns.map((c) => {
+          const isSelected = c.id === selectedId;
           return (
             <button
-              key={id}
-              onClick={() => onSelect(id)}
+              key={c.id}
+              onClick={() => onSelect(c.id)}
               className="flex items-start gap-2 px-3 py-2 rounded-xl text-left transition-all"
               style={isSelected
                 ? { background: "#FDF4FF", border: `1.5px solid ${CHANGE_COLOR}` }
                 : { background: "#F9FAFB", border: "1px solid #E5E7EB" }}
             >
-              <span className="text-base leading-none mt-0.5">{ev.type === "subject" ? "✏️" : "📝"}</span>
+              <span className="text-base leading-none mt-0.5">📌</span>
               <div>
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-[10px] font-bold" style={{ color: isSelected ? CHANGE_COLOR : "#374151" }}>{ev.date}</span>
-                  <span
-                    className="text-[9px] px-1 py-0.5 rounded font-medium"
-                    style={{
-                      background: ev.type === "subject" ? "#DBEAFE" : "#D1FAE5",
-                      color: ev.type === "subject" ? "#1D4ED8" : "#065F46",
-                    }}
-                  >
-                    {ev.type === "subject" ? "件名変更" : "テンプレ変更"}
-                  </span>
+                  <span className="text-[10px] font-bold" style={{ color: isSelected ? CHANGE_COLOR : "#374151" }}>{c.startDate}</span>
+                  <span className="text-[9px] px-1 py-0.5 rounded font-medium" style={{ background: "#F3E8FF", color: CHANGE_COLOR }}>施策開始</span>
                 </div>
-                <div className="text-[10px] max-w-[200px] truncate" style={{ color: "#6B7280" }} title={`${ev.before} → ${ev.after}`}>
-                  {ev.before} → {ev.after}
-                </div>
-                <div className="text-[9px] mt-0.5" style={{ color: "#9CA3AF" }}>{ev.scenarioName}</div>
+                <div className="text-[10px] max-w-[200px] truncate font-medium" style={{ color: "#374151" }}>{c.title}</div>
+                {c.memo && <div className="text-[9px] mt-0.5 max-w-[200px] truncate" style={{ color: "#9CA3AF" }}>{c.memo}</div>}
               </div>
             </button>
           );
@@ -440,7 +427,7 @@ export default function Dashboard() {
 
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
-  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [selectedChangeId, setSelectedChangeId] = useState<number | null>(null);
 
   // Preset state
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
@@ -472,24 +459,22 @@ export default function Dashboard() {
     query: { queryKey: getGetNewsletterDataQueryKey(params) },
   });
 
-  const { data: changeEventsData } = useGetNewsletterChangeEvents();
   const { data: campaignsData } = useListCampaigns();
   const { data: templatesData } = useGetNewsletterTemplates();
 
-  // Auto-select first change event
+  // Auto-select first campaign when entering change mode
   useEffect(() => {
-    if (changeEventsData?.events && changeEventsData.events.length > 0 && !selectedChangeId) {
-      const ev = changeEventsData.events[0];
-      setSelectedChangeId(`${ev.date}|${ev.type}|${ev.scenarioName}`);
+    const camps = campaignsData?.campaigns ?? [];
+    if (camps.length > 0 && selectedChangeId === null) {
+      setSelectedChangeId(camps[0].id);
     }
-  }, [changeEventsData, selectedChangeId]);
+  }, [campaignsData, selectedChangeId]);
 
   const syncMutation = useSyncNewsletter({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/change-events"] });
       },
     },
   });
@@ -501,18 +486,17 @@ export default function Dashboard() {
   const availableSegments = data?.availableSegments ?? [];
   const showComparison = compareMode === "date" && compareEnabled && !!compareRange;
 
-  // Resolve selected change event
-  const allChangeEvents = changeEventsData?.events ?? [];
-  const selectedChangeEvent = allChangeEvents.find(
-    (ev) => `${ev.date}|${ev.type}|${ev.scenarioName}` === selectedChangeId
-  ) ?? null;
+  // Resolve selected campaign for change compare mode
+  const allCampaigns = campaignsData?.campaigns ?? [];
+  const selectedCampaign = allCampaigns.find((c) => c.id === selectedChangeId) ?? null;
+  const splitDate = selectedCampaign ? selectedCampaign.startDate.replace(/-/g, "/") : null;
 
   // Before/after splits for change compare mode
-  const beforeItems = compareMode === "change" && selectedChangeEvent
-    ? items.filter((item) => item.label < selectedChangeEvent.date)
+  const beforeItems = compareMode === "change" && splitDate
+    ? items.filter((item) => item.label < splitDate)
     : [];
-  const afterItems = compareMode === "change" && selectedChangeEvent
-    ? items.filter((item) => item.label >= selectedChangeEvent.date)
+  const afterItems = compareMode === "change" && splitDate
+    ? items.filter((item) => item.label >= splitDate)
     : [];
   const beforeSummary = sumItems(beforeItems);
   const afterSummary = sumItems(afterItems);
@@ -530,9 +514,9 @@ export default function Dashboard() {
 
   // Row phase for table coloring
   const getRowPhase = useCallback((label: string): "before" | "after" | null => {
-    if (compareMode !== "change" || !selectedChangeEvent) return null;
-    return label < selectedChangeEvent.date ? "before" : "after";
-  }, [compareMode, selectedChangeEvent]);
+    if (compareMode !== "change" || !splitDate) return null;
+    return label < splitDate ? "before" : "after";
+  }, [compareMode, splitDate]);
 
   const handleDateApply = (range: DateRange | null, cmp: DateRange | null, cmpEnabled: boolean) => {
     setDateRange(range);
@@ -580,8 +564,8 @@ export default function Dashboard() {
 
   // Chart bar fill by phase
   const getBarFill = (label: string) => {
-    if (compareMode !== "change" || !selectedChangeEvent) return YELLOW;
-    return label < selectedChangeEvent.date ? BEFORE_COLOR : AFTER_COLOR;
+    if (compareMode !== "change" || !splitDate) return YELLOW;
+    return label < splitDate ? BEFORE_COLOR : AFTER_COLOR;
   };
 
   return (
@@ -768,15 +752,15 @@ export default function Dashboard() {
                   ? { background: "#FDF4FF", color: CHANGE_COLOR, border: `1.5px solid ${CHANGE_COLOR}` }
                   : { background: "#fff", color: "#9CA3AF", border: "1px solid #EBEBEB" }}
               >
-                <GitCommitHorizontal size={11} /> 変更タイミング
+                <GitCommitHorizontal size={11} /> 施策タイミング
               </button>
             </div>
           </div>
 
-          {/* ── Change event picker ── */}
+          {/* ── Campaign picker ── */}
           {compareMode === "change" && (
-            <ChangeEventPicker
-              events={allChangeEvents}
+            <CampaignPicker
+              campaigns={allCampaigns}
               selectedId={selectedChangeId}
               onSelect={setSelectedChangeId}
             />
@@ -789,9 +773,9 @@ export default function Dashboard() {
           ) : (
             <>
               {/* ── Before/After KPI row (change compare mode) ── */}
-              {compareMode === "change" && selectedChangeEvent ? (
+              {compareMode === "change" && selectedCampaign ? (
                 <BeforeAfterKpiRow
-                  event={selectedChangeEvent}
+                  campaign={selectedCampaign}
                   before={beforeSummary}
                   after={afterSummary}
                 />
@@ -829,7 +813,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
-                        ? `破線 = 変更タイミング（${selectedChangeEvent?.date ?? ""}）　青 = 変更前 / ピンク = 変更後`
+                        ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後`
                         : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
@@ -851,15 +835,15 @@ export default function Dashboard() {
                               name === "配信数" ? [formatNumber(value), name] : [formatPercent(value), name]
                             }
                           />
-                          {/* Change point reference line */}
-                          {compareMode === "change" && selectedChangeEvent && (
+                          {/* Campaign split reference line */}
+                          {compareMode === "change" && splitDate && (
                             <ReferenceLine
                               yAxisId="left"
-                              x={selectedChangeEvent.date}
+                              x={splitDate}
                               stroke={CHANGE_COLOR}
                               strokeDasharray="5 4"
                               strokeWidth={2}
-                              label={{ value: "変更", fill: CHANGE_COLOR, fontSize: 9, position: "insideTopRight" }}
+                              label={{ value: "施策開始", fill: CHANGE_COLOR, fontSize: 9, position: "insideTopRight" }}
                             />
                           )}
                           {/* Campaign reference lines */}
@@ -893,10 +877,10 @@ export default function Dashboard() {
                       {compareMode === "change" ? (
                         <>
                           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: BEFORE_COLOR }} /> 変更前・配信数
+                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: BEFORE_COLOR }} /> 施策前・配信数
                           </div>
                           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 変更後・配信数
+                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 施策後・配信数
                           </div>
                           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                             <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,2" /></svg>
@@ -904,7 +888,7 @@ export default function Dashboard() {
                           </div>
                           <div className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: CHANGE_COLOR }}>
                             <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={CHANGE_COLOR} strokeWidth="1.5" strokeDasharray="5,4" /></svg>
-                            変更タイミング
+                            施策開始
                           </div>
                         </>
                       ) : (
