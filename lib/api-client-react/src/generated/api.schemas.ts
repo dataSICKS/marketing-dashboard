@@ -130,3 +130,28 @@ export type EfoReportResponse = {
   exitScenarios: EfoExitScenarioCount[];
   lastSyncedAt: string | null;
 };
+
+export type Campaign = {
+  id: number;
+  title: string;
+  startDate: string;
+  endDate: string;
+  memo: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CampaignInput = {
+  title: string;
+  startDate: string;
+  endDate: string;
+  memo?: string | null;
+};
+
+export type CampaignListResponse = {
+  campaigns: Campaign[];
+};
+
+export type CampaignResponse = {
+  campaign: Campaign;
+};

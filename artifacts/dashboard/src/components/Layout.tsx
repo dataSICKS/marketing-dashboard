@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { BarChart2, Mail, MousePointerClick, Settings, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart2, Mail, MousePointerClick, Settings, Menu, X, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
@@ -15,6 +15,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { icon: Mail, label: "メルマガ分析", href: "/" },
   { icon: MousePointerClick, label: "EFO CVRレポート", href: "/efo" },
+  { icon: CalendarDays, label: "施策カレンダー", href: "/campaigns" },
 ];
 
 function SidebarContent({ collapsed, onToggleCollapse, onClose }: {

@@ -5,11 +5,13 @@ import {
   useSyncEfo,
   useGetClarityFiles,
   useGetClarityScroll,
+  useListCampaigns,
 } from "@workspace/api-client-react";
 import type {
   GetEfoDataGroupBy,
   EfoMetrics,
   EfoExitScenarioCount,
+  Campaign,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,6 +23,7 @@ import {
   Bar,
   Line,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
@@ -32,6 +35,7 @@ type GroupBy = GetEfoDataGroupBy;
 
 const YELLOW = "#FBBF24";
 const BLUE = "#6366F1";
+const CAMPAIGN_COLORS = ["#F97316", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#14B8A6"];
 const CLARITY_DESKTOP = "#60A5FA";
 const CLARITY_MOBILE = "#F472B6";
 
@@ -149,7 +153,7 @@ function KpiRow({ summary, isLoading, color }: { summary: EfoMetrics | undefined
 // ─── CVR Trend Line Chart ──────────────────────────────────────────
 const LAUNCH_RATE_COLOR = "#10B981";
 
-function CvrTrendChart({ items, color }: { items: EfoMetrics[]; color: string }) {
+function CvrTrendChart({ items, color, campaigns = [] }: { items: EfoMetrics[]; color: string; campaigns?: Campaign[] }) {
   const LAUNCH_RATE_MAX = 0.5;
   const hasLaunchRate = items.some((item) => item.chatLaunchRate != null && item.chatLaunchRate <= LAUNCH_RATE_MAX);
   const data = items.map((item) => ({
@@ -192,6 +196,17 @@ function CvrTrendChart({ items, color }: { items: EfoMetrics[]; color: string })
               return [value, name];
             }}
           />
+          {campaigns.map((c, i) => (
+            <ReferenceLine
+              key={c.id}
+              yAxisId="count"
+              x={c.startDate}
+              stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              label={{ value: c.title.slice(0, 6), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
+            />
+          ))}
           <Bar yAxisId="count" dataKey="accessCount" fill="#E5E7EB" radius={[3, 3, 0, 0]} maxBarSize={32} name="accessCount" />
           <Bar yAxisId="count" dataKey="cvCount" fill={color} radius={[3, 3, 0, 0]} maxBarSize={32} name="cvCount" opacity={0.85} />
           <Line yAxisId="rate" type="monotone" dataKey="cvr" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} name="cvr" />
@@ -365,11 +380,12 @@ function DataTable({ items }: { items: EfoMetrics[] }) {
 
 // ─── Segment Panel ─────────────────────────────────────────────────
 function SegmentPanel({
-  seg, groupBy, filter,
+  seg, groupBy, filter, campaigns = [],
 }: {
   seg: "A" | "B";
   groupBy: GroupBy;
   filter: SegmentFilter;
+  campaigns?: Campaign[];
 }) {
   const color = SEG_COLORS[seg];
   const params = {
@@ -384,6 +400,14 @@ function SegmentPanel({
   const summary = data?.summary;
   const items = data?.items ?? [];
   const exitScenarios = data?.exitScenarios ?? [];
+
+  const campaignLines = useMemo<Campaign[]>(() => {
+    if (campaigns.length === 0 || items.length === 0) return [];
+    const labels = items.map((it) => it.label);
+    const minLabel = labels[0];
+    const maxLabel = labels[labels.length - 1];
+    return campaigns.filter((c) => c.startDate <= maxLabel && c.endDate >= minLabel);
+  }, [campaigns, items]);
 
   return (
     <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
@@ -400,7 +424,7 @@ function SegmentPanel({
         ) : items.length === 0 ? (
           <div className="h-40 flex items-center justify-center text-xs" style={{ color: "#bbb" }}>データなし</div>
         ) : (
-          <CvrTrendChart items={items} color={color} />
+          <CvrTrendChart items={items} color={color} campaigns={campaignLines} />
         )}
       </div>
 
@@ -662,6 +686,9 @@ export default function EfoPage() {
   const profiles = filtersData?.profileNames ?? [];
   const adCodes = filtersData?.adCodes ?? [];
 
+  const { data: campaignsData } = useListCampaigns();
+  const allCampaigns = campaignsData?.campaigns ?? [];
+
   const { data: anyData } = useGetEfoData({ groupBy });
   const lastSyncedAt = anyData?.lastSyncedAt;
 
@@ -724,8 +751,8 @@ export default function EfoPage() {
 
         {/* Side-by-side Panels */}
         <div className="flex gap-4 items-start">
-          <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} />
-          <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} />
+          <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} campaigns={allCampaigns} />
+          <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} campaigns={allCampaigns} />
         </div>
 
         {/* Clarity Scroll Depth */}

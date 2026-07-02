@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   useGetNewsletterData,
   useSyncNewsletter,
   useGetNewsletterChangeEvents,
   getGetNewsletterDataQueryKey,
+  useListCampaigns,
 } from "@workspace/api-client-react";
 import type {
   GetNewsletterDataGroupBy,
   NewsletterMetrics,
   NewsletterSegmentGroup,
   NewsletterChangeEvent,
+  Campaign,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,6 +51,7 @@ const YELLOW_DARK = "#D97706";
 const BEFORE_COLOR = "#60A5FA";
 const AFTER_COLOR = "#F472B6";
 const CHANGE_COLOR = "#A855F7";
+const CAMPAIGN_COLORS = ["#F97316", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#14B8A6"];
 
 const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
@@ -466,6 +469,7 @@ export default function Dashboard() {
   });
 
   const { data: changeEventsData } = useGetNewsletterChangeEvents();
+  const { data: campaignsData } = useListCampaigns();
 
   // Auto-select first change event
   useEffect(() => {
@@ -507,6 +511,15 @@ export default function Dashboard() {
     : [];
   const beforeSummary = sumItems(beforeItems);
   const afterSummary = sumItems(afterItems);
+
+  // Campaigns that overlap with current item labels
+  const campaignLines = useMemo<Campaign[]>(() => {
+    const camps = campaignsData?.campaigns ?? [];
+    if (camps.length === 0 || items.length === 0) return [];
+    const minLabel = items[0].label;
+    const maxLabel = items[items.length - 1].label;
+    return camps.filter((c) => c.startDate <= maxLabel && c.endDate >= minLabel);
+  }, [campaignsData, items]);
 
   // Row phase for table coloring
   const getRowPhase = useCallback((label: string): "before" | "after" | null => {
@@ -806,6 +819,18 @@ export default function Dashboard() {
                               label={{ value: "変更", fill: CHANGE_COLOR, fontSize: 9, position: "insideTopRight" }}
                             />
                           )}
+                          {/* Campaign reference lines */}
+                          {campaignLines.map((c, i) => (
+                            <ReferenceLine
+                              key={c.id}
+                              yAxisId="left"
+                              x={c.startDate}
+                              stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
+                              strokeDasharray="4 3"
+                              strokeWidth={1.5}
+                              label={{ value: c.title.slice(0, 8), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
+                            />
+                          ))}
                           <Bar yAxisId="left" dataKey="deliveryCount" name="配信数" radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
                             {items.map((item, index) => (
                               <Cell key={index} fill={getBarFill(item.label)} />

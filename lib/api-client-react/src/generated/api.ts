@@ -19,6 +19,10 @@ import type {
   EfoFilters,
   EfoReportResponse,
   EfoSyncResult,
+  Campaign,
+  CampaignInput,
+  CampaignListResponse,
+  CampaignResponse,
 } from "./api.schemas";
 
 // queryKey を省略できるよう extends するユーティリティ（オーバーライドは可）
@@ -295,5 +299,57 @@ export const useSyncEfo = <TError = ErrorType<ErrorResponse>, TContext = unknown
 }) => {
   const { mutation: mutationOptions } = options ?? {};
   const mutationFn: MutationFunction<EfoSyncResult, void> = () => syncEfo();
+  return useMutation({ mutationFn, ...mutationOptions });
+};
+
+// ---------------------------------------------------------------------------
+// Campaigns — CRUD
+// ---------------------------------------------------------------------------
+
+export const listCampaigns = () =>
+  customFetch<CampaignListResponse>("/api/campaigns", { method: "GET" });
+
+export const getListCampaignsQueryKey = () => ["/api/campaigns"] as const;
+export type ListCampaignsQueryKey = ReturnType<typeof getListCampaignsQueryKey>;
+
+export const useListCampaigns = <TError = ErrorType<ErrorResponse>>(options?: {
+  query?: QueryOpts<CampaignListResponse, TError, ListCampaignsQueryKey>;
+}) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = getListCampaignsQueryKey();
+  const queryFn: QueryFunction<CampaignListResponse, ListCampaignsQueryKey> = () => listCampaigns();
+  return useQuery({ queryKey, queryFn, ...queryOptions });
+};
+
+export const createCampaign = (input: CampaignInput) =>
+  customFetch<CampaignResponse>("/api/campaigns", { method: "POST", body: JSON.stringify(input) });
+
+export const useCreateCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<CampaignResponse, TError, CampaignInput, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  const mutationFn: MutationFunction<CampaignResponse, CampaignInput> = (input) => createCampaign(input);
+  return useMutation({ mutationFn, ...mutationOptions });
+};
+
+export const updateCampaign = (id: number, input: CampaignInput) =>
+  customFetch<CampaignResponse>(`/api/campaigns/${id}`, { method: "PUT", body: JSON.stringify(input) });
+
+export const useUpdateCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<CampaignResponse, TError, { id: number; input: CampaignInput }, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  const mutationFn: MutationFunction<CampaignResponse, { id: number; input: CampaignInput }> = ({ id, input }) => updateCampaign(id, input);
+  return useMutation({ mutationFn, ...mutationOptions });
+};
+
+export const deleteCampaign = (id: number) =>
+  customFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
+
+export const useDeleteCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<void, TError, number, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  const mutationFn: MutationFunction<void, number> = (id) => deleteCampaign(id);
   return useMutation({ mutationFn, ...mutationOptions });
 };
