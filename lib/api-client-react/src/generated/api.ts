@@ -250,7 +250,7 @@ export const useGetEfoFilters = <TError = ErrorType<ErrorResponse>>(options?: {
 // EFO — data
 // ---------------------------------------------------------------------------
 
-export type GetEfoDataGroupBy = "day" | "week" | "month";
+export type GetEfoDataGroupBy = "day" | "week" | "month" | "template";
 
 export type GetEfoDataParams = {
   groupBy?: GetEfoDataGroupBy;

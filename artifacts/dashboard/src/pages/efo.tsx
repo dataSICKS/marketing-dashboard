@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   useGetEfoData,
   useGetEfoFilters,
@@ -42,6 +42,7 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
   { value: "week", label: "週別" },
   { value: "month", label: "月別" },
+  { value: "template", label: "テンプレ別" },
 ];
 
 const FUNNEL_ORDER = ["start", "greeting", "name", "contact", "address", "product", "payment", "confirm_preview", "submission"];
@@ -242,6 +243,126 @@ function ArrivalFunnel({ scenarios, color }: { scenarios: EfoExitScenarioCount[]
   );
 }
 
+// ─── DataTable (sortable + resizable columns) ──────────────────────
+type SortKey = "label" | "lpAccessCount" | "accessCount" | "chatLaunchRate" | "cvCount" | "cvr" | "lpCvr";
+
+function DataTable({ items }: { items: EfoMetrics[] }) {
+  const hasLp = items.some((it) => it.lpAccessCount != null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [colWidths, setColWidths] = useState<Partial<Record<SortKey, number>>>({});
+  const resizingRef = useRef<{ key: SortKey; startX: number; startW: number } | null>(null);
+  const thRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement>>>({});
+
+  type ColDef = { key: SortKey; label: string; num: boolean };
+  const cols = useMemo<ColDef[]>(() => [
+    { key: "label", label: "ラベル", num: false },
+    ...(hasLp ? [{ key: "lpAccessCount" as SortKey, label: "LPアクセス", num: true }] : []),
+    { key: "accessCount", label: "起動数", num: true },
+    ...(hasLp ? [{ key: "chatLaunchRate" as SortKey, label: "起動率", num: true }] : []),
+    { key: "cvCount", label: "CV数", num: true },
+    { key: "cvr", label: "チャットCVR", num: true },
+    ...(hasLp ? [{ key: "lpCvr" as SortKey, label: "LP CVR", num: true }] : []),
+  ], [hasLp]);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return items;
+    return [...items].sort((a, b) => {
+      const av = a[sortKey as keyof EfoMetrics];
+      const bv = b[sortKey as keyof EfoMetrics];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc" ? av.localeCompare(bv, "ja") : bv.localeCompare(av, "ja");
+      }
+      const an = Number(av), bn = Number(bv);
+      return sortDir === "asc" ? an - bn : bn - an;
+    });
+  }, [items, sortKey, sortDir]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  };
+
+  const startResize = (key: SortKey, e: React.MouseEvent) => {
+    const th = thRefs.current[key];
+    if (!th) return;
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] ?? th.offsetWidth };
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const { key, startX, startW } = resizingRef.current;
+      setColWidths((prev) => ({ ...prev, [key]: Math.max(50, startW + e.clientX - startX) }));
+    };
+    const onUp = () => { resizingRef.current = null; };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  const renderCell = (item: EfoMetrics, key: SortKey) => {
+    switch (key) {
+      case "label":          return <td key={key} className="px-3 py-2" style={{ color: "#6B7280" }}>{item.label}</td>;
+      case "lpAccessCount":  return <td key={key} className="px-3 py-2 text-right" style={{ color: "#374151" }}>{item.lpAccessCount != null ? formatNumber(item.lpAccessCount) : "—"}</td>;
+      case "accessCount":    return <td key={key} className="px-3 py-2 text-right" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>;
+      case "chatLaunchRate": return <td key={key} className="px-3 py-2 text-right font-semibold" style={{ color: "#374151" }}>{item.chatLaunchRate != null ? formatPercent(item.chatLaunchRate) : "—"}</td>;
+      case "cvCount":        return <td key={key} className="px-3 py-2 text-right" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>;
+      case "cvr":            return <td key={key} className="px-3 py-2 text-right font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>{formatPercent(item.cvr)}</td>;
+      case "lpCvr":          return <td key={key} className="px-3 py-2 text-right font-semibold" style={{ color: item.lpCvr != null && item.lpCvr > 0.05 ? "#10B981" : "#374151" }}>{item.lpCvr != null ? formatPercent(item.lpCvr) : "—"}</td>;
+    }
+  };
+
+  return (
+    <div style={{ background: "#FAFAFA", overflowX: "auto" }}>
+      <table className="text-xs" style={{ tableLayout: "fixed", borderCollapse: "collapse", width: "100%" }}>
+        <colgroup>
+          {cols.map((col) => (
+            <col key={col.key} style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
+            {cols.map((col) => (
+              <th
+                key={col.key}
+                ref={(el) => { if (el) thRefs.current[col.key] = el; }}
+                className={`px-3 py-2 ${col.num ? "text-right" : "text-left"}`}
+                style={{ position: "relative", userSelect: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+                onClick={() => handleSort(col.key)}
+              >
+                <span className="font-semibold" style={{ color: sortKey === col.key ? "#374151" : "#9CA3AF" }}>
+                  {col.label}
+                  {sortKey === col.key
+                    ? <span style={{ marginLeft: 3 }}>{sortDir === "asc" ? "▲" : "▼"}</span>
+                    : <span style={{ marginLeft: 3, color: "#D1D5DB", fontSize: 9 }}>⇅</span>
+                  }
+                </span>
+                <div
+                  onMouseDown={(e) => startResize(col.key, e)}
+                  style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "col-resize" }}
+                />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((item, i) => (
+            <tr key={`${item.label}-${i}`} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+              {cols.map((col) => renderCell(item, col.key))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Segment Panel ─────────────────────────────────────────────────
 function SegmentPanel({
   seg, groupBy, filter,
@@ -296,44 +417,7 @@ function SegmentPanel({
       </div>
 
       {/* Table */}
-      {!isLoading && items.length > 0 && (() => {
-        const hasLpData = items.some((it) => it.lpAccessCount != null);
-        const headers = [
-          "ラベル",
-          ...(hasLpData ? ["LPアクセス"] : []),
-          "起動数",
-          ...(hasLpData ? ["起動率"] : []),
-          "CV数",
-          "チャットCVR",
-          ...(hasLpData ? ["LP CVR"] : []),
-        ];
-        return (
-          <div style={{ background: "#FAFAFA" }}>
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
-                  {headers.map((h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold" style={{ color: "#9CA3AF" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, i) => (
-                  <tr key={`${item.label}-${i}`} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                    <td className="px-3 py-2 font-medium" style={{ color: "#6B7280" }}>{item.label}</td>
-                    {hasLpData && <td className="px-3 py-2" style={{ color: "#374151" }}>{item.lpAccessCount != null ? formatNumber(item.lpAccessCount) : "—"}</td>}
-                    <td className="px-3 py-2" style={{ color: "#374151" }}>{formatNumber(item.accessCount)}</td>
-                    {hasLpData && <td className="px-3 py-2 font-semibold" style={{ color: "#374151" }}>{item.chatLaunchRate != null ? formatPercent(item.chatLaunchRate) : "—"}</td>}
-                    <td className="px-3 py-2" style={{ color: "#374151" }}>{formatNumber(item.cvCount)}</td>
-                    <td className="px-3 py-2 font-semibold" style={{ color: item.cvr > 0.1 ? "#10B981" : "#374151" }}>{formatPercent(item.cvr)}</td>
-                    {hasLpData && <td className="px-3 py-2 font-semibold" style={{ color: item.lpCvr != null && item.lpCvr > 0.05 ? "#10B981" : "#374151" }}>{item.lpCvr != null ? formatPercent(item.lpCvr) : "—"}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      })()}
+      {!isLoading && items.length > 0 && <DataTable items={items} />}
     </div>
   );
 }

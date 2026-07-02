@@ -1,6 +1,6 @@
 import type { EfoAccessCvRow, EcfAdAccessCvRow, EfoMetrics } from "./efo-types.js";
 
-export type EfoGroupBy = "day" | "week" | "month";
+export type EfoGroupBy = "day" | "week" | "month" | "template";
 
 function toISO(date: string): string {
   return date.replace(/\//g, "-");
@@ -68,6 +68,17 @@ export function aggregateEfoRows(
   groupBy: EfoGroupBy,
   ecfRows: EcfAdAccessCvRow[] = [],
 ): EfoMetrics[] {
+  if (groupBy === "template") {
+    const efoMap = new Map<string, EfoAccessCvRow[]>();
+    for (const row of rows) {
+      const key = row.profileName || "不明";
+      if (!efoMap.has(key)) efoMap.set(key, []);
+      efoMap.get(key)!.push(row);
+    }
+    const entries = Array.from(efoMap.entries()).sort(([a], [b]) => a.localeCompare(b, "ja"));
+    return entries.map(([key, groupRows]) => computeMetrics(key, groupRows, null));
+  }
+
   const efoMap = new Map<string, EfoAccessCvRow[]>();
   for (const row of rows) {
     const key = efoGroupKey(row.date, groupBy);
@@ -77,7 +88,6 @@ export function aggregateEfoRows(
 
   const ecfLpMap = buildEcfLpMap(ecfRows, groupBy);
 
-  // aggregate ECF LP access per group (summing over all adCodes in that group)
   const ecfGroupTotals = new Map<string, number>();
   for (const [key, lp] of ecfLpMap) {
     const groupKey = key.split("|")[0];
