@@ -271,7 +271,7 @@ export default function CampaignsPage() {
     mutation: { onSuccess: () => { setModalOpen(false); invalidate(); } },
   });
   const { mutate: update, isPending: isUpdating } = useUpdateCampaign({
-    mutation: { onSuccess: () => { setEditTarget(null); invalidate(); } },
+    mutation: { onSuccess: () => { closeModal(); invalidate(); } },
   });
   const { mutate: remove } = useDeleteCampaign({
     mutation: { onSuccess: invalidate },
