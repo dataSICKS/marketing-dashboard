@@ -41,6 +41,7 @@ const CLARITY_MOBILE = "#F472B6";
 
 const SEG_COLORS = { A: YELLOW, B: BLUE } as const;
 const SEG_TEXT_ON_COLOR = { A: "#1A1A1A", B: "#ffffff" } as const;
+const SEG_LABELS = { A: "オリジナルパターン", B: "テストパターン" } as const;
 
 const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
@@ -83,7 +84,7 @@ function SegmentSelector({
   return (
     <div className="rounded-xl overflow-hidden flex-1" style={{ border: `2px solid ${color}` }}>
       <div className="px-4 py-3 flex items-center justify-between" style={{ background: color }}>
-        <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
+        <span className="text-sm font-bold" style={{ color: textOnColor }}>{SEG_LABELS[seg]}</span>
       </div>
       <div className="px-4 py-3 flex flex-col gap-2" style={{ background: "#fff" }}>
         <div>
@@ -511,7 +512,7 @@ function ClarityPanel({ seg }: { seg: "A" | "B" }) {
     <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", minWidth: 0 }}>
       {/* Header */}
       <div className="px-4 py-2.5" style={{ background: color }}>
-        <span className="text-sm font-bold" style={{ color: textOnColor }}>セグメント {seg}</span>
+        <span className="text-sm font-bold" style={{ color: textOnColor }}>{SEG_LABELS[seg]}</span>
       </div>
 
       {/* Date picker */}
@@ -715,7 +716,7 @@ export default function EfoPage() {
       <div className="px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #EBEBEB", background: "#fff" }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>EFO CVRレポート</h1>
+            <h1 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>CVRレポート</h1>
             <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
               セグメント比較
               {lastSyncedAt && <> ・最終更新: {new Date(lastSyncedAt).toLocaleString("ja-JP")}</>}

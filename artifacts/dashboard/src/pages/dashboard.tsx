@@ -502,10 +502,14 @@ function MatrixView({
   availableScenarios,
   availableTemplates,
   dateRange,
+  compareMode,
+  selectedCampaign,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
   dateRange: DateRange | null;
+  compareMode: "none" | "date" | "change";
+  selectedCampaign: Campaign | null;
 }) {
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
@@ -514,21 +518,36 @@ function MatrixView({
 
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
+  const isCompare = compareMode === "change" && !!selectedCampaign;
+  const splitDate = selectedCampaign?.startDate ?? null;
 
-  const matrixParams = {
+  const baseParams = {
     timeGroupBy,
     metrics: selectedMetrics.join(","),
     scenarios: selectedScenarios.join(","),
     templates: selectedTemplates.join(","),
-    dateFrom: dateRange?.from,
-    dateTo: dateRange?.to,
   };
+
+  const matrixParams = { ...baseParams, dateFrom: dateRange?.from, dateTo: dateRange?.to };
+  const beforeParams = { ...baseParams, dateFrom: dateRange?.from, dateTo: splitDate ?? undefined };
+  const afterParams  = { ...baseParams, dateFrom: splitDate ?? undefined, dateTo: dateRange?.to };
+
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
-    query: { enabled: hasSelections && hasMetrics },
+    query: { enabled: !isCompare && hasSelections && hasMetrics },
+  });
+  const { data: beforeData, isLoading: beforeLoading } = useGetNewsletterMatrix(beforeParams, {
+    query: { enabled: isCompare && hasSelections && hasMetrics },
+  });
+  const { data: afterData, isLoading: afterLoading } = useGetNewsletterMatrix(afterParams, {
+    query: { enabled: isCompare && hasSelections && hasMetrics },
   });
 
-  const series: MatrixResponse["series"] = data?.series ?? [];
-  const timePeriods: string[] = data?.timePeriods ?? [];
+  const series: MatrixResponse["series"] = isCompare
+    ? (beforeData?.series ?? afterData?.series ?? [])
+    : (data?.series ?? []);
+  const timePeriods: string[] = isCompare ? [] : (data?.timePeriods ?? []);
+  const beforePeriods: string[] = isCompare ? (beforeData?.timePeriods ?? []) : [];
+  const afterPeriods:  string[] = isCompare ? (afterData?.timePeriods  ?? []) : [];
 
   const seriesLegend = useMemo(() => series.map((s, i) => ({
     ...s,
@@ -585,9 +604,9 @@ function MatrixView({
           style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
           指標を選択してください
         </div>
-      ) : isLoading ? (
+      ) : (isCompare ? beforeLoading || afterLoading : isLoading) ? (
         <LoadingSkeleton />
-      ) : timePeriods.length === 0 ? (
+      ) : (isCompare ? beforePeriods.length === 0 && afterPeriods.length === 0 : timePeriods.length === 0) ? (
         <div className="bg-white rounded-xl p-10 flex flex-col items-center justify-center gap-2 text-sm"
           style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
           {dateRange
@@ -706,72 +725,135 @@ function MatrixView({
 
           {/* ── Combined matrix table (series × metric rows) ── */}
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
-            <div className="px-4 md:px-6 py-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
+            <div className="px-4 md:px-6 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
               <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
+              {isCompare && selectedCampaign && (
+                <span className="text-[11px] px-2 py-0.5 rounded-md font-medium"
+                  style={{ background: "#F0FDF4", color: "#059669" }}>
+                  施策「{selectedCampaign.title}」前後比較（{selectedCampaign.startDate}）
+                </span>
+              )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
+              <table className="text-xs border-collapse" style={{ width: "max-content", minWidth: "100%" }}>
                 <thead>
+                  {/* ── Group header row (compare mode only) ── */}
+                  {isCompare && (
+                    <tr style={{ background: "#F9FAFB" }}>
+                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 150 }} />
+                      <th style={{ position: "sticky", left: 150, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
+                      <th colSpan={beforePeriods.length}
+                        className="px-3 py-1.5 text-center font-semibold whitespace-nowrap text-[10px]"
+                        style={{ color: "#94A3B8", background: "#F1F5F9", borderRight: "2px solid #CBD5E1", letterSpacing: "0.04em" }}>
+                        ▲ 施策前
+                      </th>
+                      <th colSpan={afterPeriods.length}
+                        className="px-3 py-1.5 text-center font-semibold whitespace-nowrap text-[10px]"
+                        style={{ color: "#059669", background: "#F0FDF4", letterSpacing: "0.04em" }}>
+                        ▼ 施策後
+                      </th>
+                    </tr>
+                  )}
+                  {/* ── Period header row ── */}
                   <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
                     <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 150, position: "sticky", left: 0, background: "#F9FAFB" }}>行</th>
+                      style={{ color: "#6B7280", minWidth: 150, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>行</th>
                     <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 150, background: "#F9FAFB", borderRight: "1px solid #F3F4F6" }}>指標</th>
-                    {timePeriods.map((period) => (
-                      <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
-                        style={{ color: "#6B7280" }}>{period}</th>
-                    ))}
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 150, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
+                    {isCompare ? (
+                      <>
+                        {beforePeriods.map((p) => (
+                          <th key={`b-${p}`} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                            style={{ color: "#94A3B8" }}>{p}</th>
+                        ))}
+                        {afterPeriods.map((p, i) => (
+                          <th key={`a-${p}`} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                            style={{ color: "#059669", borderLeft: i === 0 ? "2px solid #CBD5E1" : undefined }}>{p}</th>
+                        ))}
+                      </>
+                    ) : (
+                      timePeriods.map((period) => (
+                        <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                          style={{ color: "#6B7280" }}>{period}</th>
+                      ))
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {series.flatMap((s, si) =>
                     selectedMetrics.map((metricKey, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
-                      const vals = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
+                      const afterSeries = afterData?.series ?? [];
+                      const afterS = afterSeries.find((a) => a.key === s.key);
+                      const vals      = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
+                      const afterVals = (afterS?.metricValues[metricKey as keyof typeof afterS.metricValues] ?? {}) as Record<string, number>;
                       const allVals = series.flatMap((sr) =>
                         Object.values(sr.metricValues[metricKey as keyof typeof sr.metricValues] ?? {})
                       ).filter((v) => v > 0);
                       const maxV = allVals.length > 0 ? Math.max(...allVals) : 1;
                       const minV = allVals.length > 0 ? Math.min(...allVals) : 0;
                       const hBg = (val: number | undefined) => {
-                        if (val == null || maxV === minV) return "transparent";
+                        if (isCompare || val == null || maxV === minV) return "transparent";
                         return `rgba(251,191,36,${((val - minV) / (maxV - minV) * 0.45).toFixed(2)})`;
                       };
                       const isFirstMetric = mi === 0;
+                      const rowBg = si % 2 === 0 ? "#fff" : "#FAFAFA";
                       const rowBorderTop = isFirstMetric
                         ? (si === 0 ? "none" : "2px solid #E5E7EB")
                         : "1px solid #F9FAFB";
                       return (
-                        <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop }}>
-                          <td className="px-4 py-2 whitespace-nowrap font-medium"
-                            style={{ position: "sticky", left: 0, background: "#fff", color: "#1A1A1A", verticalAlign: "middle" }}>
-                            {isFirstMetric ? (
+                        <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
+                          {isFirstMetric ? (
+                            <td rowSpan={selectedMetrics.length}
+                              className="px-4 py-2 whitespace-nowrap font-medium"
+                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle" }}>
                               <div className="flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full shrink-0"
                                   style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
                                 <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
                                   style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                                  {s.type === "scenario" ? "シナリオ" : "テンプレ"}
+                                  {s.type === "scenario" ? "SC" : "TP"}
                                 </span>
                                 <span className="truncate" style={{ maxWidth: 80 }}>{s.key}</span>
                               </div>
-                            ) : null}
-                          </td>
+                            </td>
+                          ) : null}
                           <td className="px-3 py-2 whitespace-nowrap"
-                            style={{ position: "sticky", left: 150, background: "#fff", color: "#6B7280", borderRight: "1px solid #F3F4F6" }}>
+                            style={{ position: "sticky", left: 150, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
                             {mDef.label}
                           </td>
-                          {timePeriods.map((period) => {
-                            const val = vals[period];
-                            return (
-                              <td key={period} className="px-3 py-2 text-right tabular-nums"
-                                style={{ background: hBg(val), color: "#1A1A1A" }}>
-                                {val != null
-                                  ? (mDef.isRate ? formatPercent(val) : formatNumber(val))
-                                  : <span style={{ color: "#D1D5DB" }}>—</span>}
-                              </td>
-                            );
-                          })}
+                          {isCompare ? (
+                            <>
+                              {beforePeriods.map((period) => {
+                                const val = (vals as Record<string, number>)[period];
+                                return (
+                                  <td key={`b-${period}`} className="px-3 py-2 text-right tabular-nums"
+                                    style={{ color: "#64748B" }}>
+                                    {val != null ? (mDef.isRate ? formatPercent(val) : formatNumber(val)) : <span style={{ color: "#D1D5DB" }}>—</span>}
+                                  </td>
+                                );
+                              })}
+                              {afterPeriods.map((period, pi) => {
+                                const val = afterVals[period];
+                                return (
+                                  <td key={`a-${period}`} className="px-3 py-2 text-right tabular-nums"
+                                    style={{ color: "#1A1A1A", borderLeft: pi === 0 ? "2px solid #CBD5E1" : undefined }}>
+                                    {val != null ? (mDef.isRate ? formatPercent(val) : formatNumber(val)) : <span style={{ color: "#D1D5DB" }}>—</span>}
+                                  </td>
+                                );
+                              })}
+                            </>
+                          ) : (
+                            timePeriods.map((period) => {
+                              const val = (vals as Record<string, number>)[period];
+                              return (
+                                <td key={period} className="px-3 py-2 text-right tabular-nums"
+                                  style={{ background: hBg(val), color: "#1A1A1A" }}>
+                                  {val != null ? (mDef.isRate ? formatPercent(val) : formatNumber(val)) : <span style={{ color: "#D1D5DB" }}>—</span>}
+                                </td>
+                              );
+                            })
+                          )}
                         </tr>
                       );
                     })
@@ -1107,8 +1189,8 @@ export default function Dashboard() {
               </span>
             )}
 
-            {/* ── Compare mode toggle — hidden in matrix mode ── */}
-            {groupBy !== "matrix" && <div className="flex items-center gap-1.5 ml-auto">
+            {/* ── Compare mode toggle ── */}
+            <div className="flex items-center gap-1.5 ml-auto">
               <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>比較軸</span>
               <button
                 onClick={() => setCompareMode("none")}
@@ -1128,11 +1210,11 @@ export default function Dashboard() {
               >
                 <GitCommitHorizontal size={11} /> 施策タイミング
               </button>
-            </div>}
+            </div>
           </div>
 
           {/* ── Campaign picker ── */}
-          {compareMode === "change" && groupBy !== "matrix" && (
+          {compareMode === "change" && (
             <CampaignPicker
               campaigns={allCampaigns}
               selectedId={selectedChangeId}
@@ -1146,6 +1228,8 @@ export default function Dashboard() {
               availableScenarios={availableSegments}
               availableTemplates={templatesData?.templates ?? []}
               dateRange={dateRange}
+              compareMode={compareMode}
+              selectedCampaign={selectedCampaign}
             />
           ) : isLoading ? (
             <LoadingSkeleton />

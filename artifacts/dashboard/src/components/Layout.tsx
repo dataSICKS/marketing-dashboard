@@ -14,7 +14,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { icon: Mail, label: "メルマガ分析", href: "/" },
-  { icon: MousePointerClick, label: "EFO CVRレポート", href: "/efo" },
+  { icon: MousePointerClick, label: "CVRレポート", href: "/efo" },
   { icon: CalendarDays, label: "施策カレンダー", href: "/campaigns" },
 ];
 
