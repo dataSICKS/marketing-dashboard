@@ -1,12 +1,11 @@
-import {
-  useQuery,
-  useMutation,
-  type UseQueryOptions,
-  type UseMutationOptions,
-  type QueryFunction,
-  type MutationFunction,
+import { useQuery, useMutation } from "@tanstack/react-query";
+import type {
+  QueryFunction,
+  UseQueryOptions,
+  UseMutationOptions,
 } from "@tanstack/react-query";
-import { customFetch, type ErrorType } from "../custom-fetch";
+import { customFetch } from "../custom-fetch";
+import { type ErrorType } from "../custom-fetch";
 import type {
   HealthStatus,
   ErrorResponse,
@@ -21,26 +20,27 @@ import type {
   EfoFilters,
   EfoReportResponse,
   EfoSyncResult,
-  Campaign,
   CampaignInput,
   CampaignListResponse,
   CampaignResponse,
 } from "./api.schemas";
 
-// queryKey を省略できるよう extends するユーティリティ（オーバーライドは可）
 interface QueryOpts<TData, TError, TKey extends readonly unknown[]>
   extends Omit<UseQueryOptions<TData, TError, TData, TKey>, "queryKey"> {
   queryKey?: TKey;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function buildQuery(params: Record<string, string | number | boolean | null | undefined>): string {
-  const entries = Object.entries(params).filter(([, v]) => v != null && v !== "");
+function buildQuery(
+  params: Record<string, string | number | boolean | null | undefined>,
+): string {
+  const entries = Object.entries(params).filter(
+    ([, v]) => v != null && v !== "",
+  );
   if (entries.length === 0) return "";
-  return "?" + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
+  return (
+    "?" +
+    new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +59,8 @@ export const useHealthCheck = <TError = ErrorType<ErrorResponse>>(options?: {
 }) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getHealthCheckQueryKey();
-  const queryFn: QueryFunction<HealthStatus, HealthCheckQueryKey> = () => healthCheck();
+  const queryFn: QueryFunction<HealthStatus, HealthCheckQueryKey> = () =>
+    healthCheck();
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -70,19 +71,29 @@ export const useHealthCheck = <TError = ErrorType<ErrorResponse>>(options?: {
 export const syncNewsletter = () =>
   customFetch<NewsletterSyncResult>("/api/newsletter/sync", { method: "POST" });
 
-export const useSyncNewsletter = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+export const useSyncNewsletter = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<NewsletterSyncResult, TError, void, TContext>;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<NewsletterSyncResult, void> = () => syncNewsletter();
-  return useMutation({ mutationFn, ...mutationOptions });
+  return useMutation<NewsletterSyncResult, TError, void, TContext>({
+    mutationFn: syncNewsletter,
+    ...mutationOptions,
+  });
 };
 
 // ---------------------------------------------------------------------------
 // Newsletter — data
 // ---------------------------------------------------------------------------
 
-export type GetNewsletterDataGroupBy = "day" | "week" | "month" | "scenario" | "template";
+export type GetNewsletterDataGroupBy =
+  | "day"
+  | "week"
+  | "month"
+  | "scenario"
+  | "template";
 
 export type GetNewsletterDataParams = {
   groupBy?: GetNewsletterDataGroupBy;
@@ -98,10 +109,13 @@ export const getNewsletterData = (params?: GetNewsletterDataParams) =>
     `/api/newsletter/data${params ? buildQuery(params as Record<string, string | null | undefined>) : ""}`,
   );
 
-export const getGetNewsletterDataQueryKey = (params?: GetNewsletterDataParams) =>
-  ["/api/newsletter/data", ...(params ? [params] : [])] as const;
+export const getGetNewsletterDataQueryKey = (
+  params?: GetNewsletterDataParams,
+) => ["/api/newsletter/data", ...(params ? [params] : [])] as const;
 
-export type GetNewsletterDataQueryKey = ReturnType<typeof getGetNewsletterDataQueryKey>;
+export type GetNewsletterDataQueryKey = ReturnType<
+  typeof getGetNewsletterDataQueryKey
+>;
 
 export const useGetNewsletterData = <TError = ErrorType<ErrorResponse>>(
   params?: GetNewsletterDataParams,
@@ -111,8 +125,10 @@ export const useGetNewsletterData = <TError = ErrorType<ErrorResponse>>(
 ) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetNewsletterDataQueryKey(params);
-  const queryFn: QueryFunction<NewsletterReportResponse, GetNewsletterDataQueryKey> = () =>
-    getNewsletterData(params);
+  const queryFn: QueryFunction<
+    NewsletterReportResponse,
+    GetNewsletterDataQueryKey
+  > = () => getNewsletterData(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -125,26 +141,40 @@ export type GetNewsletterChangeEventsParams = {
   segment?: string | null;
 };
 
-export const getNewsletterChangeEvents = (params?: GetNewsletterChangeEventsParams) =>
+export const getNewsletterChangeEvents = (
+  params?: GetNewsletterChangeEventsParams,
+) =>
   customFetch<NewsletterChangeEventsResponse>(
     `/api/newsletter/change-events${params ? buildQuery(params as Record<string, string | null | undefined>) : ""}`,
   );
 
-export const getGetNewsletterChangeEventsQueryKey = (params?: GetNewsletterChangeEventsParams) =>
+export const getGetNewsletterChangeEventsQueryKey = (
+  params?: GetNewsletterChangeEventsParams,
+) =>
   ["/api/newsletter/change-events", ...(params ? [params] : [])] as const;
 
-export type GetNewsletterChangeEventsQueryKey = ReturnType<typeof getGetNewsletterChangeEventsQueryKey>;
+export type GetNewsletterChangeEventsQueryKey = ReturnType<
+  typeof getGetNewsletterChangeEventsQueryKey
+>;
 
-export const useGetNewsletterChangeEvents = <TError = ErrorType<ErrorResponse>>(
+export const useGetNewsletterChangeEvents = <
+  TError = ErrorType<ErrorResponse>,
+>(
   params?: GetNewsletterChangeEventsParams,
   options?: {
-    query?: QueryOpts<NewsletterChangeEventsResponse, TError, GetNewsletterChangeEventsQueryKey>;
+    query?: QueryOpts<
+      NewsletterChangeEventsResponse,
+      TError,
+      GetNewsletterChangeEventsQueryKey
+    >;
   },
 ) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetNewsletterChangeEventsQueryKey(params);
-  const queryFn: QueryFunction<NewsletterChangeEventsResponse, GetNewsletterChangeEventsQueryKey> = () =>
-    getNewsletterChangeEvents(params);
+  const queryFn: QueryFunction<
+    NewsletterChangeEventsResponse,
+    GetNewsletterChangeEventsQueryKey
+  > = () => getNewsletterChangeEvents(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -166,10 +196,13 @@ export const getNewsletterMatrix = (params: GetNewsletterMatrixParams) =>
     `/api/newsletter/matrix${buildQuery(params as Record<string, string | null | undefined>)}`,
   );
 
-export const getGetNewsletterMatrixQueryKey = (params: GetNewsletterMatrixParams) =>
-  ["/api/newsletter/matrix", params] as const;
+export const getGetNewsletterMatrixQueryKey = (
+  params: GetNewsletterMatrixParams,
+) => ["/api/newsletter/matrix", params] as const;
 
-export type GetNewsletterMatrixQueryKey = ReturnType<typeof getGetNewsletterMatrixQueryKey>;
+export type GetNewsletterMatrixQueryKey = ReturnType<
+  typeof getGetNewsletterMatrixQueryKey
+>;
 
 export const useGetNewsletterMatrix = <TError = ErrorType<ErrorResponse>>(
   params: GetNewsletterMatrixParams,
@@ -179,8 +212,8 @@ export const useGetNewsletterMatrix = <TError = ErrorType<ErrorResponse>>(
 ) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetNewsletterMatrixQueryKey(params);
-  const queryFn: QueryFunction<MatrixResponse, GetNewsletterMatrixQueryKey> = () =>
-    getNewsletterMatrix(params);
+  const queryFn: QueryFunction<MatrixResponse, GetNewsletterMatrixQueryKey> =
+    () => getNewsletterMatrix(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -191,17 +224,28 @@ export const useGetNewsletterMatrix = <TError = ErrorType<ErrorResponse>>(
 export const getNewsletterSegments = () =>
   customFetch<NewsletterSegmentsResponse>("/api/newsletter/segments");
 
-export const getGetNewsletterSegmentsQueryKey = () => ["/api/newsletter/segments"] as const;
+export const getGetNewsletterSegmentsQueryKey = () =>
+  ["/api/newsletter/segments"] as const;
 
-export type GetNewsletterSegmentsQueryKey = ReturnType<typeof getGetNewsletterSegmentsQueryKey>;
+export type GetNewsletterSegmentsQueryKey = ReturnType<
+  typeof getGetNewsletterSegmentsQueryKey
+>;
 
-export const useGetNewsletterSegments = <TError = ErrorType<ErrorResponse>>(options?: {
-  query?: QueryOpts<NewsletterSegmentsResponse, TError, GetNewsletterSegmentsQueryKey>;
-}) => {
+export const useGetNewsletterSegments = <TError = ErrorType<ErrorResponse>>(
+  options?: {
+    query?: QueryOpts<
+      NewsletterSegmentsResponse,
+      TError,
+      GetNewsletterSegmentsQueryKey
+    >;
+  },
+) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetNewsletterSegmentsQueryKey();
-  const queryFn: QueryFunction<NewsletterSegmentsResponse, GetNewsletterSegmentsQueryKey> = () =>
-    getNewsletterSegments();
+  const queryFn: QueryFunction<
+    NewsletterSegmentsResponse,
+    GetNewsletterSegmentsQueryKey
+  > = () => getNewsletterSegments();
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -212,17 +256,28 @@ export const useGetNewsletterSegments = <TError = ErrorType<ErrorResponse>>(opti
 export const getNewsletterTemplates = () =>
   customFetch<NewsletterTemplatesResponse>("/api/newsletter/templates");
 
-export const getGetNewsletterTemplatesQueryKey = () => ["/api/newsletter/templates"] as const;
+export const getGetNewsletterTemplatesQueryKey = () =>
+  ["/api/newsletter/templates"] as const;
 
-export type GetNewsletterTemplatesQueryKey = ReturnType<typeof getGetNewsletterTemplatesQueryKey>;
+export type GetNewsletterTemplatesQueryKey = ReturnType<
+  typeof getGetNewsletterTemplatesQueryKey
+>;
 
-export const useGetNewsletterTemplates = <TError = ErrorType<ErrorResponse>>(options?: {
-  query?: QueryOpts<NewsletterTemplatesResponse, TError, GetNewsletterTemplatesQueryKey>;
-}) => {
+export const useGetNewsletterTemplates = <TError = ErrorType<ErrorResponse>>(
+  options?: {
+    query?: QueryOpts<
+      NewsletterTemplatesResponse,
+      TError,
+      GetNewsletterTemplatesQueryKey
+    >;
+  },
+) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetNewsletterTemplatesQueryKey();
-  const queryFn: QueryFunction<NewsletterTemplatesResponse, GetNewsletterTemplatesQueryKey> = () =>
-    getNewsletterTemplates();
+  const queryFn: QueryFunction<
+    NewsletterTemplatesResponse,
+    GetNewsletterTemplatesQueryKey
+  > = () => getNewsletterTemplates();
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -242,7 +297,9 @@ export const getClarityFiles = (params?: GetClarityFilesParams) =>
 export const getGetClarityFilesQueryKey = (params?: GetClarityFilesParams) =>
   ["/api/clarity/files", ...(params ? [params] : [])] as const;
 
-export type GetClarityFilesQueryKey = ReturnType<typeof getGetClarityFilesQueryKey>;
+export type GetClarityFilesQueryKey = ReturnType<
+  typeof getGetClarityFilesQueryKey
+>;
 
 export const useGetClarityFiles = <TError = ErrorType<ErrorResponse>>(
   params?: GetClarityFilesParams,
@@ -252,8 +309,10 @@ export const useGetClarityFiles = <TError = ErrorType<ErrorResponse>>(
 ) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetClarityFilesQueryKey(params);
-  const queryFn: QueryFunction<ClarityFilesResponse, GetClarityFilesQueryKey> = () =>
-    getClarityFiles(params);
+  const queryFn: QueryFunction<
+    ClarityFilesResponse,
+    GetClarityFilesQueryKey
+  > = () => getClarityFiles(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -274,7 +333,9 @@ export const getClarityScroll = (params: GetClarityScrollParams) =>
 export const getGetClarityScrollQueryKey = (params: GetClarityScrollParams) =>
   ["/api/clarity/scroll", params] as const;
 
-export type GetClarityScrollQueryKey = ReturnType<typeof getGetClarityScrollQueryKey>;
+export type GetClarityScrollQueryKey = ReturnType<
+  typeof getGetClarityScrollQueryKey
+>;
 
 export const useGetClarityScroll = <TError = ErrorType<ErrorResponse>>(
   params: GetClarityScrollParams,
@@ -284,8 +345,10 @@ export const useGetClarityScroll = <TError = ErrorType<ErrorResponse>>(
 ) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getGetClarityScrollQueryKey(params);
-  const queryFn: QueryFunction<ClarityScrollResponse, GetClarityScrollQueryKey> = () =>
-    getClarityScroll(params);
+  const queryFn: QueryFunction<
+    ClarityScrollResponse,
+    GetClarityScrollQueryKey
+  > = () => getClarityScroll(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -293,19 +356,31 @@ export const useGetClarityScroll = <TError = ErrorType<ErrorResponse>>(
 // EFO — filters
 // ---------------------------------------------------------------------------
 
-export const getEfoFilters = () =>
-  customFetch<EfoFilters>("/api/efo/filters");
+export type GetEfoFiltersParams = {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+};
 
-export const getGetEfoFiltersQueryKey = () => ["/api/efo/filters"] as const;
+export const getEfoFilters = (params?: GetEfoFiltersParams) =>
+  customFetch<EfoFilters>(
+    `/api/efo/filters${params ? buildQuery(params as Record<string, string | null | undefined>) : ""}`,
+  );
+
+export const getGetEfoFiltersQueryKey = (params?: GetEfoFiltersParams) =>
+  ["/api/efo/filters", ...(params ? [params] : [])] as const;
 
 export type GetEfoFiltersQueryKey = ReturnType<typeof getGetEfoFiltersQueryKey>;
 
-export const useGetEfoFilters = <TError = ErrorType<ErrorResponse>>(options?: {
-  query?: QueryOpts<EfoFilters, TError, GetEfoFiltersQueryKey>;
-}) => {
+export const useGetEfoFilters = <TError = ErrorType<ErrorResponse>>(
+  params?: GetEfoFiltersParams,
+  options?: {
+    query?: QueryOpts<EfoFilters, TError, GetEfoFiltersQueryKey>;
+  },
+) => {
   const { query: queryOptions } = options ?? {};
-  const queryKey = getGetEfoFiltersQueryKey();
-  const queryFn: QueryFunction<EfoFilters, GetEfoFiltersQueryKey> = () => getEfoFilters();
+  const queryKey = getGetEfoFiltersQueryKey(params);
+  const queryFn: QueryFunction<EfoFilters, GetEfoFiltersQueryKey> = () =>
+    getEfoFilters(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
@@ -353,22 +428,28 @@ export const useGetEfoData = <TError = ErrorType<ErrorResponse>>(
 export const syncEfo = () =>
   customFetch<EfoSyncResult>("/api/efo/sync", { method: "POST" });
 
-export const useSyncEfo = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+export const useSyncEfo = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<EfoSyncResult, TError, void, TContext>;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<EfoSyncResult, void> = () => syncEfo();
-  return useMutation({ mutationFn, ...mutationOptions });
+  return useMutation<EfoSyncResult, TError, void, TContext>({
+    mutationFn: syncEfo,
+    ...mutationOptions,
+  });
 };
 
 // ---------------------------------------------------------------------------
-// Campaigns — CRUD
+// Campaigns
 // ---------------------------------------------------------------------------
 
 export const listCampaigns = () =>
-  customFetch<CampaignListResponse>("/api/campaigns", { method: "GET" });
+  customFetch<CampaignListResponse>("/api/campaigns");
 
 export const getListCampaignsQueryKey = () => ["/api/campaigns"] as const;
+
 export type ListCampaignsQueryKey = ReturnType<typeof getListCampaignsQueryKey>;
 
 export const useListCampaigns = <TError = ErrorType<ErrorResponse>>(options?: {
@@ -376,39 +457,76 @@ export const useListCampaigns = <TError = ErrorType<ErrorResponse>>(options?: {
 }) => {
   const { query: queryOptions } = options ?? {};
   const queryKey = getListCampaignsQueryKey();
-  const queryFn: QueryFunction<CampaignListResponse, ListCampaignsQueryKey> = () => listCampaigns();
+  const queryFn: QueryFunction<CampaignListResponse, ListCampaignsQueryKey> =
+    () => listCampaigns();
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 
 export const createCampaign = (input: CampaignInput) =>
-  customFetch<CampaignResponse>("/api/campaigns", { method: "POST", body: JSON.stringify(input) });
+  customFetch<CampaignResponse>("/api/campaigns", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 
-export const useCreateCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<CampaignResponse, TError, CampaignInput, TContext>;
+export const useCreateCampaign = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    CampaignResponse,
+    TError,
+    CampaignInput,
+    TContext
+  >;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<CampaignResponse, CampaignInput> = (input) => createCampaign(input);
-  return useMutation({ mutationFn, ...mutationOptions });
+  return useMutation<CampaignResponse, TError, CampaignInput, TContext>({
+    mutationFn: (input) => createCampaign(input),
+    ...mutationOptions,
+  });
 };
 
 export const updateCampaign = (id: number, input: CampaignInput) =>
-  customFetch<CampaignResponse>(`/api/campaigns/${id}`, { method: "PUT", body: JSON.stringify(input) });
+  customFetch<CampaignResponse>(`/api/campaigns/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 
-export const useUpdateCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<CampaignResponse, TError, { id: number; input: CampaignInput }, TContext>;
+export const useUpdateCampaign = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    CampaignResponse,
+    TError,
+    { id: number; input: CampaignInput },
+    TContext
+  >;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<CampaignResponse, { id: number; input: CampaignInput }> = ({ id, input }) => updateCampaign(id, input);
-  return useMutation({ mutationFn, ...mutationOptions });
+  return useMutation<
+    CampaignResponse,
+    TError,
+    { id: number; input: CampaignInput },
+    TContext
+  >({
+    mutationFn: ({ id, input }) => updateCampaign(id, input),
+    ...mutationOptions,
+  });
 };
 
 export const deleteCampaign = (id: number) =>
   customFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
 
-export const useDeleteCampaign = <TError = ErrorType<ErrorResponse>, TContext = unknown>(options?: {
+export const useDeleteCampaign = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<void, TError, number, TContext>;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<void, number> = (id) => deleteCampaign(id);
-  return useMutation({ mutationFn, ...mutationOptions });
+  return useMutation<void, TError, number, TContext>({
+    mutationFn: (id) => deleteCampaign(id),
+    ...mutationOptions,
+  });
 };

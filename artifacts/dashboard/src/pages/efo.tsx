@@ -682,9 +682,17 @@ export default function EfoPage() {
   const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
   const queryClient = useQueryClient();
 
-  const { data: filtersData } = useGetEfoFilters();
-  const profiles = filtersData?.profileNames ?? [];
-  const adCodes = filtersData?.adCodes ?? [];
+  const toFilterParams = (dateRange: SegmentFilter["dateRange"]) => ({
+    dateFrom: dateRange?.from ? dateRange.from.replace(/\//g, "-") : undefined,
+    dateTo: dateRange?.to ? dateRange.to.replace(/\//g, "-") : undefined,
+  });
+
+  const { data: filtersDataA } = useGetEfoFilters(toFilterParams(filterA.dateRange));
+  const { data: filtersDataB } = useGetEfoFilters(toFilterParams(filterB.dateRange));
+  const profilesA = filtersDataA?.profileNames ?? [];
+  const adCodesA = filtersDataA?.adCodes ?? [];
+  const profilesB = filtersDataB?.profileNames ?? [];
+  const adCodesB = filtersDataB?.adCodes ?? [];
 
   const { data: campaignsData } = useListCampaigns();
   const allCampaigns = campaignsData?.campaigns ?? [];
@@ -745,8 +753,8 @@ export default function EfoPage() {
       <div className="flex-1 p-6 space-y-4">
         {/* Segment Selectors */}
         <div className="flex gap-4">
-          <SegmentSelector seg="A" filter={filterA} profiles={profiles} adCodes={adCodes} onChange={setFilterA} />
-          <SegmentSelector seg="B" filter={filterB} profiles={profiles} adCodes={adCodes} onChange={setFilterB} />
+          <SegmentSelector seg="A" filter={filterA} profiles={profilesA} adCodes={adCodesA} onChange={setFilterA} />
+          <SegmentSelector seg="B" filter={filterB} profiles={profilesB} adCodes={adCodesB} onChange={setFilterB} />
         </div>
 
         {/* Side-by-side Panels */}

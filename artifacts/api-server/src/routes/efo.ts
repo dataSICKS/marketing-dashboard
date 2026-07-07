@@ -85,9 +85,23 @@ router.post("/efo/sync", async (req, res): Promise<void> => {
 
 router.get("/efo/filters", async (req, res): Promise<void> => {
   try {
-    const { accessCvRows } = await getEfoData(req);
-    const profileNames = Array.from(new Set(accessCvRows.map((r) => r.profileName))).sort();
-    const adCodes = Array.from(new Set(accessCvRows.map((r) => r.adCode))).sort();
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+
+    const { accessCvRows: allRows } = await getEfoData(req);
+
+    const isoDate = (d: string) => d.replace(/\//g, "-");
+    let rows = allRows;
+    if (dateFrom) rows = rows.filter((r) => isoDate(r.date) >= dateFrom);
+    if (dateTo) rows = rows.filter((r) => isoDate(r.date) <= dateTo);
+
+    const profileNames = Array.from(
+      new Set(rows.filter((r) => r.accessCount > 0).map((r) => r.profileName)),
+    ).sort();
+    const adCodes = Array.from(
+      new Set(rows.filter((r) => r.accessCount > 0).map((r) => r.adCode)),
+    ).sort();
+
     res.json({ profileNames, adCodes });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch EFO filters");

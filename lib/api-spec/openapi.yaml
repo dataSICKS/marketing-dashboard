@@ -236,7 +236,20 @@ paths:
       operationId: getEfoFilters
       tags: [efo]
       summary: Get available EFO filter values
-      description: Returns unique profile names and ad codes available in the data
+      description: Returns unique profile names and ad codes active in the given date range
+      parameters:
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter start date (YYYY-MM-DD)
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter end date (YYYY-MM-DD)
       responses:
         "200":
           description: Available filter values

@@ -10,7 +10,7 @@ const apiZodSrc = path.resolve(root, "lib", "api-zod", "src");
 export default defineConfig({
   "api-client-react": {
     input: {
-      target: "./openapi.yaml",
+      target: path.resolve(__dirname, "openapi.yaml"),
     },
     output: {
       workspace: apiClientReactSrc,
@@ -33,7 +33,7 @@ export default defineConfig({
   },
   zod: {
     input: {
-      target: "./openapi.yaml",
+      target: path.resolve(__dirname, "openapi.yaml"),
     },
     output: {
       workspace: apiZodSrc,
