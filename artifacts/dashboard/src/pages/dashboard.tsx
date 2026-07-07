@@ -611,40 +611,93 @@ function MatrixView({
             ))}
           </div>
 
-          {/* ── Per-metric charts ── */}
-          {selectedMetrics.map((metricKey) => {
-            const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
-            const fmtV = (v: number) => mDef.isRate ? formatPercent(v) : formatNumber(v);
-            const chartData = timePeriods.map((period) => {
+          {/* ── Merged chart (all series × metrics) ── */}
+          {(() => {
+            const LINE_DASHES = ["", "5 5", "2 4", "8 3 2 3", "1 3"];
+            const hasRate = selectedMetrics.some(
+              (mk) => MATRIX_METRICS.find((m) => m.value === mk)?.isRate
+            );
+            const hasCount = selectedMetrics.some(
+              (mk) => !MATRIX_METRICS.find((m) => m.value === mk)?.isRate
+            );
+            const isMixed = hasRate && hasCount;
+            const leftFmt = !isMixed && hasRate ? formatPercent : formatNumber;
+            const yAxisId = (mk: string) => {
+              if (!isMixed) return "left";
+              return MATRIX_METRICS.find((m) => m.value === mk)?.isRate ? "right" : "left";
+            };
+            const mergedChartData = timePeriods.map((period) => {
               const pt: Record<string, string | number> = { period };
-              for (const s of series) pt[s.key] = s.metricValues[metricKey as keyof typeof s.metricValues]?.[period] ?? 0;
+              for (const s of series) {
+                for (const mk of selectedMetrics) {
+                  pt[`${s.key}__${mk}`] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? 0;
+                }
+              }
               return pt;
             });
             return (
-              <div key={metricKey} className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
-                <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>{mDef.label} トレンド</div>
-                <div style={{ height: 200 }}>
+              <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
+                <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>トレンド</div>
+                <div style={{ height: 220 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                    <ComposedChart data={mergedChartData} margin={{ top: 8, right: isMixed ? 52 : 8, left: -16, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                       <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
-                      <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
-                        tickFormatter={(v) => fmtV(v as number)} width={52} />
+                      <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                        tickFormatter={(v) => leftFmt(v as number)} width={52} />
+                      {isMixed && (
+                        <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                          tickFormatter={(v) => formatPercent(v as number)} width={48} />
+                      )}
                       <Tooltip
                         contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
-                        formatter={(val: number, name: string) => [fmtV(val), name]}
+                        formatter={(val: number, name: string) => {
+                          const [, mk] = name.split("__");
+                          const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
+                          const seriesKey = name.replace(`__${mk}`, "");
+                          return [mDef.isRate ? formatPercent(val) : formatNumber(val), `${seriesKey} / ${mDef.label}`];
+                        }}
                       />
-                      {series.map((s, i) => (
-                        <Line key={s.key} type="monotone" dataKey={s.key}
-                          stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                          strokeWidth={2} dot={false} connectNulls />
-                      ))}
+                      {series.flatMap((s, si) =>
+                        selectedMetrics.map((mk, mi) => (
+                          <Line
+                            key={`${s.key}__${mk}`}
+                            type="monotone"
+                            dataKey={`${s.key}__${mk}`}
+                            yAxisId={yAxisId(mk)}
+                            stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
+                            strokeWidth={2}
+                            strokeDasharray={LINE_DASHES[mi % LINE_DASHES.length]}
+                            dot={false}
+                            connectNulls
+                          />
+                        ))
+                      )}
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+                {/* chart legend */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 pt-3" style={{ borderTop: "1px solid #F3F4F6" }}>
+                  {series.flatMap((s, si) =>
+                    selectedMetrics.map((mk, mi) => {
+                      const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
+                      return (
+                        <div key={`${s.key}__${mk}`} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
+                          <svg width="18" height="8" viewBox="0 0 18 8">
+                            <line x1="0" y1="4" x2="18" y2="4"
+                              stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
+                              strokeWidth="2"
+                              strokeDasharray={["", "5 5", "2 4", "8 3 2 3", "1 3"][mi % 5]} />
+                          </svg>
+                          <span>{s.key} / {mDef.label}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
-          })}
+          })()}
 
           {/* ── Combined matrix table (series × metric rows) ── */}
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
