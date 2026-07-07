@@ -81,7 +81,7 @@ export const useSyncNewsletter = <TError = ErrorType<ErrorResponse>, TContext = 
 // Newsletter — data
 // ---------------------------------------------------------------------------
 
-export type GetNewsletterDataGroupBy = "day" | "week" | "month" | "template";
+export type GetNewsletterDataGroupBy = "day" | "week" | "month" | "scenario" | "template";
 
 export type GetNewsletterDataParams = {
   groupBy?: GetNewsletterDataGroupBy;

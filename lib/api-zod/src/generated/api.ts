@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 export const GetNewsletterDataQueryParams = z.object({
-  groupBy: z.enum(["day", "week", "month", "template"]).optional(),
+  groupBy: z.enum(["day", "week", "month", "scenario", "template"]).optional(),
   dateFrom: z.coerce.string().nullish(),
   dateTo: z.coerce.string().nullish(),
   segment: z.coerce.string().nullish(),

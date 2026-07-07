@@ -24,7 +24,7 @@ function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?
   };
 }
 
-export type GroupBy = "day" | "week" | "month" | "template";
+export type GroupBy = "day" | "week" | "month" | "scenario" | "template";
 
 export function aggregateRows(
   rows: NewsletterRow[],
@@ -44,6 +44,9 @@ export function aggregateRows(
       case "month":
         key = row.deliveryYearMonth;
         break;
+      case "scenario":
+        key = row.segment ?? "(未設定)";
+        break;
       case "template":
         key = row.templateName;
         break;
@@ -57,7 +60,7 @@ export function aggregateRows(
 
   const entries = Array.from(map.entries());
 
-  if (groupBy === "template") {
+  if (groupBy === "template" || groupBy === "scenario") {
     entries.sort(([, a], [, b]) => {
       const totalA = a.reduce((s, r) => s + r.deliveryCount, 0);
       const totalB = b.reduce((s, r) => s + r.deliveryCount, 0);

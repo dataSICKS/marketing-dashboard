@@ -56,6 +56,7 @@ const GROUP_TABS: { value: GroupBy; label: string }[] = [
   { value: "day", label: "日別" },
   { value: "week", label: "週別" },
   { value: "month", label: "月別" },
+  { value: "scenario", label: "シナリオ別" },
   { value: "template", label: "テンプレ別" },
 ];
 
