@@ -65,12 +65,9 @@ const MATRIX_METRICS = [
 ] as const;
 
 const GROUP_TABS: { value: TabMode; label: string }[] = [
-  { value: "day", label: "日別" },
-  { value: "week", label: "週別" },
-  { value: "month", label: "月別" },
+  { value: "matrix", label: "マトリクス" },
   { value: "scenario", label: "シナリオ別" },
   { value: "template", label: "テンプレ別" },
-  { value: "matrix", label: "マトリクス" },
 ];
 
 // ─── Preset helpers ───────────────────────────────────────────────
@@ -792,7 +789,7 @@ function MatrixView({
 // ─── Dashboard ───────────────────────────────────────────────────
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  const [groupBy, setGroupBy] = useState<TabMode>("day");
+  const [groupBy, setGroupBy] = useState<TabMode>("matrix");
 
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [compareRange, setCompareRange] = useState<DateRange | null>(null);
@@ -1009,9 +1006,7 @@ export default function Dashboard() {
                   data-testid={`tab-${tab.value}`}
                 >
                   {tab.label}
-                  {compareMode === "change" && tab.value === "day" && groupBy !== "matrix" && (
-                    <span className="text-[9px] ml-1" style={{ color: CHANGE_COLOR }}>(強制)</span>
-                  )}
+
                   {activeTabValue === tab.value && (
                     <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: YELLOW }} />
                   )}
