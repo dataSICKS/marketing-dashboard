@@ -155,6 +155,7 @@ export type Campaign = {
   startDate: string;
   endDate: string;
   memo: string | null;
+  category?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -164,6 +165,7 @@ export type CampaignInput = {
   startDate: string;
   endDate: string;
   memo?: string | null;
+  category?: string | null;
 };
 
 export type CampaignListResponse = {

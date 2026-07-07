@@ -7,6 +7,7 @@ export interface Campaign {
   startDate: string;
   endDate: string;
   memo: string | null;
+  category: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -16,6 +17,7 @@ export interface CampaignInput {
   startDate: string;
   endDate: string;
   memo?: string | null;
+  category?: string | null;
 }
 
 function getSupabaseClient() {
@@ -32,6 +34,7 @@ function toRow(r: Record<string, unknown>): Campaign {
     startDate: r.start_date as string,
     endDate: r.end_date as string,
     memo: (r.memo as string | null) ?? null,
+    category: (r.category as string | null) ?? null,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
@@ -59,6 +62,7 @@ export async function createCampaign(input: CampaignInput): Promise<Campaign> {
       start_date: input.startDate,
       end_date: input.endDate,
       memo: input.memo ?? null,
+      category: input.category ?? null,
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -79,6 +83,7 @@ export async function updateCampaign(id: number, input: CampaignInput): Promise<
       start_date: input.startDate,
       end_date: input.endDate,
       memo: input.memo ?? null,
+      category: input.category ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

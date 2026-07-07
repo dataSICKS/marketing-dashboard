@@ -19,18 +19,19 @@ router.get("/campaigns", async (req, res): Promise<void> => {
 });
 
 router.post("/campaigns", async (req, res): Promise<void> => {
-  const { title, startDate, endDate, memo } = req.body as {
+  const { title, startDate, endDate, memo, category } = req.body as {
     title?: string;
     startDate?: string;
     endDate?: string;
     memo?: string | null;
+    category?: string | null;
   };
   if (!title || !startDate || !endDate) {
     res.status(400).json({ error: "title, startDate, endDate は必須です" });
     return;
   }
   try {
-    const campaign = await createCampaign({ title, startDate, endDate, memo });
+    const campaign = await createCampaign({ title, startDate, endDate, memo, category });
     res.status(201).json({ campaign });
   } catch (err) {
     req.log.error({ err }, "Failed to create campaign");
@@ -44,18 +45,19 @@ router.put("/campaigns/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "無効なIDです" });
     return;
   }
-  const { title, startDate, endDate, memo } = req.body as {
+  const { title, startDate, endDate, memo, category } = req.body as {
     title?: string;
     startDate?: string;
     endDate?: string;
     memo?: string | null;
+    category?: string | null;
   };
   if (!title || !startDate || !endDate) {
     res.status(400).json({ error: "title, startDate, endDate は必須です" });
     return;
   }
   try {
-    const campaign = await updateCampaign(id, { title, startDate, endDate, memo });
+    const campaign = await updateCampaign(id, { title, startDate, endDate, memo, category });
     res.json({ campaign });
   } catch (err) {
     req.log.error({ err }, "Failed to update campaign");

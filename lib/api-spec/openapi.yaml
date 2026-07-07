@@ -932,6 +932,8 @@ components:
           type: string
         memo:
           type: ["string", "null"]
+        category:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -954,6 +956,8 @@ components:
         endDate:
           type: string
         memo:
+          type: ["string", "null"]
+        category:
           type: ["string", "null"]
       required:
         - title

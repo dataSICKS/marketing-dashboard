@@ -22,12 +22,25 @@ function toInputDate(d: string) {
 
 const ACCENT = "#1A1A1A";
 
+// ─── Category constants ───────────────────────────────────────────────
+export const CAMPAIGN_CATEGORIES: { value: string; label: string; color: string; bg: string }[] = [
+  { value: "メルマガ", label: "メルマガ", color: "#1D4ED8", bg: "#DBEAFE" },
+  { value: "CVR",     label: "CVR",      color: "#065F46", bg: "#D1FAE5" },
+];
+
+function getCategoryStyle(category: string | null | undefined) {
+  const found = CAMPAIGN_CATEGORIES.find((c) => c.value === category);
+  if (found) return { color: found.color, bg: found.bg };
+  return { color: "#6B7280", bg: "#F3F4F6" };
+}
+
 // ─── Form Modal ──────────────────────────────────────────────────────
 interface FormValues {
   title: string;
   startDate: string;
   endDate: string;
   memo: string;
+  category: string;
 }
 
 function CampaignFormModal({
@@ -50,7 +63,13 @@ function CampaignFormModal({
     if (!v.endDate)      { setError("終了日を入力してください"); return; }
     if (v.endDate < v.startDate) { setError("終了日は開始日以降にしてください"); return; }
     setError(null);
-    onSave({ title: v.title.trim(), startDate: v.startDate, endDate: v.endDate, memo: v.memo.trim() || null });
+    onSave({
+      title: v.title.trim(),
+      startDate: v.startDate,
+      endDate: v.endDate,
+      memo: v.memo.trim() || null,
+      category: v.category || null,
+    });
   };
 
   return (
@@ -71,6 +90,38 @@ function CampaignFormModal({
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={{ border: "1px solid #E5E7EB", color: "#1A1A1A" }}
             />
+          </div>
+          <div>
+            <label className="text-xs font-medium mb-1 block" style={{ color: "#6B7280" }}>カテゴリー</label>
+            <div className="flex gap-2 flex-wrap">
+              {CAMPAIGN_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setV((p) => ({ ...p, category: p.category === cat.value ? "" : cat.value }))}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+                  style={
+                    v.category === cat.value
+                      ? { background: cat.bg, color: cat.color, border: `1.5px solid ${cat.color}` }
+                      : { background: "#fff", color: "#6B7280", border: "1.5px solid #E5E7EB" }
+                  }
+                >
+                  {cat.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setV((p) => ({ ...p, category: "" }))}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+                style={
+                  !v.category
+                    ? { background: "#1A1A1A", color: "#fff", border: "1.5px solid #1A1A1A" }
+                    : { background: "#fff", color: "#6B7280", border: "1.5px solid #E5E7EB" }
+                }
+              >
+                なし
+              </button>
+            </div>
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
@@ -141,7 +192,6 @@ function TimelineSection({ campaigns }: { campaigns: Campaign[] }) {
   const minDate = new Date(allDates.reduce((a, b) => (a < b ? a : b)));
   const maxDate = new Date(allDates.reduce((a, b) => (a > b ? a : b)));
 
-  // pad by 7 days each side
   const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - 7);
   const rangeEnd   = new Date(maxDate); rangeEnd.setDate(rangeEnd.getDate() + 7);
   const totalDays  = Math.max(1, (rangeEnd.getTime() - rangeStart.getTime()) / 86400000);
@@ -166,19 +216,29 @@ function TimelineSection({ campaigns }: { campaigns: Campaign[] }) {
         {campaigns.map((c, i) => {
           const left = pct(c.startDate);
           const right = pct(c.endDate);
-          const color = BAR_COLORS[i % BAR_COLORS.length];
+          const catStyle = getCategoryStyle(c.category);
+          const color = c.category ? catStyle.color : BAR_COLORS[i % BAR_COLORS.length];
           return (
             <div key={c.id} className="flex items-center gap-3">
-              <div className="text-xs shrink-0 text-right" style={{ width: 100, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.title}>
-                {c.title}
+              <div className="flex items-center gap-1.5 shrink-0" style={{ width: 116 }}>
+                {c.category && (
+                  <span
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ background: catStyle.bg, color: catStyle.color }}
+                  >
+                    {c.category}
+                  </span>
+                )}
+                <div className="text-xs text-right truncate" style={{ color: "#6B7280", flex: 1 }} title={c.title}>
+                  {c.title}
+                </div>
               </div>
               <div className="flex-1 relative" style={{ height: 20 }}>
                 <div className="absolute inset-0 rounded-full" style={{ background: "#F3F4F6" }} />
                 <div
-                  className="absolute top-0 bottom-0 rounded-full flex items-center"
+                  className="absolute top-0 bottom-0 rounded-full"
                   style={{ left: `${left}%`, width: `${Math.max(0.5, right - left)}%`, background: color, opacity: 0.85 }}
                 />
-                {/* today line */}
                 {todayPct >= 0 && todayPct <= 100 && (
                   <div
                     className="absolute top-0 bottom-0"
@@ -216,14 +276,15 @@ function CampaignCard({
   const today = new Date().toISOString().slice(0, 10);
   const isActive = campaign.startDate <= today && today <= campaign.endDate;
   const isPast   = campaign.endDate < today;
+  const catStyle = getCategoryStyle(campaign.category);
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
-      <div className="h-1.5" style={{ background: color }} />
+      <div className="h-1.5" style={{ background: campaign.category ? catStyle.color : color }} />
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={
@@ -236,6 +297,14 @@ function CampaignCard({
               >
                 {isActive ? "実施中" : isPast ? "終了" : "予定"}
               </span>
+              {campaign.category && (
+                <span
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: catStyle.bg, color: catStyle.color }}
+                >
+                  {campaign.category}
+                </span>
+              )}
             </div>
             <div className="text-sm font-semibold truncate" style={{ color: "#1A1A1A" }}>{campaign.title}</div>
             <div className="text-xs mt-1" style={{ color: "#9CA3AF" }}>
@@ -291,13 +360,13 @@ export default function CampaignsPage() {
   };
 
   const sorted = [...campaigns].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const active  = sorted.filter((c) => { const t = new Date().toISOString().slice(0, 10); return c.startDate <= t && t <= c.endDate; });
-  const upcoming = sorted.filter((c) => c.startDate > new Date().toISOString().slice(0, 10));
-  const past    = sorted.filter((c) => c.endDate < new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const active   = sorted.filter((c) => c.startDate <= today && today <= c.endDate);
+  const upcoming = sorted.filter((c) => c.startDate > today);
+  const past     = sorted.filter((c) => c.endDate < today);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "#F8F8F8" }}>
-      {/* Header */}
       <div className="px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #EBEBEB", background: "#fff" }}>
         <div className="flex items-center justify-between">
           <div>
@@ -316,14 +385,12 @@ export default function CampaignsPage() {
       </div>
 
       <div className="flex-1 p-6 space-y-6">
-        {/* Timeline */}
         {isLoading ? (
           <Skeleton className="h-32 w-full rounded-xl" />
         ) : (
           <TimelineSection campaigns={sorted} />
         )}
 
-        {/* Stats */}
         {!isLoading && campaigns.length > 0 && (
           <div className="grid grid-cols-3 gap-4">
             {[
@@ -339,7 +406,6 @@ export default function CampaignsPage() {
           </div>
         )}
 
-        {/* Campaign list */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
@@ -390,13 +456,12 @@ export default function CampaignsPage() {
         )}
       </div>
 
-      {/* Modal */}
       {modalOpen && (
         <CampaignFormModal
           initial={
             editTarget
-              ? { title: editTarget.title, startDate: toInputDate(editTarget.startDate), endDate: toInputDate(editTarget.endDate), memo: editTarget.memo ?? "" }
-              : { title: "", startDate: "", endDate: "", memo: "" }
+              ? { title: editTarget.title, startDate: toInputDate(editTarget.startDate), endDate: toInputDate(editTarget.endDate), memo: editTarget.memo ?? "", category: editTarget.category ?? "" }
+              : { title: "", startDate: "", endDate: "", memo: "", category: "" }
           }
           onSave={handleSave}
           onClose={closeModal}
