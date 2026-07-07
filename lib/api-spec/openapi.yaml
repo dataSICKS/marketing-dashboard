@@ -844,6 +844,81 @@ components:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /efo/presets:
+    get:
+      operationId: listEfoPresets
+      tags: [efo]
+      summary: List all EFO presets
+      responses:
+        "200":
+          description: Preset list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoPresetListResponse"
+        "500":
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createEfoPreset
+      tags: [efo]
+      summary: Create an EFO preset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EfoPresetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoPresetResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /efo/presets/{id}:
+    delete:
+      operationId: deleteEfoPreset
+      tags: [efo]
+      summary: Delete an EFO preset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     Campaign:
       type: object
       properties:
@@ -902,3 +977,80 @@ components:
           $ref: "#/components/schemas/Campaign"
       required:
         - campaign
+
+    EfoPresetSegment:
+      type: object
+      properties:
+        dateFrom:
+          type: ["string", "null"]
+        dateTo:
+          type: ["string", "null"]
+        profileNames:
+          type: array
+          items:
+            type: string
+        adCodes:
+          type: array
+          items:
+            type: string
+      required:
+        - profileNames
+        - adCodes
+
+    EfoPreset:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        groupBy:
+          type: string
+        segmentA:
+          $ref: "#/components/schemas/EfoPresetSegment"
+        segmentB:
+          $ref: "#/components/schemas/EfoPresetSegment"
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - groupBy
+        - segmentA
+        - segmentB
+        - createdAt
+
+    EfoPresetInput:
+      type: object
+      properties:
+        name:
+          type: string
+        groupBy:
+          type: string
+        segmentA:
+          $ref: "#/components/schemas/EfoPresetSegment"
+        segmentB:
+          $ref: "#/components/schemas/EfoPresetSegment"
+      required:
+        - name
+        - groupBy
+        - segmentA
+        - segmentB
+
+    EfoPresetListResponse:
+      type: object
+      properties:
+        presets:
+          type: array
+          items:
+            $ref: "#/components/schemas/EfoPreset"
+      required:
+        - presets
+
+    EfoPresetResponse:
+      type: object
+      properties:
+        preset:
+          $ref: "#/components/schemas/EfoPreset"
+      required:
+        - preset

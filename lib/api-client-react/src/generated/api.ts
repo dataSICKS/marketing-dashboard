@@ -23,6 +23,9 @@ import type {
   CampaignInput,
   CampaignListResponse,
   CampaignResponse,
+  EfoPresetInput,
+  EfoPresetListResponse,
+  EfoPresetResponse,
 } from "./api.schemas";
 
 interface QueryOpts<TData, TError, TKey extends readonly unknown[]>
@@ -527,6 +530,62 @@ export const useDeleteCampaign = <
   const { mutation: mutationOptions } = options ?? {};
   return useMutation<void, TError, number, TContext>({
     mutationFn: (id) => deleteCampaign(id),
+    ...mutationOptions,
+  });
+};
+
+// ---------------------------------------------------------------------------
+// EFO Presets
+// ---------------------------------------------------------------------------
+
+export const listEfoPresets = () =>
+  customFetch<EfoPresetListResponse>("/api/efo/presets");
+
+export const getListEfoPresetsQueryKey = () => ["/api/efo/presets"] as const;
+
+export type ListEfoPresetsQueryKey = ReturnType<typeof getListEfoPresetsQueryKey>;
+
+export const useListEfoPresets = <TError = ErrorType<ErrorResponse>>(options?: {
+  query?: QueryOpts<EfoPresetListResponse, TError, ListEfoPresetsQueryKey>;
+}) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = getListEfoPresetsQueryKey();
+  const queryFn: QueryFunction<EfoPresetListResponse, ListEfoPresetsQueryKey> =
+    () => listEfoPresets();
+  return useQuery({ queryKey, queryFn, ...queryOptions });
+};
+
+export const createEfoPreset = (input: EfoPresetInput) =>
+  customFetch<EfoPresetResponse>("/api/efo/presets", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+export const useCreateEfoPreset = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<EfoPresetResponse, TError, EfoPresetInput, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation<EfoPresetResponse, TError, EfoPresetInput, TContext>({
+    mutationFn: (input) => createEfoPreset(input),
+    ...mutationOptions,
+  });
+};
+
+export const deleteEfoPreset = (id: number) =>
+  customFetch<void>(`/api/efo/presets/${id}`, { method: "DELETE" });
+
+export const useDeleteEfoPreset = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<void, TError, number, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation<void, TError, number, TContext>({
+    mutationFn: (id) => deleteEfoPreset(id),
     ...mutationOptions,
   });
 };

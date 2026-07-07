@@ -173,3 +173,34 @@ export type CampaignListResponse = {
 export type CampaignResponse = {
   campaign: Campaign;
 };
+
+export type EfoPresetSegment = {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  profileNames: string[];
+  adCodes: string[];
+};
+
+export type EfoPreset = {
+  id: number;
+  name: string;
+  groupBy: string;
+  segmentA: EfoPresetSegment;
+  segmentB: EfoPresetSegment;
+  createdAt: string;
+};
+
+export type EfoPresetInput = {
+  name: string;
+  groupBy: string;
+  segmentA: EfoPresetSegment;
+  segmentB: EfoPresetSegment;
+};
+
+export type EfoPresetListResponse = {
+  presets: EfoPreset[];
+};
+
+export type EfoPresetResponse = {
+  preset: EfoPreset;
+};

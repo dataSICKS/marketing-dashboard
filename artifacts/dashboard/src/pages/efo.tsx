@@ -6,12 +6,16 @@ import {
   useGetClarityFiles,
   useGetClarityScroll,
   useListCampaigns,
+  useListEfoPresets,
+  useCreateEfoPreset,
+  useDeleteEfoPreset,
 } from "@workspace/api-client-react";
 import type {
   GetEfoDataGroupBy,
   EfoMetrics,
   EfoExitScenarioCount,
   Campaign,
+  EfoPreset,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,7 +31,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp } from "lucide-react";
+import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, ChevronDown, Trash2, X } from "lucide-react";
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 
@@ -669,6 +673,118 @@ function ClarityScrollSection() {
   );
 }
 
+// ─── Preset Save Modal ────────────────────────────────────────────
+function PresetSaveModal({
+  onSave,
+  onClose,
+  isSaving,
+}: {
+  onSave: (name: string) => void;
+  onClose: () => void;
+  isSaving: boolean;
+}) {
+  const [name, setName] = useState("");
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl p-6 w-80"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-bold text-base" style={{ color: "#1A1A1A" }}>プリセットとして保存</span>
+          <button onClick={onClose}><X size={16} style={{ color: "#9CA3AF" }} /></button>
+        </div>
+        <input
+          autoFocus
+          className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2"
+          style={{ borderColor: "#E5E7EB", color: "#1A1A1A" }}
+          placeholder="プリセット名（例：5月CV改善テスト）"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) onSave(name.trim()); }}
+        />
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "#F3F4F6", color: "#6B7280" }}
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={() => name.trim() && onSave(name.trim())}
+            disabled={!name.trim() || isSaving}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "#1A1A1A", color: "#fff", opacity: !name.trim() || isSaving ? 0.5 : 1 }}
+          >
+            {isSaving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Preset Dropdown ──────────────────────────────────────────────
+function PresetDropdown({
+  presets,
+  onSelect,
+  onDelete,
+}: {
+  presets: EfoPreset[];
+  onSelect: (p: EfoPreset) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (presets.length === 0) return null;
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+        style={{ background: "#fff", color: "#1A1A1A", borderColor: "#E5E7EB" }}
+      >
+        プリセット
+        <ChevronDown size={13} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg overflow-hidden"
+            style={{ background: "#fff", border: "1px solid #E5E7EB", minWidth: 220 }}
+          >
+            {presets.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer group"
+              >
+                <span
+                  className="text-sm truncate flex-1"
+                  style={{ color: "#1A1A1A" }}
+                  onClick={() => { onSelect(p); setOpen(false); }}
+                >
+                  {p.name}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                  className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 size={13} style={{ color: "#EF4444" }} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
@@ -681,6 +797,7 @@ export default function EfoPage() {
   })();
   const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
   const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
+  const [showPresetModal, setShowPresetModal] = useState(false);
   const queryClient = useQueryClient();
 
   const toFilterParams = (dateRange: SegmentFilter["dateRange"]) => ({
@@ -701,6 +818,9 @@ export default function EfoPage() {
   const { data: anyData } = useGetEfoData({ groupBy });
   const lastSyncedAt = anyData?.lastSyncedAt;
 
+  const { data: presetsData } = useListEfoPresets();
+  const presets = presetsData?.presets ?? [];
+
   const { mutate: syncEfo, isPending: isSyncing } = useSyncEfo({
     mutation: {
       onSuccess: () => {
@@ -710,8 +830,72 @@ export default function EfoPage() {
     },
   });
 
+  const { mutate: savePreset, isPending: isSavingPreset } = useCreateEfoPreset({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
+        setShowPresetModal(false);
+      },
+    },
+  });
+
+  const { mutate: removePreset } = useDeleteEfoPreset({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
+      },
+    },
+  });
+
+  const handleSavePreset = (name: string) => {
+    savePreset({
+      name,
+      groupBy,
+      segmentA: {
+        dateFrom: filterA.dateRange?.from?.replace(/\//g, "-") ?? null,
+        dateTo: filterA.dateRange?.to?.replace(/\//g, "-") ?? null,
+        profileNames: filterA.profileNames,
+        adCodes: filterA.adCodes,
+      },
+      segmentB: {
+        dateFrom: filterB.dateRange?.from?.replace(/\//g, "-") ?? null,
+        dateTo: filterB.dateRange?.to?.replace(/\//g, "-") ?? null,
+        profileNames: filterB.profileNames,
+        adCodes: filterB.adCodes,
+      },
+    });
+  };
+
+  const handleLoadPreset = (p: EfoPreset) => {
+    const toRange = (from: string | null | undefined, to: string | null | undefined): EfoDateRange | null => {
+      if (!from && !to) return null;
+      return {
+        from: from?.replace(/-/g, "/") ?? "",
+        to: to?.replace(/-/g, "/") ?? "",
+      };
+    };
+    setGroupBy(p.groupBy as GroupBy);
+    setFilterA({
+      profileNames: p.segmentA.profileNames,
+      adCodes: p.segmentA.adCodes,
+      dateRange: toRange(p.segmentA.dateFrom, p.segmentA.dateTo),
+    });
+    setFilterB({
+      profileNames: p.segmentB.profileNames,
+      adCodes: p.segmentB.adCodes,
+      dateRange: toRange(p.segmentB.dateFrom, p.segmentB.dateTo),
+    });
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "#F8F8F8" }}>
+      {showPresetModal && (
+        <PresetSaveModal
+          onSave={handleSavePreset}
+          onClose={() => setShowPresetModal(false)}
+          isSaving={isSavingPreset}
+        />
+      )}
       {/* Header */}
       <div className="px-6 py-4 shrink-0" style={{ borderBottom: "1px solid #EBEBEB", background: "#fff" }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -738,6 +922,20 @@ export default function EfoPage() {
                 </button>
               ))}
             </div>
+            {/* Preset controls */}
+            <PresetDropdown
+              presets={presets}
+              onSelect={handleLoadPreset}
+              onDelete={(id) => removePreset(id)}
+            />
+            <button
+              onClick={() => setShowPresetModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+              style={{ background: "#fff", color: "#1A1A1A", borderColor: "#E5E7EB" }}
+            >
+              <BookmarkPlus size={14} />
+              保存
+            </button>
             <button
               onClick={() => syncEfo(undefined)}
               disabled={isSyncing}

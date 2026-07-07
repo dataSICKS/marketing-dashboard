@@ -8,6 +8,7 @@ import {
   fetchEfoExitScenariosFromSupabase,
   fetchEcfAdAccessCvFromSupabase,
 } from "../lib/efo-supabase.js";
+import { listEfoPresets, createEfoPreset, deleteEfoPreset } from "../lib/efo-preset-supabase.js";
 import type { EfoAccessCvRow, EfoExitScenarioRow, EcfAdAccessCvRow, EfoExitScenarioCount } from "../lib/efo-types.js";
 
 const router: IRouter = Router();
@@ -164,6 +165,58 @@ router.get("/efo/data", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch EFO data");
     res.status(500).json({ error: "EFOデータ取得に失敗しました" });
+  }
+});
+
+// ─── Presets ──────────────────────────────────────────────────────
+
+router.get("/efo/presets", async (req, res) => {
+  try {
+    const presets = await listEfoPresets();
+    res.json({ presets });
+  } catch (err) {
+    req.log.error({ err }, "Failed to list efo presets");
+    res.status(500).json({ error: "プリセット取得に失敗しました" });
+  }
+});
+
+router.post("/efo/presets", async (req, res) => {
+  try {
+    const { name, groupBy, segmentA, segmentB } = req.body as {
+      name: string;
+      groupBy: string;
+      segmentA: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
+      segmentB: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
+    };
+    if (!name || !groupBy || !segmentA || !segmentB) {
+      res.status(400).json({ error: "name, groupBy, segmentA, segmentB は必須です" });
+      return;
+    }
+    const preset = await createEfoPreset({
+      name,
+      groupBy,
+      segmentA: { dateFrom: segmentA.dateFrom ?? null, dateTo: segmentA.dateTo ?? null, profileNames: segmentA.profileNames, adCodes: segmentA.adCodes },
+      segmentB: { dateFrom: segmentB.dateFrom ?? null, dateTo: segmentB.dateTo ?? null, profileNames: segmentB.profileNames, adCodes: segmentB.adCodes },
+    });
+    res.status(201).json({ preset });
+  } catch (err) {
+    req.log.error({ err }, "Failed to create efo preset");
+    res.status(500).json({ error: "プリセット作成に失敗しました" });
+  }
+});
+
+router.delete("/efo/presets/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "無効なIDです" });
+      return;
+    }
+    await deleteEfoPreset(id);
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete efo preset");
+    res.status(500).json({ error: "プリセット削除に失敗しました" });
   }
 });
 
