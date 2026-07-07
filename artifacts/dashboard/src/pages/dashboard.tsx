@@ -591,8 +591,16 @@ function MatrixView({
       ) : isLoading ? (
         <LoadingSkeleton />
       ) : timePeriods.length === 0 ? (
-        <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
-          style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>データなし</div>
+        <div className="bg-white rounded-xl p-10 flex flex-col items-center justify-center gap-2 text-sm"
+          style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
+          {dateRange
+            ? <>
+                <span>選択した期間（{dateRange.from}〜{dateRange.to}）にデータがありません</span>
+                <span className="text-xs">スプレッドシートのデータ期間を確認するか、期間フィルタをリセットしてください</span>
+              </>
+            : <span>データなし</span>
+          }
+        </div>
       ) : (
         <>
           {/* ── Shared legend ── */}
