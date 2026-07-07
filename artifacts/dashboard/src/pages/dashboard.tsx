@@ -660,13 +660,13 @@ export default function Dashboard() {
                   ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
                   : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
               >
-                {selectedSegments.length > 0 ? `セグメント (${selectedSegments.length})` : "セグメント"}
+                {selectedSegments.length > 0 ? `シナリオ (${selectedSegments.length})` : "シナリオ"}
                 <ChevronDown size={13} />
               </button>
               {segmentDropdownOpen && (
                 <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden" style={{ border: "1px solid #EBEBEB", minWidth: 180 }}>
                   {availableSegments.length === 0 ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>セグメントなし</div>
+                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>シナリオなし</div>
                   ) : availableSegments.map((seg) => (
                     <label key={seg} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
                       <input type="checkbox" checked={selectedSegments.includes(seg)} onChange={() => toggleSegment(seg)} style={{ accentColor: YELLOW }} />
