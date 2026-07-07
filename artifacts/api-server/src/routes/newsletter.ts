@@ -203,7 +203,8 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     const validMetric = ["deliveryCount", "openRate", "clickRate", "cvr", "cvCount"];
 
     const timeGroupBy = (validTime.includes(q.timeGroupBy ?? "") ? q.timeGroupBy : "month") as "day" | "week" | "month";
-    const metric = (validMetric.includes(q.metric ?? "") ? q.metric : "deliveryCount") as MatrixMetric;
+    const rawMetrics = q.metrics ? q.metrics.split(",").map((s) => s.trim()).filter((s) => validMetric.includes(s)) as MatrixMetric[] : [];
+    const metrics = rawMetrics.length > 0 ? rawMetrics : (["deliveryCount"] as MatrixMetric[]);
     const scenarios = q.scenarios ? q.scenarios.split(",").map((s) => s.trim()).filter(Boolean) : [];
     const templates = q.templates ? q.templates.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
@@ -211,7 +212,7 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => r.deliveryDate >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => r.deliveryDate <= q.dateTo!);
 
-    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metric);
+    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics);
     res.json(data);
   } catch (err) {
     req.log.error({ err }, "Failed to compute matrix data");

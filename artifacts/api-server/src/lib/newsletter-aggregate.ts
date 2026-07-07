@@ -108,13 +108,13 @@ export type MatrixMetric = "deliveryCount" | "openRate" | "clickRate" | "cvr" | 
 export interface MatrixSeriesRow {
   key: string;
   type: "scenario" | "template";
-  values: Record<string, number>;
+  metricValues: Partial<Record<MatrixMetric, Record<string, number>>>;
 }
 
 export interface MatrixData {
   timePeriods: string[];
   series: MatrixSeriesRow[];
-  metric: MatrixMetric;
+  metrics: MatrixMetric[];
 }
 
 function extractMetric(m: NewsletterMetrics, metric: MatrixMetric): number {
@@ -132,18 +132,21 @@ export function computeMatrixData(
   scenarios: string[],
   templates: string[],
   timeGroupBy: "day" | "week" | "month",
-  metric: MatrixMetric,
+  metrics: MatrixMetric[],
 ): MatrixData {
   const allPeriods = new Set<string>();
 
   const buildRow = (filtered: NewsletterRow[], key: string, type: "scenario" | "template"): MatrixSeriesRow => {
     const agg = aggregateRows(filtered, timeGroupBy);
-    const values: Record<string, number> = {};
-    for (const item of agg) {
-      allPeriods.add(item.label);
-      values[item.label] = extractMetric(item, metric);
+    for (const item of agg) allPeriods.add(item.label);
+    const metricValues: Partial<Record<MatrixMetric, Record<string, number>>> = {};
+    for (const m of metrics) {
+      metricValues[m] = {};
+      for (const item of agg) {
+        metricValues[m]![item.label] = extractMetric(item, m);
+      }
     }
-    return { key, type, values };
+    return { key, type, metricValues };
   };
 
   const series: MatrixSeriesRow[] = [
@@ -152,7 +155,7 @@ export function computeMatrixData(
   ];
 
   const timePeriods = Array.from(allPeriods).sort();
-  return { timePeriods, series, metric };
+  return { timePeriods, series, metrics };
 }
 
 export function getUniqueSegments(rows: NewsletterRow[]): string[] {

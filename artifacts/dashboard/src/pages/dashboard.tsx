@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import {
   useGetNewsletterData,
   useSyncNewsletter,
@@ -425,6 +425,81 @@ function PresetBar({
   );
 }
 
+// ─── Searchable Multi-Select ──────────────────────────────────────
+function SearchableMultiSelect({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(query.toLowerCase())
+  );
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+  const close = () => { setOpen(false); setQuery(""); };
+
+  return (
+    <>
+      {open && <div className="fixed inset-0 z-20" onClick={close} />}
+      <div className="relative">
+        <button
+          onClick={() => setOpen((p) => !p)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+          style={selected.length > 0
+            ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
+            : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+        >
+          {selected.length > 0 ? `${label} (${selected.length})` : label}
+          <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }} />
+        </button>
+        {open && (
+          <div className="absolute top-full mt-1 left-0 z-30 bg-white rounded-xl shadow-lg overflow-hidden"
+            style={{ border: "1px solid #EBEBEB", minWidth: 220 }}>
+            <div className="p-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="検索..."
+                autoFocus
+                className="w-full text-xs px-2.5 py-1.5 rounded-lg outline-none"
+                style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
+              />
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 260 }}>
+              {filtered.length === 0 ? (
+                <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>該当なし</div>
+              ) : filtered.map((opt) => (
+                <label key={opt.value}
+                  className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs"
+                  style={{ color: "#374151" }}>
+                  <input type="checkbox" checked={selected.includes(opt.value)} onChange={() => toggle(opt.value)}
+                    style={{ accentColor: YELLOW }} />
+                  <span className="truncate">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+            {selected.length > 0 && (
+              <div style={{ borderTop: "1px solid #F3F4F6" }}>
+                <button onClick={() => { onChange([]); close(); }}
+                  className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── Matrix View ─────────────────────────────────────────────────
 function MatrixView({
   availableScenarios,
@@ -437,226 +512,205 @@ function MatrixView({
 }) {
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
-  const [metric, setMetric] = useState<string>("deliveryCount");
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
   const [timeGroupBy, setTimeGroupBy] = useState<"day" | "week" | "month">("month");
 
-  const toggleScenario = (s: string) =>
-    setSelectedScenarios((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
-  const toggleTemplate = (t: string) =>
-    setSelectedTemplates((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]));
-
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
+  const hasMetrics = selectedMetrics.length > 0;
 
   const matrixParams = {
     timeGroupBy,
-    metric,
+    metrics: selectedMetrics.join(","),
     scenarios: selectedScenarios.join(","),
     templates: selectedTemplates.join(","),
     dateFrom: dateRange?.from,
     dateTo: dateRange?.to,
   };
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
-    query: { enabled: hasSelections },
+    query: { enabled: hasSelections && hasMetrics },
   });
-
-  const metricDef = MATRIX_METRICS.find((m) => m.value === metric) ?? MATRIX_METRICS[0];
-  const formatVal = (v: number) => (metricDef.isRate ? formatPercent(v) : formatNumber(v));
 
   const series: MatrixResponse["series"] = data?.series ?? [];
   const timePeriods: string[] = data?.timePeriods ?? [];
 
-  const chartData = timePeriods.map((period) => {
-    const point: Record<string, string | number> = { period };
-    for (const s of series) point[s.key] = s.values[period] ?? 0;
-    return point;
-  });
+  const seriesLegend = useMemo(() => series.map((s, i) => ({
+    ...s,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+  })), [series]);
 
-  const allVals = series.flatMap((s) => Object.values(s.values)).filter((v) => v > 0);
-  const maxVal = allVals.length > 0 ? Math.max(...allVals) : 1;
-  const minVal = allVals.length > 0 ? Math.min(...allVals) : 0;
-  const heatBg = (val: number | undefined) => {
-    if (val == null || maxVal === minVal) return "transparent";
-    const ratio = (val - minVal) / (maxVal - minVal);
-    return `rgba(251,191,36,${(ratio * 0.45).toFixed(2)})`;
-  };
-
-  const chipColor = (idx: number, selected: boolean) =>
-    selected ? SERIES_COLORS[idx % SERIES_COLORS.length] : "#9CA3AF";
+  const scenarioOpts = availableScenarios.map((s) => ({ value: s, label: s }));
+  const templateOpts = availableTemplates.map((t) => ({ value: t, label: t }));
+  const metricOpts = MATRIX_METRICS.map((m) => ({ value: m.value, label: m.label }));
 
   return (
     <div className="flex flex-col gap-4 md:gap-5">
       {/* ── Controls ── */}
-      <div className="bg-white rounded-xl p-4 md:p-5 flex flex-col gap-3" style={{ border: "1px solid #EBEBEB" }}>
-        {availableScenarios.length > 0 && (
-          <div>
-            <div className="text-xs font-medium mb-2" style={{ color: "#6B7280" }}>シナリオ（行に追加）</div>
-            <div className="flex flex-wrap gap-1.5">
-              {availableScenarios.map((s) => {
-                const idx = selectedScenarios.indexOf(s);
-                const selected = idx >= 0;
-                const color = chipColor(idx, selected);
-                return (
-                  <button key={s} onClick={() => toggleScenario(s)}
-                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
-                    style={selected
-                      ? { background: color + "22", color, border: `1.5px solid ${color}` }
-                      : { background: "#F9FAFB", color: "#6B7280", border: "1px solid #E5E7EB" }}>
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {availableTemplates.length > 0 && (
-          <div>
-            <div className="text-xs font-medium mb-2" style={{ color: "#6B7280" }}>テンプレ（行に追加）</div>
-            <div className="flex flex-wrap gap-1.5">
-              {availableTemplates.map((t) => {
-                const idx = selectedTemplates.indexOf(t);
-                const selected = idx >= 0;
-                const color = chipColor(selectedScenarios.length + idx, selected);
-                return (
-                  <button key={t} onClick={() => toggleTemplate(t)}
-                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
-                    style={selected
-                      ? { background: color + "22", color, border: `1.5px solid ${color}` }
-                      : { background: "#F9FAFB", color: "#6B7280", border: "1px solid #E5E7EB" }}>
-                    <span className="truncate max-w-[160px] inline-block align-bottom">{t}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        <div className="flex items-center gap-3 flex-wrap pt-1" style={{ borderTop: "1px solid #F3F4F6" }}>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium" style={{ color: "#6B7280" }}>指標</span>
-            <select
-              value={metric}
-              onChange={(e) => setMetric(e.target.value)}
-              className="text-xs rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
-              style={{ border: "1px solid #E5E7EB", color: "#1A1A1A", background: "#fff" }}
-            >
-              {MATRIX_METRICS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-1 ml-auto">
-            {(["day", "week", "month"] as const).map((tg) => (
-              <button key={tg} onClick={() => setTimeGroupBy(tg)}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                style={timeGroupBy === tg
-                  ? { background: "#1A1A1A", color: "#fff" }
-                  : { background: "#F3F4F6", color: "#6B7280" }}>
-                {tg === "day" ? "日別" : tg === "week" ? "週別" : "月別"}
-              </button>
-            ))}
-          </div>
+      <div className="bg-white rounded-xl px-4 md:px-5 py-3 md:py-4 flex flex-wrap items-center gap-2"
+        style={{ border: "1px solid #EBEBEB" }}>
+        <SearchableMultiSelect
+          label="シナリオ"
+          options={scenarioOpts}
+          selected={selectedScenarios}
+          onChange={setSelectedScenarios}
+        />
+        <SearchableMultiSelect
+          label="テンプレ"
+          options={templateOpts}
+          selected={selectedTemplates}
+          onChange={setSelectedTemplates}
+        />
+        <SearchableMultiSelect
+          label="指標"
+          options={metricOpts}
+          selected={selectedMetrics}
+          onChange={setSelectedMetrics}
+        />
+        <div className="flex items-center gap-1 ml-auto">
+          {(["day", "week", "month"] as const).map((tg) => (
+            <button key={tg} onClick={() => setTimeGroupBy(tg)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+              style={timeGroupBy === tg
+                ? { background: "#1A1A1A", color: "#fff" }
+                : { background: "#F3F4F6", color: "#6B7280" }}>
+              {tg === "day" ? "日別" : tg === "week" ? "週別" : "月別"}
+            </button>
+          ))}
         </div>
       </div>
 
       {!hasSelections ? (
         <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
           style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
-          上のシナリオまたはテンプレを選択してください
+          シナリオまたはテンプレを選択してください
+        </div>
+      ) : !hasMetrics ? (
+        <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
+          style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
+          指標を選択してください
         </div>
       ) : isLoading ? (
         <LoadingSkeleton />
+      ) : timePeriods.length === 0 ? (
+        <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
+          style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>データなし</div>
       ) : (
         <>
-          {/* ── Multi-line chart ── */}
-          <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
-            <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>
-              {metricDef.label} トレンド
-            </div>
-            {timePeriods.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データなし</div>
-            ) : (
-              <>
-                <div style={{ height: 220 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                      <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
-                      <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
-                        tickFormatter={(v) => formatVal(v as number)} width={52} />
-                      <Tooltip
-                        contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
-                        formatter={(val: number, name: string) => [formatVal(val), name]}
-                      />
-                      {series.map((s, i) => (
-                        <Line key={s.key} type="monotone" dataKey={s.key}
-                          stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                          strokeWidth={2} dot={false} connectNulls />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 pt-3" style={{ borderTop: "1px solid #F3F4F6" }}>
-                  {series.map((s, i) => (
-                    <div key={s.key} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
-                      <svg width="14" height="2" viewBox="0 0 14 2"><line x1="0" y1="1" x2="14" y2="1" stroke={SERIES_COLORS[i % SERIES_COLORS.length]} strokeWidth="2" /></svg>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                        {s.type === "scenario" ? "シナリオ" : "テンプレ"}
-                      </span>
-                      <span>{s.key}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+          {/* ── Shared legend ── */}
+          <div className="flex flex-wrap gap-x-4 gap-y-2 px-1">
+            {seriesLegend.map((s) => (
+              <div key={s.key} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
+                <svg width="14" height="2" viewBox="0 0 14 2">
+                  <line x1="0" y1="1" x2="14" y2="1" stroke={s.color} strokeWidth="2" />
+                </svg>
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                  style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
+                  {s.type === "scenario" ? "シナリオ" : "テンプレ"}
+                </span>
+                <span>{s.key}</span>
+              </div>
+            ))}
           </div>
 
-          {/* ── Matrix table ── */}
-          {timePeriods.length > 0 && (
-            <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
-              <div className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: YELLOW_LIGHT, color: YELLOW_DARK }}>{metricDef.label}</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
-                      <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                        style={{ color: "#6B7280", minWidth: 160, position: "sticky", left: 0, background: "#F9FAFB" }}>行</th>
-                      {timePeriods.map((period) => (
-                        <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap" style={{ color: "#6B7280" }}>{period}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {series.map((s, i) => (
-                      <tr key={s.key} style={{ borderTop: "1px solid #F3F4F6" }}>
-                        <td className="px-4 py-2.5 font-medium whitespace-nowrap"
-                          style={{ position: "sticky", left: 0, background: "#fff", color: "#1A1A1A" }}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full shrink-0"
-                              style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                              style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                              {s.type === "scenario" ? "シナリオ" : "テンプレ"}
-                            </span>
-                            <span className="truncate" style={{ maxWidth: 100 }}>{s.key}</span>
-                          </div>
-                        </td>
-                        {timePeriods.map((period) => {
-                          const val = s.values[period];
+          {/* ── Per-metric chart + table ── */}
+          {selectedMetrics.map((metricKey) => {
+            const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
+            const fmtV = (v: number) => mDef.isRate ? formatPercent(v) : formatNumber(v);
+            const chartData = timePeriods.map((period) => {
+              const pt: Record<string, string | number> = { period };
+              for (const s of series) pt[s.key] = s.metricValues[metricKey as keyof typeof s.metricValues]?.[period] ?? 0;
+              return pt;
+            });
+            const allVals = series.flatMap((s) =>
+              Object.values(s.metricValues[metricKey as keyof typeof s.metricValues] ?? {})
+            ).filter((v) => v > 0);
+            const maxV = allVals.length > 0 ? Math.max(...allVals) : 1;
+            const minV = allVals.length > 0 ? Math.min(...allVals) : 0;
+            const hBg = (val: number | undefined) => {
+              if (val == null || maxV === minV) return "transparent";
+              return `rgba(251,191,36,${((val - minV) / (maxV - minV) * 0.45).toFixed(2)})`;
+            };
+
+            return (
+              <Fragment key={metricKey}>
+                {/* Chart */}
+                <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
+                  <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>{mDef.label} トレンド</div>
+                  <div style={{ height: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                        <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
+                        <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                          tickFormatter={(v) => fmtV(v as number)} width={52} />
+                        <Tooltip
+                          contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
+                          formatter={(val: number, name: string) => [fmtV(val), name]}
+                        />
+                        {series.map((s, i) => (
+                          <Line key={s.key} type="monotone" dataKey={s.key}
+                            stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                            strokeWidth={2} dot={false} connectNulls />
+                        ))}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Matrix table */}
+                <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
+                  <div className="px-4 md:px-6 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
+                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: YELLOW_LIGHT, color: YELLOW_DARK }}>{mDef.label}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
+                          <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
+                            style={{ color: "#6B7280", minWidth: 160, position: "sticky", left: 0, background: "#F9FAFB" }}>行</th>
+                          {timePeriods.map((period) => (
+                            <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                              style={{ color: "#6B7280" }}>{period}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {series.map((s, i) => {
+                          const vals = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
                           return (
-                            <td key={period} className="px-3 py-2.5 text-right tabular-nums"
-                              style={{ background: heatBg(val), color: "#1A1A1A" }}>
-                              {val != null ? formatVal(val) : <span style={{ color: "#D1D5DB" }}>—</span>}
-                            </td>
+                            <tr key={s.key} style={{ borderTop: "1px solid #F3F4F6" }}>
+                              <td className="px-4 py-2.5 font-medium whitespace-nowrap"
+                                style={{ position: "sticky", left: 0, background: "#fff", color: "#1A1A1A" }}>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                    style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
+                                    {s.type === "scenario" ? "シナリオ" : "テンプレ"}
+                                  </span>
+                                  <span className="truncate" style={{ maxWidth: 100 }}>{s.key}</span>
+                                </div>
+                              </td>
+                              {timePeriods.map((period) => {
+                                const val = vals[period];
+                                return (
+                                  <td key={period} className="px-3 py-2.5 text-right tabular-nums"
+                                    style={{ background: hBg(val), color: "#1A1A1A" }}>
+                                    {val != null ? fmtV(val) : <span style={{ color: "#D1D5DB" }}>—</span>}
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
                         })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </Fragment>
+            );
+          })}
         </>
       )}
     </div>

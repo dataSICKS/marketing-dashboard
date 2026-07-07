@@ -154,7 +154,7 @@ export const useGetNewsletterChangeEvents = <TError = ErrorType<ErrorResponse>>(
 
 export type GetNewsletterMatrixParams = {
   timeGroupBy?: "day" | "week" | "month";
-  metric?: string;
+  metrics?: string;
   scenarios?: string;
   templates?: string;
   dateFrom?: string | null;

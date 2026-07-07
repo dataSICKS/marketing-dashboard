@@ -140,13 +140,13 @@ export type MatrixMetric = "deliveryCount" | "openRate" | "clickRate" | "cvr" | 
 export type MatrixSeriesRow = {
   key: string;
   type: "scenario" | "template";
-  values: Record<string, number>;
+  metricValues: Partial<Record<MatrixMetric, Record<string, number>>>;
 };
 
 export type MatrixResponse = {
   timePeriods: string[];
   series: MatrixSeriesRow[];
-  metric: MatrixMetric;
+  metrics: MatrixMetric[];
 };
 
 export type Campaign = {
