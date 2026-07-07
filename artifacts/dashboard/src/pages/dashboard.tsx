@@ -611,7 +611,7 @@ function MatrixView({
             ))}
           </div>
 
-          {/* ── Per-metric chart + table ── */}
+          {/* ── Per-metric charts ── */}
           {selectedMetrics.map((metricKey) => {
             const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
             const fmtV = (v: number) => mDef.isRate ? formatPercent(v) : formatNumber(v);
@@ -620,97 +620,108 @@ function MatrixView({
               for (const s of series) pt[s.key] = s.metricValues[metricKey as keyof typeof s.metricValues]?.[period] ?? 0;
               return pt;
             });
-            const allVals = series.flatMap((s) =>
-              Object.values(s.metricValues[metricKey as keyof typeof s.metricValues] ?? {})
-            ).filter((v) => v > 0);
-            const maxV = allVals.length > 0 ? Math.max(...allVals) : 1;
-            const minV = allVals.length > 0 ? Math.min(...allVals) : 0;
-            const hBg = (val: number | undefined) => {
-              if (val == null || maxV === minV) return "transparent";
-              return `rgba(251,191,36,${((val - minV) / (maxV - minV) * 0.45).toFixed(2)})`;
-            };
-
             return (
-              <Fragment key={metricKey}>
-                {/* Chart */}
-                <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
-                  <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>{mDef.label} トレンド</div>
-                  <div style={{ height: 200 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                        <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
-                        <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
-                          tickFormatter={(v) => fmtV(v as number)} width={52} />
-                        <Tooltip
-                          contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
-                          formatter={(val: number, name: string) => [fmtV(val), name]}
-                        />
-                        {series.map((s, i) => (
-                          <Line key={s.key} type="monotone" dataKey={s.key}
-                            stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                            strokeWidth={2} dot={false} connectNulls />
-                        ))}
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
+              <div key={metricKey} className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
+                <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>{mDef.label} トレンド</div>
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                      <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
+                      <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                        tickFormatter={(v) => fmtV(v as number)} width={52} />
+                      <Tooltip
+                        contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
+                        formatter={(val: number, name: string) => [fmtV(val), name]}
+                      />
+                      {series.map((s, i) => (
+                        <Line key={s.key} type="monotone" dataKey={s.key}
+                          stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                          strokeWidth={2} dot={false} connectNulls />
+                      ))}
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
-
-                {/* Matrix table */}
-                <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
-                  <div className="px-4 md:px-6 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: YELLOW_LIGHT, color: YELLOW_DARK }}>{mDef.label}</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
-                          <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                            style={{ color: "#6B7280", minWidth: 160, position: "sticky", left: 0, background: "#F9FAFB" }}>行</th>
-                          {timePeriods.map((period) => (
-                            <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
-                              style={{ color: "#6B7280" }}>{period}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {series.map((s, i) => {
-                          const vals = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
-                          return (
-                            <tr key={s.key} style={{ borderTop: "1px solid #F3F4F6" }}>
-                              <td className="px-4 py-2.5 font-medium whitespace-nowrap"
-                                style={{ position: "sticky", left: 0, background: "#fff", color: "#1A1A1A" }}>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full shrink-0"
-                                    style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                    style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                                    {s.type === "scenario" ? "シナリオ" : "テンプレ"}
-                                  </span>
-                                  <span className="truncate" style={{ maxWidth: 100 }}>{s.key}</span>
-                                </div>
-                              </td>
-                              {timePeriods.map((period) => {
-                                const val = vals[period];
-                                return (
-                                  <td key={period} className="px-3 py-2.5 text-right tabular-nums"
-                                    style={{ background: hBg(val), color: "#1A1A1A" }}>
-                                    {val != null ? fmtV(val) : <span style={{ color: "#D1D5DB" }}>—</span>}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </Fragment>
+              </div>
             );
           })}
+
+          {/* ── Combined matrix table (series × metric rows) ── */}
+          <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
+            <div className="px-4 md:px-6 py-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
+              <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
+                    <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
+                      style={{ color: "#6B7280", minWidth: 150, position: "sticky", left: 0, background: "#F9FAFB" }}>行</th>
+                    <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 150, background: "#F9FAFB", borderRight: "1px solid #F3F4F6" }}>指標</th>
+                    {timePeriods.map((period) => (
+                      <th key={period} className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                        style={{ color: "#6B7280" }}>{period}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {series.flatMap((s, si) =>
+                    selectedMetrics.map((metricKey, mi) => {
+                      const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
+                      const vals = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
+                      const allVals = series.flatMap((sr) =>
+                        Object.values(sr.metricValues[metricKey as keyof typeof sr.metricValues] ?? {})
+                      ).filter((v) => v > 0);
+                      const maxV = allVals.length > 0 ? Math.max(...allVals) : 1;
+                      const minV = allVals.length > 0 ? Math.min(...allVals) : 0;
+                      const hBg = (val: number | undefined) => {
+                        if (val == null || maxV === minV) return "transparent";
+                        return `rgba(251,191,36,${((val - minV) / (maxV - minV) * 0.45).toFixed(2)})`;
+                      };
+                      const isFirstMetric = mi === 0;
+                      const rowBorderTop = isFirstMetric
+                        ? (si === 0 ? "none" : "2px solid #E5E7EB")
+                        : "1px solid #F9FAFB";
+                      return (
+                        <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop }}>
+                          <td className="px-4 py-2 whitespace-nowrap font-medium"
+                            style={{ position: "sticky", left: 0, background: "#fff", color: "#1A1A1A", verticalAlign: "middle" }}>
+                            {isFirstMetric ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
+                                <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
+                                  style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
+                                  {s.type === "scenario" ? "シナリオ" : "テンプレ"}
+                                </span>
+                                <span className="truncate" style={{ maxWidth: 80 }}>{s.key}</span>
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap"
+                            style={{ position: "sticky", left: 150, background: "#fff", color: "#6B7280", borderRight: "1px solid #F3F4F6" }}>
+                            {mDef.label}
+                          </td>
+                          {timePeriods.map((period) => {
+                            const val = vals[period];
+                            return (
+                              <td key={period} className="px-3 py-2 text-right tabular-nums"
+                                style={{ background: hBg(val), color: "#1A1A1A" }}>
+                                {val != null
+                                  ? (mDef.isRate ? formatPercent(val) : formatNumber(val))
+                                  : <span style={{ color: "#D1D5DB" }}>—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
     </div>
