@@ -15,6 +15,7 @@ import type {
   NewsletterChangeEventsResponse,
   NewsletterSegmentsResponse,
   NewsletterTemplatesResponse,
+  MatrixResponse,
   ClarityFilesResponse,
   ClarityScrollResponse,
   EfoFilters,
@@ -144,6 +145,42 @@ export const useGetNewsletterChangeEvents = <TError = ErrorType<ErrorResponse>>(
   const queryKey = getGetNewsletterChangeEventsQueryKey(params);
   const queryFn: QueryFunction<NewsletterChangeEventsResponse, GetNewsletterChangeEventsQueryKey> = () =>
     getNewsletterChangeEvents(params);
+  return useQuery({ queryKey, queryFn, ...queryOptions });
+};
+
+// ---------------------------------------------------------------------------
+// Newsletter — matrix
+// ---------------------------------------------------------------------------
+
+export type GetNewsletterMatrixParams = {
+  timeGroupBy?: "day" | "week" | "month";
+  metric?: string;
+  scenarios?: string;
+  templates?: string;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+};
+
+export const getNewsletterMatrix = (params: GetNewsletterMatrixParams) =>
+  customFetch<MatrixResponse>(
+    `/api/newsletter/matrix${buildQuery(params as Record<string, string | null | undefined>)}`,
+  );
+
+export const getGetNewsletterMatrixQueryKey = (params: GetNewsletterMatrixParams) =>
+  ["/api/newsletter/matrix", params] as const;
+
+export type GetNewsletterMatrixQueryKey = ReturnType<typeof getGetNewsletterMatrixQueryKey>;
+
+export const useGetNewsletterMatrix = <TError = ErrorType<ErrorResponse>>(
+  params: GetNewsletterMatrixParams,
+  options?: {
+    query?: QueryOpts<MatrixResponse, TError, GetNewsletterMatrixQueryKey>;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = getGetNewsletterMatrixQueryKey(params);
+  const queryFn: QueryFunction<MatrixResponse, GetNewsletterMatrixQueryKey> = () =>
+    getNewsletterMatrix(params);
   return useQuery({ queryKey, queryFn, ...queryOptions });
 };
 

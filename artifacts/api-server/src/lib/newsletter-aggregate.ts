@@ -102,6 +102,59 @@ export function mergeComparisonMetrics(
   });
 }
 
+// ─── Matrix ────────────────────────────────────────────────────────
+export type MatrixMetric = "deliveryCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
+
+export interface MatrixSeriesRow {
+  key: string;
+  type: "scenario" | "template";
+  values: Record<string, number>;
+}
+
+export interface MatrixData {
+  timePeriods: string[];
+  series: MatrixSeriesRow[];
+  metric: MatrixMetric;
+}
+
+function extractMetric(m: NewsletterMetrics, metric: MatrixMetric): number {
+  switch (metric) {
+    case "openRate": return m.openRate;
+    case "clickRate": return m.clickRate;
+    case "cvr": return m.cvr;
+    case "cvCount": return m.cvCount;
+    default: return m.deliveryCount;
+  }
+}
+
+export function computeMatrixData(
+  rows: NewsletterRow[],
+  scenarios: string[],
+  templates: string[],
+  timeGroupBy: "day" | "week" | "month",
+  metric: MatrixMetric,
+): MatrixData {
+  const allPeriods = new Set<string>();
+
+  const buildRow = (filtered: NewsletterRow[], key: string, type: "scenario" | "template"): MatrixSeriesRow => {
+    const agg = aggregateRows(filtered, timeGroupBy);
+    const values: Record<string, number> = {};
+    for (const item of agg) {
+      allPeriods.add(item.label);
+      values[item.label] = extractMetric(item, metric);
+    }
+    return { key, type, values };
+  };
+
+  const series: MatrixSeriesRow[] = [
+    ...scenarios.map((s) => buildRow(rows.filter((r) => r.segment === s), s, "scenario")),
+    ...templates.map((t) => buildRow(rows.filter((r) => r.templateName === t), t, "template")),
+  ];
+
+  const timePeriods = Array.from(allPeriods).sort();
+  return { timePeriods, series, metric };
+}
+
 export function getUniqueSegments(rows: NewsletterRow[]): string[] {
   const set = new Set<string>();
   for (const r of rows) {

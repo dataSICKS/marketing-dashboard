@@ -4,9 +4,11 @@ import {
   aggregateRows,
   computeSummary,
   mergeComparisonMetrics,
+  computeMatrixData,
   getUniqueSegments,
   getUniqueTemplates,
   type GroupBy,
+  type MatrixMetric,
 } from "../lib/newsletter-aggregate.js";
 import { getCache, setCache } from "../lib/newsletter-cache.js";
 import { upsertRows, fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
@@ -189,6 +191,31 @@ router.get("/newsletter/change-events", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch change events");
     res.status(500).json({ error: "変更イベント取得に失敗しました" });
+  }
+});
+
+router.get("/newsletter/matrix", async (req, res): Promise<void> => {
+  try {
+    const { rows: allRows } = await getRows(req);
+    const q = req.query as Record<string, string | undefined>;
+
+    const validTime = ["day", "week", "month"];
+    const validMetric = ["deliveryCount", "openRate", "clickRate", "cvr", "cvCount"];
+
+    const timeGroupBy = (validTime.includes(q.timeGroupBy ?? "") ? q.timeGroupBy : "month") as "day" | "week" | "month";
+    const metric = (validMetric.includes(q.metric ?? "") ? q.metric : "deliveryCount") as MatrixMetric;
+    const scenarios = q.scenarios ? q.scenarios.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const templates = q.templates ? q.templates.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+    let rows = allRows;
+    if (q.dateFrom) rows = rows.filter((r) => r.deliveryDate >= q.dateFrom!);
+    if (q.dateTo) rows = rows.filter((r) => r.deliveryDate <= q.dateTo!);
+
+    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metric);
+    res.json(data);
+  } catch (err) {
+    req.log.error({ err }, "Failed to compute matrix data");
+    res.status(500).json({ error: "マトリクスデータの取得に失敗しました" });
   }
 });
 

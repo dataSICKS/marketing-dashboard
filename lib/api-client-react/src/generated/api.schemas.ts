@@ -135,6 +135,20 @@ export type EfoReportResponse = {
   lastSyncedAt: string | null;
 };
 
+export type MatrixMetric = "deliveryCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
+
+export type MatrixSeriesRow = {
+  key: string;
+  type: "scenario" | "template";
+  values: Record<string, number>;
+};
+
+export type MatrixResponse = {
+  timePeriods: string[];
+  series: MatrixSeriesRow[];
+  metric: MatrixMetric;
+};
+
 export type Campaign = {
   id: number;
   title: string;
