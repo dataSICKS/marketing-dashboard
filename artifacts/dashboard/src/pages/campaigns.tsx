@@ -355,7 +355,7 @@ export default function CampaignsPage() {
     else create(input);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     if (window.confirm("この施策を削除しますか？")) remove(id);
   };
 

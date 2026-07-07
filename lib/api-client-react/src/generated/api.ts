@@ -489,7 +489,7 @@ export const useCreateCampaign = <
   });
 };
 
-export const updateCampaign = (id: number, input: CampaignInput) =>
+export const updateCampaign = (id: string, input: CampaignInput) =>
   customFetch<CampaignResponse>(`/api/campaigns/${id}`, {
     method: "PUT",
     body: JSON.stringify(input),
@@ -502,7 +502,7 @@ export const useUpdateCampaign = <
   mutation?: UseMutationOptions<
     CampaignResponse,
     TError,
-    { id: number; input: CampaignInput },
+    { id: string; input: CampaignInput },
     TContext
   >;
 }) => {
@@ -510,7 +510,7 @@ export const useUpdateCampaign = <
   return useMutation<
     CampaignResponse,
     TError,
-    { id: number; input: CampaignInput },
+    { id: string; input: CampaignInput },
     TContext
   >({
     mutationFn: ({ id, input }) => updateCampaign(id, input),
@@ -518,17 +518,17 @@ export const useUpdateCampaign = <
   });
 };
 
-export const deleteCampaign = (id: number) =>
+export const deleteCampaign = (id: string) =>
   customFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
 
 export const useDeleteCampaign = <
   TError = ErrorType<ErrorResponse>,
   TContext = unknown,
 >(options?: {
-  mutation?: UseMutationOptions<void, TError, number, TContext>;
+  mutation?: UseMutationOptions<void, TError, string, TContext>;
 }) => {
   const { mutation: mutationOptions } = options ?? {};
-  return useMutation<void, TError, number, TContext>({
+  return useMutation<void, TError, string, TContext>({
     mutationFn: (id) => deleteCampaign(id),
     ...mutationOptions,
   });

@@ -40,8 +40,8 @@ router.post("/campaigns", async (req, res): Promise<void> => {
 });
 
 router.put("/campaigns/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = req.params.id;
+  if (!id) {
     res.status(400).json({ error: "無効なIDです" });
     return;
   }
@@ -66,8 +66,8 @@ router.put("/campaigns/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/campaigns/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = req.params.id;
+  if (!id) {
     res.status(400).json({ error: "無効なIDです" });
     return;
   }

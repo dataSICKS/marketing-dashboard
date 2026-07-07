@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { logger } from "./logger.js";
 
 export interface Campaign {
-  id: number;
+  id: string;
   title: string;
   startDate: string;
   endDate: string;
@@ -29,7 +29,7 @@ function getSupabaseClient() {
 
 function toRow(r: Record<string, unknown>): Campaign {
   return {
-    id: r.id as number,
+    id: r.id as string,
     title: r.title as string,
     startDate: r.start_date as string,
     endDate: r.end_date as string,
@@ -74,7 +74,7 @@ export async function createCampaign(input: CampaignInput): Promise<Campaign> {
   return toRow(data);
 }
 
-export async function updateCampaign(id: number, input: CampaignInput): Promise<Campaign> {
+export async function updateCampaign(id: string, input: CampaignInput): Promise<Campaign> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("campaigns")
@@ -96,7 +96,7 @@ export async function updateCampaign(id: number, input: CampaignInput): Promise<
   return toRow(data);
 }
 
-export async function deleteCampaign(id: number): Promise<void> {
+export async function deleteCampaign(id: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("campaigns").delete().eq("id", id);
   if (error) {

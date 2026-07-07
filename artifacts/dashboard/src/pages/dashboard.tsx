@@ -202,8 +202,8 @@ function CampaignPicker({
   onSelect,
 }: {
   campaigns: Campaign[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }) {
   if (campaigns.length === 0) {
     return (
@@ -884,7 +884,7 @@ export default function Dashboard() {
 
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
-  const [selectedChangeId, setSelectedChangeId] = useState<number | null>(null);
+  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
 
   // Preset state
   const [presets, setPresets] = useState<Preset[]>(loadPresets);

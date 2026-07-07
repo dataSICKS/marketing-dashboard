@@ -150,7 +150,7 @@ export type MatrixResponse = {
 };
 
 export type Campaign = {
-  id: number;
+  id: string;
   title: string;
   startDate: string;
   endDate: string;
