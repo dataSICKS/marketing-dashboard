@@ -41,6 +41,8 @@ import {
   Trash2,
   GitCommitHorizontal,
   ArrowRight,
+  Pencil,
+  Check,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 
@@ -335,89 +337,138 @@ function PresetBar({
   onSelect,
   onSave,
   onDelete,
+  onRename,
 }: {
   presets: Preset[];
   activeId: string | null;
   onSelect: (p: Preset) => void;
   onSave: (name: string) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, newName: string) => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const [name, setName] = useState("");
+  const [newName, setNewName] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const handleSave = () => {
-    if (!name.trim()) return;
-    onSave(name.trim());
-    setName("");
+    if (!newName.trim()) return;
+    onSave(newName.trim());
+    setNewName("");
     setSaving(false);
   };
 
-  if (presets.length === 0 && !saving) {
-    return (
-      <div className="bg-white px-4 md:px-8 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid #F3F4F6" }}>
-        <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>保存済みビュー</span>
-        <button
-          onClick={() => setSaving(true)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
-          style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
-        >
-          <BookmarkPlus size={11} /> 現在の設定を保存
-        </button>
-      </div>
-    );
-  }
+  const startRename = (p: Preset) => {
+    setRenamingId(p.id);
+    setRenameValue(p.name);
+  };
+
+  const commitRename = () => {
+    if (renamingId && renameValue.trim()) {
+      onRename(renamingId, renameValue.trim());
+    }
+    setRenamingId(null);
+    setRenameValue("");
+  };
 
   return (
-    <div className="bg-white px-4 md:px-8 py-2 flex items-center gap-2 overflow-x-auto" style={{ borderBottom: "1px solid #F3F4F6" }}>
-      <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>保存済み</span>
-      <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+    <div
+      className="bg-white px-4 md:px-8 py-2 flex items-center gap-3 min-w-0"
+      style={{ borderBottom: "1px solid #F3F4F6" }}
+    >
+      <span className="text-[10px] font-semibold shrink-0" style={{ color: "#9CA3AF" }}>
+        保存済みビュー
+      </span>
+
+      {/* Preset chips — horizontal scroll */}
+      <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
         {presets.map((p) => (
-          <div key={p.id} className="flex items-center gap-0.5 shrink-0">
-            <button
-              onClick={() => onSelect(p)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-l-full text-xs font-medium whitespace-nowrap"
-              style={activeId === p.id
-                ? { background: YELLOW, color: "#fff" }
-                : { background: "#F3F4F6", color: "#6B7280" }}
-            >
-              {p.name}
-            </button>
-            <button
-              onClick={() => onDelete(p.id)}
-              className="px-1.5 py-1 rounded-r-full flex items-center"
-              style={activeId === p.id
-                ? { background: YELLOW_DARK, color: "#fff" }
-                : { background: "#E5E7EB", color: "#9CA3AF" }}
-              title="削除"
-            >
-              <Trash2 size={9} />
-            </button>
+          <div key={p.id} className="flex items-center shrink-0 rounded-full overflow-hidden"
+            style={{ border: `1.5px solid ${activeId === p.id ? YELLOW : "#E5E7EB"}` }}>
+            {renamingId === p.id ? (
+              /* ── Inline rename input ── */
+              <div className="flex items-center gap-1 px-1.5 py-0.5">
+                <input
+                  className="text-xs outline-none bg-transparent"
+                  style={{ width: 100, color: "#1A1A1A" }}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    if (e.key === "Escape") { setRenamingId(null); setRenameValue(""); }
+                  }}
+                  onBlur={commitRename}
+                  autoFocus
+                />
+                <button onClick={commitRename} className="flex items-center" style={{ color: YELLOW_DARK }}>
+                  <Check size={11} />
+                </button>
+              </div>
+            ) : (
+              /* ── Normal chip ── */
+              <>
+                <button
+                  onClick={() => onSelect(p)}
+                  className="flex items-center px-2.5 py-1 text-xs font-medium whitespace-nowrap"
+                  style={activeId === p.id ? { background: YELLOW, color: "#fff" } : { color: "#6B7280" }}
+                >
+                  {p.name}
+                </button>
+                <button
+                  onClick={() => startRename(p)}
+                  className="flex items-center px-1 py-1"
+                  style={{ color: activeId === p.id ? "#fff9" : "#D1D5DB" }}
+                  title="名前を変更"
+                >
+                  <Pencil size={9} />
+                </button>
+                <button
+                  onClick={() => onDelete(p.id)}
+                  className="flex items-center px-1.5 py-1"
+                  style={{ color: activeId === p.id ? "#fff9" : "#D1D5DB" }}
+                  title="削除"
+                >
+                  <Trash2 size={9} />
+                </button>
+              </>
+            )}
           </div>
         ))}
+
+        {/* ── Save new preset ── */}
+        {saving ? (
+          <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full"
+            style={{ border: `1.5px solid ${YELLOW}` }}>
+            <input
+              className="text-xs outline-none bg-transparent"
+              style={{ width: 100, color: "#1A1A1A" }}
+              placeholder="ビュー名を入力…"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+                if (e.key === "Escape") { setSaving(false); setNewName(""); }
+              }}
+              autoFocus
+            />
+            <button onClick={handleSave} className="flex items-center" style={{ color: YELLOW_DARK }}>
+              <Check size={11} />
+            </button>
+            <button onClick={() => { setSaving(false); setNewName(""); }}
+              className="flex items-center" style={{ color: "#9CA3AF" }}>
+              <X size={11} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSaving(true)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
+            style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
+          >
+            <BookmarkPlus size={11} /> 現在の設定を保存
+          </button>
+        )}
       </div>
-      {saving ? (
-        <div className="flex items-center gap-1.5 shrink-0">
-          <input
-            className="text-xs px-2 py-1 rounded-lg outline-none"
-            style={{ border: `1.5px solid ${YELLOW}`, width: 120 }}
-            placeholder="ビュー名を入力…"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            autoFocus
-          />
-          <button className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: YELLOW, color: "#fff" }} onClick={handleSave}>保存</button>
-          <button className="text-xs px-2 py-1 rounded-lg" style={{ color: "#9CA3AF" }} onClick={() => setSaving(false)}>×</button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setSaving(true)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
-          style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
-        >
-          <BookmarkPlus size={11} /> 保存
-        </button>
-      )}
     </div>
   );
 }
@@ -1028,6 +1079,12 @@ export default function Dashboard() {
     if (activePresetId === id) setActivePresetId(null);
   };
 
+  const renamePreset = (id: string, newName: string) => {
+    const updated = presets.map((p) => p.id === id ? { ...p, name: newName } : p);
+    setPresets(updated);
+    savePresetsToStorage(updated);
+  };
+
   // Chart bar fill by phase
   const getBarFill = (label: string) => {
     if (compareMode !== "change" || !splitDate) return YELLOW;
@@ -1080,6 +1137,7 @@ export default function Dashboard() {
           onSelect={applyPreset}
           onSave={saveCurrentAsPreset}
           onDelete={deletePreset}
+          onRename={renamePreset}
         />
 
         <div className="flex-1 px-4 md:px-8 py-4 md:py-6 flex flex-col gap-4 md:gap-5">
