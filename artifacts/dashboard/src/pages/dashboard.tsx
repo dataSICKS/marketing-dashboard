@@ -351,12 +351,40 @@ function PresetBar({
   const [newName, setNewName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suppressBlurRef = useRef(false); // 保存ボタンクリック時に blur 保存を抑制
+  const cancelRef = useRef(false);       // キャンセル時に blur 保存を抑制
+
+  // Focus the input as soon as the save form opens (autoFocus is unreliable in iframes)
+  useEffect(() => {
+    if (saving) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [saving]);
 
   const handleSave = () => {
-    if (!newName.trim()) return;
-    onSave(newName.trim());
-    setNewName("");
+    const name = newName.trim();
+    console.log("[PresetBar] handleSave name=", JSON.stringify(name));
+    if (!name) { setSaving(false); setNewName(""); return; }
     setSaving(false);
+    setNewName("");
+    onSave(name);
+  };
+
+  const handleBlur = () => {
+    if (suppressBlurRef.current || cancelRef.current) {
+      suppressBlurRef.current = false;
+      cancelRef.current = false;
+      return;
+    }
+    handleSave();
+  };
+
+  const handleCancel = () => {
+    cancelRef.current = false;
+    suppressBlurRef.current = false;
+    setSaving(false);
+    setNewName("");
   };
 
   const startRename = (p: Preset) => {
@@ -381,13 +409,12 @@ function PresetBar({
         保存済みビュー
       </span>
 
-      {/* Preset chips — horizontal scroll (chips only, no save button inside) */}
+      {/* Preset chips — horizontal scroll */}
       <div className="flex-1 flex items-center gap-1.5 overflow-x-auto min-w-0" style={{ scrollbarWidth: "none" }}>
         {presets.map((p) => (
           <div key={p.id} className="flex items-center shrink-0 rounded-full overflow-hidden"
             style={{ border: `1.5px solid ${activeId === p.id ? YELLOW : "#E5E7EB"}` }}>
             {renamingId === p.id ? (
-              /* ── Inline rename input ── */
               <div className="flex items-center gap-1 px-1.5 py-0.5">
                 <input
                   className="text-xs outline-none bg-transparent"
@@ -406,7 +433,6 @@ function PresetBar({
                 </button>
               </div>
             ) : (
-              /* ── Normal chip ── */
               <>
                 <button
                   onClick={() => onSelect(p)}
@@ -437,34 +463,45 @@ function PresetBar({
         ))}
       </div>
 
-      {/* ── Save new preset — always visible, outside scroll area ── */}
+      {/* ── Save button / inline form — always visible, outside scroll area ── */}
       {saving ? (
-        <div className="flex items-center gap-1 shrink-0 px-2 py-1 rounded-full"
-          style={{ border: `1.5px solid ${YELLOW}`, background: YELLOW_LIGHT }}>
+        <div className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg"
+          style={{ border: `1.5px solid ${YELLOW}`, background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.10)" }}>
           <input
-            className="text-xs outline-none"
-            style={{ width: 120, color: "#1A1A1A", background: "transparent" }}
+            ref={inputRef}
+            className="text-xs"
+            style={{ width: 130, color: "#1A1A1A", background: "transparent", outline: "none", border: "none" }}
             placeholder="ビュー名を入力…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") { setSaving(false); setNewName(""); }
+              if (e.key === "Enter") { e.preventDefault(); handleSave(); }
+              if (e.key === "Escape") handleCancel();
             }}
-            autoFocus
+            onBlur={handleBlur}
           />
-          <button onClick={handleSave} className="flex items-center shrink-0" style={{ color: YELLOW_DARK }} title="保存">
-            <Check size={13} />
+          <button
+            onMouseDown={() => { suppressBlurRef.current = true; }}
+            onClick={handleSave}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium shrink-0"
+            style={{ background: YELLOW, color: "#fff" }}
+          >
+            保存
           </button>
-          <button onClick={() => { setSaving(false); setNewName(""); }}
-            className="flex items-center shrink-0" style={{ color: "#9CA3AF" }} title="キャンセル">
+          <button
+            onMouseDown={() => { cancelRef.current = true; }}
+            onClick={handleCancel}
+            className="flex items-center shrink-0"
+            style={{ color: "#9CA3AF" }}
+            title="キャンセル"
+          >
             <X size={13} />
           </button>
         </div>
       ) : (
         <button
           onClick={() => setSaving(true)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium shrink-0"
           style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
         >
           <BookmarkPlus size={11} /> 現在の設定を保存
@@ -1061,6 +1098,7 @@ export default function Dashboard() {
   };
 
   const saveCurrentAsPreset = (name: string) => {
+    console.log("[Dashboard] saveCurrentAsPreset called, name=", name, "groupBy=", groupBy);
     const newPreset: Preset = {
       id: Date.now().toString(),
       name,
@@ -1072,7 +1110,12 @@ export default function Dashboard() {
     };
     const updated = [...presets, newPreset];
     setPresets(updated);
-    savePresetsToStorage(updated);
+    try {
+      localStorage.setItem("nl_presets", JSON.stringify(updated));
+      console.log("[Dashboard] preset saved to localStorage, count=", updated.length);
+    } catch (e) {
+      console.error("[Dashboard] localStorage save failed:", e);
+    }
     setActivePresetId(newPreset.id);
   };
 
