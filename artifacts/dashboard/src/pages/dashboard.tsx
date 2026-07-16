@@ -80,6 +80,7 @@ interface Preset {
   dateFrom?: string;
   dateTo?: string;
   segments: string[];
+  templates: string[];
 }
 
 function loadPresets(): Preset[] {
@@ -1054,6 +1055,7 @@ export default function Dashboard() {
     setGroupBy(p.groupBy);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
     setSelectedSegments(p.segments ?? []);
+    setSelectedTemplates(p.templates ?? []);
     setActivePresetId(p.id);
     setCompareMode("none");
   };
@@ -1066,6 +1068,7 @@ export default function Dashboard() {
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
       segments: selectedSegments,
+      templates: selectedTemplates,
     };
     const updated = [...presets, newPreset];
     setPresets(updated);
