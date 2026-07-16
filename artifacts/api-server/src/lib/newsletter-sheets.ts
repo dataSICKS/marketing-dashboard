@@ -4,7 +4,7 @@ import { logger } from "./logger.js";
 
 const SPREADSHEET_ID = "1zITxm8hxMkjNYJb7CKqY1B7JzQWvv20N8afMBkZWVbU";
 const SHEET_NAME = "calc";
-const MAX_ROWS = 4000;
+const MAX_ROWS = 10000;
 
 function parseNumber(val: string): number {
   const n = Number(val.replace(/,/g, ""));
