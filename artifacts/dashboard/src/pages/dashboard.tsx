@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment, useRef } from "react";
 import {
   useGetNewsletterData,
   useSyncNewsletter,
@@ -505,10 +505,7 @@ function MatrixView({
   compareMode,
   selectedCampaign,
   chartHeight,
-  onIncHeight,
-  onDecHeight,
-  chartHeightMin,
-  chartHeightMax,
+  onChartHeightChange,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
@@ -516,10 +513,7 @@ function MatrixView({
   compareMode: "none" | "date" | "change";
   selectedCampaign: Campaign | null;
   chartHeight: number;
-  onIncHeight: () => void;
-  onDecHeight: () => void;
-  chartHeightMin: number;
-  chartHeightMax: number;
+  onChartHeightChange: (h: number) => void;
 }) {
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
@@ -671,14 +665,7 @@ function MatrixView({
             });
             return (
               <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>トレンド</div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] mr-0.5" style={{ color: "#9CA3AF" }}>{chartHeight}px</span>
-                    <button onClick={onDecHeight} disabled={chartHeight <= chartHeightMin} className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold" style={{ background: "#F3F4F6", color: chartHeight <= chartHeightMin ? "#D1D5DB" : "#374151" }} title="グラフを低く">−</button>
-                    <button onClick={onIncHeight} disabled={chartHeight >= chartHeightMax} className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold" style={{ background: "#F3F4F6", color: chartHeight >= chartHeightMax ? "#D1D5DB" : "#374151" }} title="グラフを高く">＋</button>
-                  </div>
-                </div>
+                <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>トレンド</div>
                 <div style={{ height: chartHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={mergedChartData} margin={{ top: 8, right: isMixed ? 52 : 8, left: -16, bottom: 8 }}>
@@ -717,6 +704,7 @@ function MatrixView({
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+                <ChartResizeHandle height={chartHeight} onHeightChange={onChartHeightChange} />
                 {/* chart legend */}
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 pt-3" style={{ borderTop: "1px solid #F3F4F6" }}>
                   {series.flatMap((s, si) =>
@@ -904,12 +892,7 @@ export default function Dashboard() {
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
 
   // Chart height
-  const CHART_HEIGHT_MIN = 160;
-  const CHART_HEIGHT_MAX = 600;
-  const CHART_HEIGHT_STEP = 40;
   const [chartHeight, setChartHeight] = useState(260);
-  const incHeight = () => setChartHeight((h) => Math.min(h + CHART_HEIGHT_STEP, CHART_HEIGHT_MAX));
-  const decHeight = () => setChartHeight((h) => Math.max(h - CHART_HEIGHT_STEP, CHART_HEIGHT_MIN));
 
   // Preset state
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
@@ -1256,10 +1239,7 @@ export default function Dashboard() {
               compareMode={compareMode}
               selectedCampaign={selectedCampaign}
               chartHeight={chartHeight}
-              onIncHeight={incHeight}
-              onDecHeight={decHeight}
-              chartHeightMin={CHART_HEIGHT_MIN}
-              chartHeightMax={CHART_HEIGHT_MAX}
+              onChartHeightChange={setChartHeight}
             />
           ) : isLoading ? (
             <LoadingSkeleton />
@@ -1311,23 +1291,6 @@ export default function Dashboard() {
                         ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後`
                         : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] mr-0.5" style={{ color: "#9CA3AF" }}>{chartHeight}px</span>
-                    <button
-                      onClick={decHeight}
-                      disabled={chartHeight <= CHART_HEIGHT_MIN}
-                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                      style={{ background: "#F3F4F6", color: chartHeight <= CHART_HEIGHT_MIN ? "#D1D5DB" : "#374151" }}
-                      title="グラフを低く"
-                    >−</button>
-                    <button
-                      onClick={incHeight}
-                      disabled={chartHeight >= CHART_HEIGHT_MAX}
-                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                      style={{ background: "#F3F4F6", color: chartHeight >= CHART_HEIGHT_MAX ? "#D1D5DB" : "#374151" }}
-                      title="グラフを高く"
-                    >＋</button>
                   </div>
                 </div>
                 {items.length === 0 ? (
@@ -1385,6 +1348,7 @@ export default function Dashboard() {
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
+                    <ChartResizeHandle height={chartHeight} onHeightChange={setChartHeight} />
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
                       {compareMode === "change" ? (
                         <>
@@ -1491,6 +1455,85 @@ function KpiCard({
       </div>
       {sub && <div className="text-xs mt-1 md:mt-1.5 font-medium" style={{ color: accent ? YELLOW_DARK : "#9CA3AF" }}>{sub}</div>}
       {sub2 && <div className="text-xs mt-0.5 md:mt-1" style={{ color: "#6B7280" }}>{sub2}</div>}
+    </div>
+  );
+}
+
+// ─── Chart Resize Handle ──────────────────────────────────────────
+function ChartResizeHandle({
+  height,
+  onHeightChange,
+  min = 160,
+  max = 600,
+}: {
+  height: number;
+  onHeightChange: (h: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  const startRef = useRef<{ y: number; h: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    startRef.current = { y: e.clientY, h: height };
+    setDragging(true);
+
+    const onMove = (ev: MouseEvent) => {
+      if (!startRef.current) return;
+      const delta = ev.clientY - startRef.current.y;
+      onHeightChange(Math.min(max, Math.max(min, startRef.current.h + delta)));
+    };
+    const onUp = () => {
+      startRef.current = null;
+      setDragging(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [height, onHeightChange, min, max]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    startRef.current = { y: touch.clientY, h: height };
+    setDragging(true);
+
+    const onMove = (ev: TouchEvent) => {
+      if (!startRef.current) return;
+      const delta = ev.touches[0].clientY - startRef.current.y;
+      onHeightChange(Math.min(max, Math.max(min, startRef.current.h + delta)));
+    };
+    const onEnd = () => {
+      startRef.current = null;
+      setDragging(false);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onEnd);
+  }, [height, onHeightChange, min, max]);
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      className="flex items-center justify-center mt-2 rounded-lg select-none transition-colors"
+      style={{
+        height: 20,
+        cursor: "ns-resize",
+        background: dragging ? "#E5E7EB" : "transparent",
+      }}
+      title="ドラッグしてグラフの高さを調整"
+    >
+      <div
+        className="rounded-full transition-colors"
+        style={{
+          width: 40,
+          height: 4,
+          background: dragging ? "#9CA3AF" : "#D1D5DB",
+        }}
+      />
     </div>
   );
 }
