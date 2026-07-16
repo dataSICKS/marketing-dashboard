@@ -380,8 +380,8 @@ function PresetBar({
         保存済みビュー
       </span>
 
-      {/* Preset chips — horizontal scroll */}
-      <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+      {/* Preset chips — horizontal scroll (chips only, no save button inside) */}
+      <div className="flex-1 flex items-center gap-1.5 overflow-x-auto min-w-0" style={{ scrollbarWidth: "none" }}>
         {presets.map((p) => (
           <div key={p.id} className="flex items-center shrink-0 rounded-full overflow-hidden"
             style={{ border: `1.5px solid ${activeId === p.id ? YELLOW : "#E5E7EB"}` }}>
@@ -434,41 +434,41 @@ function PresetBar({
             )}
           </div>
         ))}
-
-        {/* ── Save new preset ── */}
-        {saving ? (
-          <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full"
-            style={{ border: `1.5px solid ${YELLOW}` }}>
-            <input
-              className="text-xs outline-none bg-transparent"
-              style={{ width: 100, color: "#1A1A1A" }}
-              placeholder="ビュー名を入力…"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-                if (e.key === "Escape") { setSaving(false); setNewName(""); }
-              }}
-              autoFocus
-            />
-            <button onClick={handleSave} className="flex items-center" style={{ color: YELLOW_DARK }}>
-              <Check size={11} />
-            </button>
-            <button onClick={() => { setSaving(false); setNewName(""); }}
-              className="flex items-center" style={{ color: "#9CA3AF" }}>
-              <X size={11} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setSaving(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
-            style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
-          >
-            <BookmarkPlus size={11} /> 現在の設定を保存
-          </button>
-        )}
       </div>
+
+      {/* ── Save new preset — always visible, outside scroll area ── */}
+      {saving ? (
+        <div className="flex items-center gap-1 shrink-0 px-2 py-1 rounded-full"
+          style={{ border: `1.5px solid ${YELLOW}`, background: YELLOW_LIGHT }}>
+          <input
+            className="text-xs outline-none"
+            style={{ width: 120, color: "#1A1A1A", background: "transparent" }}
+            placeholder="ビュー名を入力…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") { setSaving(false); setNewName(""); }
+            }}
+            autoFocus
+          />
+          <button onClick={handleSave} className="flex items-center shrink-0" style={{ color: YELLOW_DARK }} title="保存">
+            <Check size={13} />
+          </button>
+          <button onClick={() => { setSaving(false); setNewName(""); }}
+            className="flex items-center shrink-0" style={{ color: "#9CA3AF" }} title="キャンセル">
+            <X size={13} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setSaving(true)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
+          style={{ border: `1.5px dashed ${YELLOW}`, color: YELLOW_DARK, background: YELLOW_LIGHT }}
+        >
+          <BookmarkPlus size={11} /> 現在の設定を保存
+        </button>
+      )}
     </div>
   );
 }
