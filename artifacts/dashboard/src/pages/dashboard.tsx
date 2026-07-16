@@ -960,7 +960,8 @@ export default function Dashboard() {
 
   // Force day grouping when in change compare mode; treat matrix as day for data queries
   const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" ? "day" : groupBy;
-  const activeTabValue: TabMode = groupBy === "matrix" ? "matrix" : (compareMode === "change" ? "day" : groupBy);
+  // Always follow groupBy for tab highlighting — never use "day" (which isn't a tab)
+  const activeTabValue: TabMode = groupBy;
 
   const params = {
     groupBy: effectiveGroupBy,
@@ -1052,7 +1053,7 @@ export default function Dashboard() {
   const applyPreset = (p: Preset) => {
     setGroupBy(p.groupBy);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
-    setSelectedSegments(p.segments);
+    setSelectedSegments(p.segments ?? []);
     setActivePresetId(p.id);
     setCompareMode("none");
   };
@@ -1148,7 +1149,7 @@ export default function Dashboard() {
               {GROUP_TABS.map((tab) => (
                 <button
                   key={tab.value}
-                  onClick={() => { setGroupBy(tab.value); if (compareMode === "change" && tab.value !== "matrix") setCompareMode("none"); }}
+                  onClick={() => { setGroupBy(tab.value); if (compareMode === "change" && tab.value === "matrix") setCompareMode("none"); }}
                   className="px-4 py-2.5 text-sm font-medium transition-all relative whitespace-nowrap"
                   style={{ color: activeTabValue === tab.value ? YELLOW_DARK : "#9CA3AF" }}
                   data-testid={`tab-${tab.value}`}
