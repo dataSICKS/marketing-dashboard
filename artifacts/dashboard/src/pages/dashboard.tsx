@@ -1268,7 +1268,10 @@ export default function Dashboard() {
                 なし
               </button>
               <button
-                onClick={() => setCompareMode("change")}
+                onClick={() => {
+                  setCompareMode("change");
+                  if (groupBy === "matrix") setGroupBy("scenario");
+                }}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg font-medium transition-all whitespace-nowrap"
                 style={compareMode === "change"
                   ? { background: "#FDF4FF", color: CHANGE_COLOR, border: `1.5px solid ${CHANGE_COLOR}` }
