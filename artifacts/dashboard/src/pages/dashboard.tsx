@@ -504,12 +504,22 @@ function MatrixView({
   dateRange,
   compareMode,
   selectedCampaign,
+  chartHeight,
+  onIncHeight,
+  onDecHeight,
+  chartHeightMin,
+  chartHeightMax,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
   dateRange: DateRange | null;
   compareMode: "none" | "date" | "change";
   selectedCampaign: Campaign | null;
+  chartHeight: number;
+  onIncHeight: () => void;
+  onDecHeight: () => void;
+  chartHeightMin: number;
+  chartHeightMax: number;
 }) {
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
@@ -661,8 +671,15 @@ function MatrixView({
             });
             return (
               <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
-                <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>トレンド</div>
-                <div style={{ height: 220 }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>トレンド</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] mr-0.5" style={{ color: "#9CA3AF" }}>{chartHeight}px</span>
+                    <button onClick={onDecHeight} disabled={chartHeight <= chartHeightMin} className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold" style={{ background: "#F3F4F6", color: chartHeight <= chartHeightMin ? "#D1D5DB" : "#374151" }} title="グラフを低く">−</button>
+                    <button onClick={onIncHeight} disabled={chartHeight >= chartHeightMax} className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold" style={{ background: "#F3F4F6", color: chartHeight >= chartHeightMax ? "#D1D5DB" : "#374151" }} title="グラフを高く">＋</button>
+                  </div>
+                </div>
+                <div style={{ height: chartHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={mergedChartData} margin={{ top: 8, right: isMixed ? 52 : 8, left: -16, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
@@ -885,6 +902,14 @@ export default function Dashboard() {
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+
+  // Chart height
+  const CHART_HEIGHT_MIN = 160;
+  const CHART_HEIGHT_MAX = 600;
+  const CHART_HEIGHT_STEP = 40;
+  const [chartHeight, setChartHeight] = useState(260);
+  const incHeight = () => setChartHeight((h) => Math.min(h + CHART_HEIGHT_STEP, CHART_HEIGHT_MAX));
+  const decHeight = () => setChartHeight((h) => Math.max(h - CHART_HEIGHT_STEP, CHART_HEIGHT_MIN));
 
   // Preset state
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
@@ -1230,6 +1255,11 @@ export default function Dashboard() {
               dateRange={dateRange}
               compareMode={compareMode}
               selectedCampaign={selectedCampaign}
+              chartHeight={chartHeight}
+              onIncHeight={incHeight}
+              onDecHeight={decHeight}
+              chartHeightMin={CHART_HEIGHT_MIN}
+              chartHeightMax={CHART_HEIGHT_MAX}
             />
           ) : isLoading ? (
             <LoadingSkeleton />
@@ -1282,12 +1312,29 @@ export default function Dashboard() {
                         : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] mr-0.5" style={{ color: "#9CA3AF" }}>{chartHeight}px</span>
+                    <button
+                      onClick={decHeight}
+                      disabled={chartHeight <= CHART_HEIGHT_MIN}
+                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                      style={{ background: "#F3F4F6", color: chartHeight <= CHART_HEIGHT_MIN ? "#D1D5DB" : "#374151" }}
+                      title="グラフを低く"
+                    >−</button>
+                    <button
+                      onClick={incHeight}
+                      disabled={chartHeight >= CHART_HEIGHT_MAX}
+                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                      style={{ background: "#F3F4F6", color: chartHeight >= CHART_HEIGHT_MAX ? "#D1D5DB" : "#374151" }}
+                      title="グラフを高く"
+                    >＋</button>
+                  </div>
                 </div>
                 {items.length === 0 ? (
                   <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データがありません</div>
                 ) : (
                   <>
-                    <div style={{ height: 200 }} className="md:h-60">
+                    <div style={{ height: chartHeight }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={items} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
