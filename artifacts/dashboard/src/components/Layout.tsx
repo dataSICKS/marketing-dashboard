@@ -99,19 +99,28 @@ function SidebarContent({ collapsed, onToggleCollapse, onClose }: {
           <div className="px-3 py-2 text-[10px] font-semibold mt-2" style={{ color: "#BBBBBB", letterSpacing: "0.1em" }}>設定</div>
         )}
         {collapsed && <div className="mt-2" />}
-        <div
-          className="flex items-center rounded-lg cursor-pointer text-sm"
-          style={{
-            gap: collapsed ? 0 : 10,
-            padding: collapsed ? "10px 0" : "8px 12px",
-            justifyContent: collapsed ? "center" : "flex-start",
-            color: "#6B7280",
-          }}
-          title={collapsed ? "設定" : undefined}
-        >
-          <Settings size={16} color="#9CA3AF" />
-          {!collapsed && <span>設定</span>}
-        </div>
+        {(() => {
+          const active = location === "/settings";
+          return (
+            <Link
+              href="/settings"
+              onClick={onClose}
+              title={collapsed ? "設定" : undefined}
+              className="flex items-center rounded-lg cursor-pointer transition-all text-sm no-underline"
+              style={{
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? "10px 0" : "8px 12px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                background: active ? (collapsed ? "rgba(251,191,36,0.15)" : YELLOW_LIGHT) : "transparent",
+                color: active ? YELLOW_DARK : "#374151",
+                fontWeight: active ? 600 : 400,
+              }}
+            >
+              <Settings size={16} color={active ? YELLOW_DARK : "#9CA3AF"} />
+              {!collapsed && <span>設定</span>}
+            </Link>
+          );
+        })()}
       </nav>
     </div>
   );

@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import EfoPage from "@/pages/efo";
 import CampaignsPage from "@/pages/campaigns";
+import SettingsPage from "@/pages/settings";
 import Layout from "@/components/Layout";
 import { useEffect } from "react";
 
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/efo" component={EfoPage} />
         <Route path="/campaigns" component={CampaignsPage} />
+        <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

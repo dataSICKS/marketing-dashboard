@@ -26,6 +26,8 @@ import type {
   EfoPresetInput,
   EfoPresetListResponse,
   EfoPresetResponse,
+  AppSettings,
+  AppSettingsInput,
 } from "./api.schemas";
 
 interface QueryOpts<TData, TError, TKey extends readonly unknown[]>
@@ -586,6 +588,47 @@ export const useDeleteEfoPreset = <
   const { mutation: mutationOptions } = options ?? {};
   return useMutation<void, TError, number, TContext>({
     mutationFn: (id) => deleteEfoPreset(id),
+    ...mutationOptions,
+  });
+};
+
+export const getSettings = () =>
+  customFetch<AppSettings>("/api/settings");
+
+export const getGetSettingsQueryKey = () => ["/api/settings"] as const;
+
+export type GetSettingsQueryKey = ReturnType<typeof getGetSettingsQueryKey>;
+
+export const useGetSettings = <TError = ErrorType<ErrorResponse>>(options?: {
+  query?: QueryOpts<AppSettings, TError, GetSettingsQueryKey>;
+}) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = getGetSettingsQueryKey();
+  const queryFn: QueryFunction<AppSettings, GetSettingsQueryKey> =
+    () => getSettings();
+  return useQuery<AppSettings, TError, AppSettings, GetSettingsQueryKey>({
+    queryKey,
+    queryFn,
+    ...queryOptions,
+  });
+};
+
+export const updateSettings = (input: AppSettingsInput) =>
+  customFetch<AppSettings>("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const useUpdateSettings = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<AppSettings, TError, AppSettingsInput, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation<AppSettings, TError, AppSettingsInput, TContext>({
+    mutationFn: (input) => updateSettings(input),
     ...mutationOptions,
   });
 };

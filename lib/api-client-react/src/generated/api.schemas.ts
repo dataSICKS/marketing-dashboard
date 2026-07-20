@@ -206,3 +206,11 @@ export type EfoPresetListResponse = {
 export type EfoPresetResponse = {
   preset: EfoPreset;
 };
+
+export type AppSettings = {
+  clarityTargetUrl: string | null;
+};
+
+export type AppSettingsInput = {
+  clarityTargetUrl?: string | null;
+};
