@@ -1,3 +1,3 @@
 - [Date format mismatch](date-format-mismatch.md) — Supabase returns ISO dates (YYYY-MM-DD), but chart X-axis labels use slash format (YYYY/MM/DD); always convert when comparing or passing to ReferenceLine.
 - [Supabase DDL](supabase-ddl.md) — PostgREST cannot run DDL; new tables must be created manually via Supabase Dashboard SQL Editor.
-- [Orval codegen manual update](orval-codegen-manual.md) — codegen fails with `clean: true`; restore generated files from git and append types/hooks manually.
+- [Orval codegen manual update](orval-codegen-manual.md) — codegen fails with "Failed to resolve input"; use clean:false and restore/patch generated files from git manually.
