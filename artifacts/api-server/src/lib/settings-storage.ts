@@ -5,11 +5,11 @@ const BUCKET = "app-settings";
 const FILE = "config.json";
 
 export interface AppSettings {
-  clarityTargetUrl: string | null;
+  clarityTargetUrls: string[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  clarityTargetUrl: null,
+  clarityTargetUrls: [],
 };
 
 function getSupabase() {
@@ -40,7 +40,16 @@ export async function getSettings(): Promise<AppSettings> {
     const { data, error } = await supabase.storage.from(BUCKET).download(FILE);
     if (error || !data) return { ...DEFAULT_SETTINGS };
     const text = await (data as Blob).text();
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(text) };
+    const raw = JSON.parse(text) as Record<string, unknown>;
+
+    // 旧フォーマット移行: clarityTargetUrl (単数) → clarityTargetUrls (複数)
+    if (!Array.isArray(raw.clarityTargetUrls) && raw.clarityTargetUrl) {
+      raw.clarityTargetUrls = [raw.clarityTargetUrl as string];
+    }
+
+    return {
+      clarityTargetUrls: Array.isArray(raw.clarityTargetUrls) ? (raw.clarityTargetUrls as string[]) : [],
+    };
   } catch (err) {
     logger.warn({ err }, "設定の読み込みに失敗しました。デフォルト値を使用します");
     return { ...DEFAULT_SETTINGS };

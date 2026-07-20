@@ -1094,13 +1094,17 @@ components:
     AppSettings:
       type: object
       properties:
-        clarityTargetUrl:
-          type: ["string", "null"]
+        clarityTargetUrls:
+          type: array
+          items:
+            type: string
       required:
-        - clarityTargetUrl
+        - clarityTargetUrls
 
     AppSettingsInput:
       type: object
       properties:
-        clarityTargetUrl:
-          type: ["string", "null"]
+        clarityTargetUrls:
+          type: array
+          items:
+            type: string

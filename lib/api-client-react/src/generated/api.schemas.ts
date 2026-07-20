@@ -208,9 +208,9 @@ export type EfoPresetResponse = {
 };
 
 export type AppSettings = {
-  clarityTargetUrl: string | null;
+  clarityTargetUrls: string[];
 };
 
 export type AppSettingsInput = {
-  clarityTargetUrl?: string | null;
+  clarityTargetUrls?: string[];
 };
