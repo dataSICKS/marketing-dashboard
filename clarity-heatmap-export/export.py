@@ -58,20 +58,39 @@ def settle(page, t=20000):
         pass
 
 
+def date_to_epoch_ms(date_str: str) -> tuple[int, int]:
+    """YYYY-MM-DD（JST）→ エポックミリ秒 (start, end) に変換"""
+    from datetime import date as _date
+    d = _date.fromisoformat(date_str)
+    start_dt = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=JST)
+    end_dt = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=JST)
+    return int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000)
+
+
 def heatmap_url(adcode, date_param):
     # field=2: 閲覧済みURL, matchtype=2: を含む, matchtype=3: を含まない
+    # 複数フィルターはカンマ区切りで1つのURL=パラメータにまとめる
     filters = [f"2;2;{adcode}"]
     for kw in CL.get("exclude_keywords", []):
         filters.append(f"2;3;{kw}")
-    url_params = "&".join(f"URL={quote(f, safe='')}" for f in filters)
+    url_filter = quote(",".join(filters), safe="")
+
+    # 日付パラメータ: Yesterday はそのまま、指定日は Custom + エポックms（JST）
+    if date_param is None or date_param == "Yesterday":
+        date_qs = "date=Yesterday"
+    else:
+        start_ms, end_ms = date_to_epoch_ms(date_param)
+        date_qs = f"date=Custom&start={start_ms}&end={end_ms}"
+
+    # heatmapType=1 がスクロール（0 は誤り）
     return (f"https://clarity.microsoft.com/projects/view/{PROJECT_ID}/heatmaps"
-            f"?date={quote(date_param)}&heatmapType=0&{url_params}")
+            f"?URL={url_filter}&{date_qs}&heatmapType=1")
 
 
 def download_one(page, adcode, device, date_str):
     """1ページ×1デバイスのスクロールヒートマップ CSV/PNG を取得。保存パスのリストを返す。"""
     saved = []
-    page.goto(heatmap_url(adcode, "Yesterday" if date_str is None else date_str),
+    page.goto(heatmap_url(adcode, date_str),
               wait_until="networkidle")
     page.wait_for_timeout(8000)
 
