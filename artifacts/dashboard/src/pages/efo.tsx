@@ -9,6 +9,7 @@ import {
   useListEfoPresets,
   useCreateEfoPreset,
   useDeleteEfoPreset,
+  useGetSettings,
 } from "@workspace/api-client-react";
 import type {
   GetEfoDataGroupBy,
@@ -482,12 +483,19 @@ function ClarityPanel({ seg }: { seg: "A" | "B" }) {
 
   const activeDate = useMemo(() => resolveActiveDate(dates, dateRange), [dates, dateRange]);
 
+  // 設定から絞り込み対象adCodeを取得
+  const { data: settingsData } = useGetSettings();
+  const allowedAdCodes = settingsData?.clarityTargetUrls ?? [];
+
   // 選択日付のadCode一覧
   const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
     activeDate ? { date: activeDate } : undefined,
     { query: { enabled: !!activeDate } },
   );
-  const adCodeOptions = filesData?.adCodes ?? [];
+  const rawAdCodeOptions = filesData?.adCodes ?? [];
+  const adCodeOptions = allowedAdCodes.length > 0
+    ? rawAdCodeOptions.filter((a) => allowedAdCodes.includes(a.adCode))
+    : rawAdCodeOptions;
 
   // 日付変更時にadCode選択をリセット
   useEffect(() => { setSelectedAdCode(""); }, [activeDate]);
