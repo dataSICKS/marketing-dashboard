@@ -1,10 +1,16 @@
 """Clarity スクロールヒートマップを CSV/PNG でダウンロードし Supabase Storage へ保存。
 
 - 永続プロファイル(chrome_profile/)のセッションを再利用（再ログイン不要）
-- 対象: config.yml の pages（lp?u=<広告コード>）× devices（Desktop/Mobile）
+- 対象: config.yml の pages（広告コード）× devices（Desktop/Mobile）
 - 各ヒートマップ画面URLを直接組み立てて遷移 → スクロール選択 → デバイス選択
   → 「CSV をダウンロード」「PNG をダウンロード」を取得
 - ローカル downloads/ に保存し、Supabase Storage バケットへアップロード
+
+URL フィルター（config.yml）:
+  pages に指定した広告コードを「を含む」で絞り込む（matchtype=2）
+  exclude_keywords に指定したキーワードを「を含まない」で除外する（matchtype=3）
+  ※ matchtype=3 が Clarity で「を含まない」に対応しない場合は、
+    Clarity 管理画面で「を含まない」フィルター適用後のURLのmatchtype値に合わせて修正する
 
 使い方:
   python3 export.py            # 前日分（JST, date=Yesterday）
@@ -53,9 +59,13 @@ def settle(page, t=20000):
 
 
 def heatmap_url(adcode, date_param):
-    flt = f"2;2;{CL['url_match_prefix']}{adcode}"   # field=2(URL);match=2(を含む);値
+    # field=2: 閲覧済みURL, matchtype=2: を含む, matchtype=3: を含まない
+    filters = [f"2;2;{adcode}"]
+    for kw in CL.get("exclude_keywords", []):
+        filters.append(f"2;3;{kw}")
+    url_params = "&".join(f"URL={quote(f, safe='')}" for f in filters)
     return (f"https://clarity.microsoft.com/projects/view/{PROJECT_ID}/heatmaps"
-            f"?date={quote(date_param)}&heatmapType=0&URL={quote(flt, safe='')}")
+            f"?date={quote(date_param)}&heatmapType=0&{url_params}")
 
 
 def download_one(page, adcode, device, date_str):
