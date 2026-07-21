@@ -621,9 +621,10 @@ function MatrixView({
     templates: selectedTemplates.join(","),
   };
 
-  const matrixParams = { ...baseParams, dateFrom: dateRange?.from, dateTo: dateRange?.to };
-  const beforeParams = { ...baseParams, dateFrom: dateRange?.from, dateTo: splitDate ?? undefined };
-  const afterParams  = { ...baseParams, dateFrom: splitDate ?? undefined, dateTo: dateRange?.to };
+  const toIso = (s: string | undefined) => s?.replace(/\//g, "-");
+  const matrixParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: toIso(dateRange?.to) };
+  const beforeParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: toIso(splitDate ?? undefined) };
+  const afterParams  = { ...baseParams, dateFrom: toIso(splitDate ?? undefined), dateTo: toIso(dateRange?.to) };
 
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
     query: { enabled: !isCompare && hasSelections && hasMetrics },
@@ -1001,14 +1002,15 @@ export default function Dashboard() {
   // Always follow groupBy for tab highlighting — never use "day" (which isn't a tab)
   const activeTabValue: TabMode = groupBy;
 
+  const slashToHyphen = (s: string | undefined) => s?.replace(/\//g, "-");
   const params = {
     groupBy: effectiveGroupBy,
-    dateFrom: dateRange?.from,
-    dateTo: dateRange?.to,
+    dateFrom: slashToHyphen(dateRange?.from),
+    dateTo: slashToHyphen(dateRange?.to),
     segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
     templateName: selectedTemplates.length > 0 ? selectedTemplates.join(",") : undefined,
-    compareFrom: compareMode === "date" && compareEnabled && compareRange ? compareRange.from : undefined,
-    compareTo: compareMode === "date" && compareEnabled && compareRange ? compareRange.to : undefined,
+    compareFrom: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.from) : undefined,
+    compareTo: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.to) : undefined,
   };
 
   const { data, isLoading, isError } = useGetNewsletterData(params, {
