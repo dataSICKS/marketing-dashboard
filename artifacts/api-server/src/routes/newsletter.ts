@@ -78,8 +78,9 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
     // filter current period
     let rows = allRows;
-    if (dateFrom) rows = rows.filter((r) => r.deliveryDate >= dateFrom);
-    if (dateTo) rows = rows.filter((r) => r.deliveryDate <= dateTo);
+    const toIso = (s: string) => s.replace(/\//g, "-");
+    if (dateFrom) rows = rows.filter((r) => toIso(r.deliveryDate) >= dateFrom);
+    if (dateTo) rows = rows.filter((r) => toIso(r.deliveryDate) <= dateTo);
     if (selectedTemplates.length > 0) rows = rows.filter((r) => selectedTemplates.includes(r.templateName));
 
     // filter prev period
@@ -209,8 +210,9 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     const templates = q.templates ? q.templates.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
     let rows = allRows;
-    if (q.dateFrom) rows = rows.filter((r) => r.deliveryDate >= q.dateFrom!);
-    if (q.dateTo) rows = rows.filter((r) => r.deliveryDate <= q.dateTo!);
+    const toIsoMtx = (s: string) => s.replace(/\//g, "-");
+    if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
+    if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
     const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics);
     res.json(data);
