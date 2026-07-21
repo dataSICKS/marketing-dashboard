@@ -39,7 +39,9 @@ function parseCsv(text: string): { pageViews: number; points: { depth: number; v
   for (let i = dataStart; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    const match = line.match(/"(\d+)","(\d+)","(\d+)"/);
+    // データ行は "深度","訪問者数","ドロップオフ率(小数)" 形式。
+    // 3列目は小数(例 37.66)なので、深度・訪問者数の先頭2列だけを取る。
+    const match = line.match(/^"(\d+)","(\d+)"/);
     if (!match) continue;
     points.push({ depth: parseInt(match[1], 10), visitors: parseInt(match[2], 10) });
   }
