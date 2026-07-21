@@ -473,7 +473,13 @@ function ClarityPanel({ seg }: { seg: "A" | "B" }) {
   const color = CLARITY_SEG_COLORS[seg];
   const textOnColor = CLARITY_SEG_TEXT[seg];
 
-  const [dateRange, setDateRange] = useState<EfoDateRange | null>(null);
+  const [dateRange, setDateRange] = useState<EfoDateRange | null>(() => {
+    const toD = new Date();
+    const fromD = new Date(toD);
+    fromD.setDate(fromD.getDate() - 29);
+    const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+    return { from: fmt(fromD), to: fmt(toD) };
+  });
   const [selectedAdCode, setSelectedAdCode] = useState<string>("");
   const [device, setDevice] = useState<DeviceTab>("合計");
 
