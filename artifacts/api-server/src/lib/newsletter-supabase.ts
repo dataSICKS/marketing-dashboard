@@ -59,37 +59,49 @@ export async function upsertRows(rows: NewsletterRow[], syncedAt: string): Promi
 
 export async function fetchRowsFromSupabase(): Promise<{ rows: NewsletterRow[]; syncedAt: string | null }> {
   const supabase = getSupabaseClient();
+  const PAGE = 1000;
+  const allData: Record<string, unknown>[] = [];
+  let from = 0;
 
-  const { data, error } = await supabase
-    .from("newsletter_rows")
-    .select("*")
-    .order("delivery_date", { ascending: true });
+  // Supabaseのデフォルト上限は1000行なので、全件取得するまでページネーション
+  while (true) {
+    const { data, error } = await supabase
+      .from("newsletter_rows")
+      .select("*")
+      .order("delivery_date", { ascending: true })
+      .range(from, from + PAGE - 1);
 
-  if (error) {
-    logger.error({ error }, "Supabase fetch failed");
-    throw new Error(`Supabase fetch失敗: ${error.message}`);
+    if (error) {
+      logger.error({ error }, "Supabase fetch failed");
+      throw new Error(`Supabase fetch失敗: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) break;
+    allData.push(...(data as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
   }
 
-  if (!data || data.length === 0) {
+  if (allData.length === 0) {
     return { rows: [], syncedAt: null };
   }
 
-  const rows: NewsletterRow[] = data.map((r) => ({
-    deliveryYearMonth: r.delivery_year_month ?? "",
-    deliveryWeek: r.delivery_week ?? "",
-    deliveryDate: r.delivery_date ?? "",
-    scenarioName: r.scenario_name ?? "",
-    segment: r.segment ?? "",
-    deliveryMethod: r.delivery_method ?? "",
-    templateName: r.template_name ?? "",
-    subject: r.subject ?? "",
-    deliveryCount: r.delivery_count ?? 0,
-    openCount: r.open_count ?? 0,
-    clickCount: r.click_count ?? 0,
-    cvCount: r.cv_count ?? 0,
+  const rows: NewsletterRow[] = allData.map((r) => ({
+    deliveryYearMonth: (r.delivery_year_month as string) ?? "",
+    deliveryWeek: (r.delivery_week as string) ?? "",
+    deliveryDate: (r.delivery_date as string) ?? "",
+    scenarioName: (r.scenario_name as string) ?? "",
+    segment: (r.segment as string) ?? "",
+    deliveryMethod: (r.delivery_method as string) ?? "",
+    templateName: (r.template_name as string) ?? "",
+    subject: (r.subject as string) ?? "",
+    deliveryCount: (r.delivery_count as number) ?? 0,
+    openCount: (r.open_count as number) ?? 0,
+    clickCount: (r.click_count as number) ?? 0,
+    cvCount: (r.cv_count as number) ?? 0,
   }));
 
-  const syncedAt: string | null = data[0]?.synced_at ?? null;
+  const syncedAt: string | null = (allData[0]?.synced_at as string) ?? null;
 
   return { rows, syncedAt };
 }
