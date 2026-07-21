@@ -99,6 +99,19 @@ python3 save_session.py
 - **過去日補完**：欠損日は `backfill.py [start] [end]` で埋める（取得済みはスキップ）。
 - **キャッシュ**：API 再起動でインメモリキャッシュはリセット。次回アクセスで Supabase から再ロードされる（手動操作不要）。
 
+## GitHub ↔ Replit 同期（先祖返り防止・重要）
+
+このダッシュボード（web/api-server）は **Replit で稼働**し、Replit と ローカル(Mac) の両方から同じ GitHub リポ（`dataSICKS/marketing-dashboard`）を触る。過去に **Replit からの force-push で origin の履歴が上書きされ、ローカル側のコミット（機能別ドキュメント・`ecf-ad-to-supabase/run.py` 等）が消失**した事故がある。以下を厳守する。
+
+**共通ルール（両環境）**
+1. **編集を始める前に必ず `git pull`**（基本 `git pull --rebase`）で最新を取り込む。古いローカルの上に作業を積まない。
+2. **push 前に `git fetch`** し、`git rev-list --count HEAD..origin/main` が 0 でない（＝origin が新しい）なら push せず、先に `git pull --rebase` で取り込む。
+3. **`git push --force` / `-f` は使わない**（＝先祖返りの主因）。通常の `git push` は non-fast-forward を自動拒否するのでそのまま使う。
+4. 履歴が分岐して素直に ff できない時は強制解決せず、docブランチ＋PR 等の非破壊手段で対応する。
+
+**コード修正の本番反映（Replit側）**
+- ローカルで修正 → commit → push した後、**Replit で `git pull` → api-server 再起動**（`pnpm --filter @workspace/api-server run dev` 等）で反映される。ローカルから Replit 実行環境へは直接反映されない。
+
 ## 動作確認チェックリスト
 
 - [ ] `pnpm install` が pnpm で成功する（npm/yarn だと preinstall で失敗するのが正）
@@ -125,3 +138,5 @@ python3 save_session.py
 | Sheets 取得が失敗 | Replit Connectors（google-sheet）未接続 | Replit の integration 設定を確認 |
 | Tailwind の dark 指定が効かない | Tailwind v4 は `@apply dark` 無効 | テーマ変数を `:root` に直接設定 |
 | インメモリキャッシュが古い | プロセス長時間稼働 | `/*/sync` エンドポイントで強制再取得、または再起動 |
+| ローカルのコミットが消えた/origin が巻き戻った | 別環境（Replit）からの **force-push** で履歴上書き | reflog から復元（`git checkout <古いhash> -- <path>`）。以後は「GitHub ↔ Replit 同期」ルール厳守（pull-first・force禁止） |
+| 最新日が Clarity パネルに出ない | `/clarity/files` の list 上限（旧: limit100・古い順） | 修正済み（limit拡大＋name降順）。未反映なら Replit で pull→再起動 |
