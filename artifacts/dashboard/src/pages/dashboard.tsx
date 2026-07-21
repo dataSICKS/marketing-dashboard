@@ -252,6 +252,18 @@ function CampaignPicker({
 }
 
 // ─── Metrics table ────────────────────────────────────────────────
+type SortKey = "label" | "deliveryCount" | "openCount" | "openRate" | "clickCount" | "clickRate" | "cvCount" | "cvr";
+type SortDir = "asc" | "desc";
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <span className="inline-flex flex-col ml-1 leading-none" style={{ color: active ? "#1A1A1A" : "#D1D5DB" }}>
+      <span style={{ lineHeight: 1, fontSize: 8, opacity: active && dir === "asc" ? 1 : 0.4 }}>▲</span>
+      <span style={{ lineHeight: 1, fontSize: 8, opacity: active && dir === "desc" ? 1 : 0.4 }}>▼</span>
+    </span>
+  );
+}
+
 function MetricsTable({
   items, groupBy, showComparison, getRowPhase,
 }: {
@@ -261,27 +273,70 @@ function MetricsTable({
   getRowPhase?: (label: string) => "before" | "after" | null;
 }) {
   const showSubject = groupBy === "template" || groupBy === "day";
+  const [sortKey, setSortKey] = useState<SortKey>("label");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...items];
+    arr.sort((a, b) => {
+      const av = a[sortKey as keyof NewsletterMetrics] ?? 0;
+      const bv = b[sortKey as keyof NewsletterMetrics] ?? 0;
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc" ? av.localeCompare(bv, "ja") : bv.localeCompare(av, "ja");
+      }
+      return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+    });
+    return arr;
+  }, [items, sortKey, sortDir]);
+
+  const colSpan = showSubject ? 9 : 8;
+
+  const Th = ({ label, k }: { label: string; k: SortKey }) => (
+    <TableHead
+      className="text-xs font-semibold whitespace-nowrap cursor-pointer select-none"
+      style={{ color: sortKey === k ? "#374151" : "#9CA3AF" }}
+      onClick={() => handleSort(k)}
+    >
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        <SortIcon active={sortKey === k} dir={sortDir} />
+      </span>
+    </TableHead>
+  );
+
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent" style={{ borderBottom: "1px solid #F3F4F6" }}>
-            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>ラベル</TableHead>
+            <Th label="ラベル" k="label" />
             {showSubject && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>件名</TableHead>}
-            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>配信数</TableHead>
-            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>開封数（率）</TableHead>
-            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>クリック数（率）</TableHead>
-            <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>CV数（CVR）</TableHead>
+            <Th label="配信数" k="deliveryCount" />
+            <Th label="開封数" k="openCount" />
+            <Th label="開封率" k="openRate" />
+            <Th label="クリック数" k="clickCount" />
+            <Th label="クリック率" k="clickRate" />
+            <Th label="CV数" k="cvCount" />
+            <Th label="CVR" k="cvr" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.length === 0 ? (
+          {sorted.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={showSubject ? 6 : 5} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>
+              <TableCell colSpan={colSpan} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>
                 データがありません
               </TableCell>
             </TableRow>
-          ) : items.map((item, i) => {
+          ) : sorted.map((item, i) => {
             const phase = getRowPhase ? getRowPhase(item.label) : null;
             return (
               <TableRow
@@ -309,17 +364,23 @@ function MetricsTable({
                 </TableCell>
                 <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
                   {formatNumber(item.openCount)}
-                  <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.openRate)})</span>
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                  {formatPercent(item.openRate)}
                   {showComparison && <DiffBadge current={item.openRate} prev={item.prevOpenRate} />}
                 </TableCell>
                 <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
                   {formatNumber(item.clickCount)}
-                  <span className="text-xs ml-1" style={{ color: "#9CA3AF" }}>({formatPercent(item.clickRate)})</span>
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                  {formatPercent(item.clickRate)}
                   {showComparison && <DiffBadge current={item.clickRate} prev={item.prevClickRate} />}
                 </TableCell>
                 <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
                   {formatNumber(item.cvCount)}
-                  <span className="text-xs ml-1 font-normal" style={{ color: "#9CA3AF" }}>({formatPercent(item.cvr)})</span>
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                  {formatPercent(item.cvr)}
                   {showComparison && <DiffBadge current={item.cvr} prev={item.prevCvr} />}
                 </TableCell>
               </TableRow>
