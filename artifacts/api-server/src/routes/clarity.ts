@@ -53,7 +53,11 @@ router.get("/clarity/files", async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
 
     if (!date) {
-      const { data, error } = await supabase.storage.from("clarity-heatmaps").list("", { limit: 100 });
+      // 日付フォルダは日々増える（既に100件超）。既定sort(name昇順)＋limit100だと
+      // 古い100件だけ返り最新日が欠落するため、limitを大きく取り新しい順で返す。
+      const { data, error } = await supabase.storage
+        .from("clarity-heatmaps")
+        .list("", { limit: 10000, sortBy: { column: "name", order: "desc" } });
       if (error) throw error;
       const dates = (data ?? []).map((f) => f.name).filter(Boolean).sort().reverse();
       res.json({ dates, adCodes: [] });
