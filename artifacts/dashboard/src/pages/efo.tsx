@@ -125,6 +125,117 @@ function SegmentSelector({
   );
 }
 
+// ─── Comparison Diff Table ────────────────────────────────────────
+function ComparisonDiffTable({
+  summaryA,
+  summaryB,
+  isLoadingA,
+  isLoadingB,
+}: {
+  summaryA: EfoMetrics | undefined;
+  summaryB: EfoMetrics | undefined;
+  isLoadingA: boolean;
+  isLoadingB: boolean;
+}) {
+  const isLoading = isLoadingA || isLoadingB;
+  const hasLp = summaryA?.lpAccessCount != null || summaryB?.lpAccessCount != null;
+  const hasLaunchRate = summaryA?.chatLaunchRate != null || summaryB?.chatLaunchRate != null;
+
+  type Row = {
+    label: string;
+    aVal: number | null;
+    bVal: number | null;
+    isRate: boolean;
+  };
+
+  const rows: Row[] = [
+    ...(hasLp ? [{ label: "LPアクセス数", aVal: summaryA?.lpAccessCount ?? null, bVal: summaryB?.lpAccessCount ?? null, isRate: false }] : []),
+    { label: "起動数", aVal: summaryA?.accessCount ?? null, bVal: summaryB?.accessCount ?? null, isRate: false },
+    ...(hasLaunchRate ? [{ label: "起動率", aVal: summaryA?.chatLaunchRate ?? null, bVal: summaryB?.chatLaunchRate ?? null, isRate: true }] : []),
+    { label: "CV数", aVal: summaryA?.cvCount ?? null, bVal: summaryB?.cvCount ?? null, isRate: false },
+    { label: "チャットCVR", aVal: summaryA?.cvr ?? null, bVal: summaryB?.cvr ?? null, isRate: true },
+    ...(hasLp ? [{ label: "LP CVR", aVal: summaryA?.lpCvr ?? null, bVal: summaryB?.lpCvr ?? null, isRate: true }] : []),
+  ];
+
+  const renderDiff = (row: Row) => {
+    const { aVal, bVal, isRate } = row;
+    if (aVal == null || bVal == null) return <span style={{ color: "#9CA3AF" }}>—</span>;
+    const diff = bVal - aVal;
+    const positive = diff > 0;
+    const neutral = Math.abs(diff) < (isRate ? 0.0001 : 0.5);
+    const color = neutral ? "#6B7280" : positive ? "#10B981" : "#EF4444";
+    const sign = positive ? "+" : "";
+
+    if (isRate) {
+      const ppDiff = diff * 100;
+      return (
+        <span className="font-semibold" style={{ color }}>
+          {sign}{ppDiff.toFixed(2)}pp
+        </span>
+      );
+    } else {
+      const pctDiff = aVal !== 0 ? (diff / aVal) * 100 : null;
+      return (
+        <span className="font-semibold" style={{ color }}>
+          {sign}{formatNumber(diff)}
+          {pctDiff != null && (
+            <span className="ml-1 font-normal text-[11px]">
+              ({sign}{pctDiff.toFixed(1)}%)
+            </span>
+          )}
+        </span>
+      );
+    }
+  };
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
+      <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #F0F0F0", background: "#FAFAFA" }}>
+        <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>セグメント比較サマリー</span>
+        <span className="text-xs" style={{ color: "#9CA3AF" }}>（テスト − オリジナル）</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #F0F0F0" }}>
+              <th className="px-5 py-2.5 text-left text-xs font-semibold" style={{ color: "#9CA3AF", width: "20%" }}>指標</th>
+              <th className="px-5 py-2.5 text-right text-xs font-semibold" style={{ color: SEG_COLORS.A, width: "25%" }}>
+                オリジナル（A）
+              </th>
+              <th className="px-5 py-2.5 text-right text-xs font-semibold" style={{ color: SEG_COLORS.B, width: "25%" }}>
+                テスト（B）
+              </th>
+              <th className="px-5 py-2.5 text-right text-xs font-semibold" style={{ color: "#374151", width: "30%" }}>
+                差分（B − A）
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.label} style={{ borderBottom: i < rows.length - 1 ? "1px solid #F9FAFB" : "none", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                <td className="px-5 py-2.5 text-xs font-medium" style={{ color: "#6B7280" }}>{row.label}</td>
+                <td className="px-5 py-2.5 text-right font-semibold" style={{ color: "#1A1A1A" }}>
+                  {isLoading ? <Skeleton className="h-4 w-16 ml-auto" /> :
+                    row.aVal == null ? "—" :
+                    row.isRate ? formatPercent(row.aVal) : formatNumber(row.aVal)}
+                </td>
+                <td className="px-5 py-2.5 text-right font-semibold" style={{ color: "#1A1A1A" }}>
+                  {isLoading ? <Skeleton className="h-4 w-16 ml-auto" /> :
+                    row.bVal == null ? "—" :
+                    row.isRate ? formatPercent(row.bVal) : formatNumber(row.bVal)}
+                </td>
+                <td className="px-5 py-2.5 text-right text-sm">
+                  {isLoading ? <Skeleton className="h-4 w-20 ml-auto" /> : renderDiff(row)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── KPI Row ───────────────────────────────────────────────────────
 function KpiRow({ summary, isLoading, color }: { summary: EfoMetrics | undefined; isLoading: boolean; color: string }) {
   const hasLp = summary?.lpAccessCount != null;
@@ -829,8 +940,16 @@ export default function EfoPage() {
   const { data: campaignsData } = useListCampaigns();
   const allCampaigns = campaignsData?.campaigns ?? [];
 
-  const { data: anyData } = useGetEfoData({ groupBy });
-  const lastSyncedAt = anyData?.lastSyncedAt;
+  const buildParams = (filter: SegmentFilter) => ({
+    groupBy,
+    ...(filter.profileNames.length ? { profileName: filter.profileNames.join(",") } : {}),
+    ...(filter.adCodes.length ? { adCode: filter.adCodes.join(",") } : {}),
+    ...(filter.dateRange?.from ? { dateFrom: filter.dateRange.from.replace(/\//g, "-") } : {}),
+    ...(filter.dateRange?.to ? { dateTo: filter.dateRange.to.replace(/\//g, "-") } : {}),
+  });
+  const { data: dataA, isLoading: isLoadingA } = useGetEfoData(buildParams(filterA));
+  const { data: dataB, isLoading: isLoadingB } = useGetEfoData(buildParams(filterB));
+  const lastSyncedAt = dataA?.lastSyncedAt ?? dataB?.lastSyncedAt;
 
   const { data: presetsData } = useListEfoPresets();
   const presets = presetsData?.presets ?? [];
@@ -975,6 +1094,14 @@ export default function EfoPage() {
           <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} campaigns={allCampaigns} />
           <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} campaigns={allCampaigns} />
         </div>
+
+        {/* Comparison Diff Table */}
+        <ComparisonDiffTable
+          summaryA={dataA?.summary}
+          summaryB={dataB?.summary}
+          isLoadingA={isLoadingA}
+          isLoadingB={isLoadingB}
+        />
 
         {/* Clarity Scroll Depth */}
         <ClarityScrollSection />
