@@ -915,9 +915,9 @@ function MatrixView({
                   {/* ── Period header row ── */}
                   <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
                     <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 150, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>行</th>
+                      style={{ color: "#6B7280", minWidth: 220, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>行</th>
                     <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 150, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 220, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
                     {isCompare ? (
                       <>
                         {beforePeriods.map((p) => (
@@ -963,21 +963,21 @@ function MatrixView({
                         <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
                           {isFirstMetric ? (
                             <td rowSpan={selectedMetrics.length}
-                              className="px-4 py-2 whitespace-nowrap font-medium"
-                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle" }}>
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full shrink-0"
+                              className="px-4 py-2 font-medium"
+                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 220 }}>
+                              <div className="flex items-start gap-1.5">
+                                <span className="w-2 h-2 rounded-full shrink-0 mt-1"
                                   style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
                                 <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
                                   style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
                                   {s.type === "scenario" ? "SC" : "TP"}
                                 </span>
-                                <span className="truncate" style={{ maxWidth: 80 }}>{s.key}</span>
+                                <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
                               </div>
                             </td>
                           ) : null}
                           <td className="px-3 py-2 whitespace-nowrap"
-                            style={{ position: "sticky", left: 150, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
+                            style={{ position: "sticky", left: 220, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
                             {mDef.label}
                           </td>
                           {isCompare ? (
