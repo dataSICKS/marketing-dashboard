@@ -318,8 +318,10 @@ function MetricsTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent" style={{ borderBottom: "1px solid #F3F4F6" }}>
-            <Th label="ラベル" k="label" />
-            {showSubject && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>件名</TableHead>}
+            <TableHead className="text-xs font-semibold cursor-pointer select-none min-w-[140px]" onClick={() => handleSort("label")} style={{ color: "#9CA3AF" }}>
+              ラベル{sortKey === "label" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+            </TableHead>
+            {showSubject && <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[200px]" style={{ color: "#9CA3AF" }}>件名</TableHead>}
             <Th label="配信数" k="deliveryCount" />
             <Th label="開封数" k="openCount" />
             <Th label="開封率" k="openRate" />
@@ -347,14 +349,14 @@ function MetricsTable({
                   background: phase === "before" ? "#EFF6FF" : phase === "after" ? "#FDF2F8" : undefined,
                 }}
               >
-                <TableCell className="text-sm font-medium whitespace-nowrap" style={{ color: phase === "before" ? "#1D4ED8" : phase === "after" ? "#9D174D" : "#6B7280" }}>
+                <TableCell className="text-sm font-medium break-words min-w-[140px]" style={{ color: phase === "before" ? "#1D4ED8" : phase === "after" ? "#9D174D" : "#6B7280" }}>
                   {phase && (
                     <span className="inline-block w-2 h-2 rounded-full mr-1.5 shrink-0 align-middle" style={{ background: phase === "before" ? BEFORE_COLOR : AFTER_COLOR }} />
                   )}
                   {item.label}
                 </TableCell>
                 {showSubject && (
-                  <TableCell className="text-xs max-w-[220px] truncate" style={{ color: "#374151" }} title={item.subject ?? ""}>
+                  <TableCell className="text-xs min-w-[200px] break-words" style={{ color: "#374151" }}>
                     {item.subject ?? "—"}
                   </TableCell>
                 )}
