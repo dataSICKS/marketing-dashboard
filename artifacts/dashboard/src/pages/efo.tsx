@@ -657,8 +657,10 @@ function makeClarityTooltip(pageViews: Record<string, number>, device: DeviceTab
   };
 }
 
-// ─── 共通スクロールグラフ ────────────────────────────────────────────
+// ─── 共通スクロールグラフ（ドラッグリサイズ対応） ──────────────────────
 type ChartRow = Record<string, string | number | null>;
+const MIN_CHART_HEIGHT = 120;
+
 function ClarityScrollChart({
   chartData,
   lines,
@@ -672,17 +674,39 @@ function ClarityScrollChart({
   device: DeviceTab;
   isLoading: boolean;
 }) {
-  const chartHeight = Math.max(240, chartData.length * 18 + 48);
+  const autoHeight = Math.max(240, chartData.length * 18 + 48);
+  const [manualHeight, setManualHeight] = useState<number | null>(null);
+  const chartHeight = manualHeight ?? autoHeight;
+
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+
+  const onHandleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = { startY: e.clientY, startH: chartHeight };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = ev.clientY - dragRef.current.startY;
+      setManualHeight(Math.max(MIN_CHART_HEIGHT, dragRef.current.startH + delta));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   const TooltipContent = useMemo(() => makeClarityTooltip(pageViews, device), [pageViews, device]);
-  if (isLoading) return <Skeleton className="w-full" style={{ height: chartHeight }} />;
-  if (chartData.length === 0) {
-    return (
-      <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
-        データなし
-      </div>
-    );
-  }
-  return (
+
+  const inner = isLoading ? (
+    <Skeleton className="w-full" style={{ height: chartHeight }} />
+  ) : chartData.length === 0 ? (
+    <div className="flex items-center justify-center text-xs" style={{ height: chartHeight, color: "#bbb" }}>
+      データなし
+    </div>
+  ) : (
     <ResponsiveContainer width="100%" height={chartHeight}>
       <ComposedChart layout="vertical" data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#F3F4F6" />
@@ -697,6 +721,21 @@ function ClarityScrollChart({
         ))}
       </ComposedChart>
     </ResponsiveContainer>
+  );
+
+  return (
+    <div className="select-none">
+      {inner}
+      {/* ドラッグハンドル */}
+      <div
+        onMouseDown={onHandleMouseDown}
+        className="flex items-center justify-center mt-1 rounded"
+        style={{ height: 12, cursor: "ns-resize", background: "transparent" }}
+        title="ドラッグして高さを調整"
+      >
+        <div style={{ width: 32, height: 4, borderRadius: 2, background: "#E5E7EB" }} />
+      </div>
+    </div>
   );
 }
 
