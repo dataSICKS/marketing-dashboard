@@ -87,62 +87,105 @@ router.get("/clarity/files", async (req, res): Promise<void> => {
   }
 });
 
+/** 1日分のスクロールCSVを取得して集計する共通処理 */
+async function fetchScrollForDate(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  date: string,
+  adCode: string,
+): Promise<{ device: string; pageViews: number; points: { depth: number; visitors: number }[] }[]> {
+  const { data: files, error } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
+  if (error) throw error;
+
+  const deviceFiles = (files ?? [])
+    .filter((f) => f.name.startsWith(adCode + "_") && f.name.endsWith(".csv"))
+    .map((f) => {
+      const parsed = parseFilename(f.name);
+      return parsed ? { ...parsed, filename: f.name } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  return Promise.all(
+    deviceFiles.map(async ({ device, filename }) => {
+      const { data, error: dlError } = await supabase.storage
+        .from("clarity-heatmaps")
+        .download(`${date}/${filename}`);
+      if (dlError) throw dlError;
+      const text = await (data as Blob).text();
+      return { device, ...parseCsv(text) };
+    })
+  );
+}
+
 router.get("/clarity/scroll", async (req, res): Promise<void> => {
   try {
     const date = req.query.date as string | undefined;
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
     const adCode = req.query.adCode as string | undefined;
-    if (!date || !adCode) {
-      res.status(400).json({ error: "date と adCode は必須です" });
+    if (!adCode) {
+      res.status(400).json({ error: "adCode は必須です" });
+      return;
+    }
+    if (!date && (!dateFrom || !dateTo)) {
+      res.status(400).json({ error: "date または dateFrom + dateTo が必要です" });
       return;
     }
 
     const supabase = getSupabaseClient();
-    const { data: files, error: listError } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
-    if (listError) throw listError;
 
-    const deviceFiles = (files ?? [])
-      .filter((f) => f.name.startsWith(adCode + "_") && f.name.endsWith(".csv"))
-      .map((f) => {
-        const parsed = parseFilename(f.name);
-        return parsed ? { ...parsed, filename: f.name } : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+    // 集計対象日付リストを決定
+    let targetDates: string[];
+    if (dateFrom && dateTo) {
+      // 利用可能な日付フォルダ一覧を取得して期間内のものだけ使う
+      const { data: allFolders, error: fErr } = await supabase.storage
+        .from("clarity-heatmaps")
+        .list("", { limit: 10000, sortBy: { column: "name", order: "asc" } });
+      if (fErr) throw fErr;
+      targetDates = (allFolders ?? [])
+        .map((f) => f.name)
+        .filter((n) => n >= dateFrom && n <= dateTo);
+    } else {
+      targetDates = [date!];
+    }
 
-    if (deviceFiles.length === 0) {
-      res.json({ adCode, date, points: [], pageViews: {} });
+    if (targetDates.length === 0) {
+      res.json({ adCode, date: date ?? dateFrom, points: [], pageViews: {} });
       return;
     }
 
-    const deviceData = await Promise.all(
-      deviceFiles.map(async ({ device, filename }) => {
-        const { data, error } = await supabase.storage
-          .from("clarity-heatmaps")
-          .download(`${date}/${filename}`);
-        if (error) throw error;
-        const text = await (data as Blob).text();
-        const parsed = parseCsv(text);
-        return { device, ...parsed };
-      })
+    // 全日付のデータを並列取得（存在しない日は空配列になるのでエラー無視）
+    const allDayData = await Promise.all(
+      targetDates.map((d) =>
+        fetchScrollForDate(supabase, d, adCode).catch(() => [] as Awaited<ReturnType<typeof fetchScrollForDate>>)
+      )
     );
 
-    const depthMap = new Map<number, { desktop: number | null; mobile: number | null }>();
+    // Desktop / Mobile ごとに PV とスクロール訪問者数を合算
+    const depthMap = new Map<number, { desktop: number; mobile: number }>();
     const pageViews: Record<string, number> = {};
 
-    for (const { device, pageViews: pv, points } of deviceData) {
-      pageViews[device] = pv;
-      for (const { depth, visitors } of points) {
-        const existing = depthMap.get(depth) ?? { desktop: null, mobile: null };
-        if (device === "Desktop") existing.desktop = visitors;
-        if (device === "Mobile") existing.mobile = visitors;
-        depthMap.set(depth, existing);
+    for (const dayData of allDayData) {
+      for (const { device, pageViews: pv, points } of dayData) {
+        if (device === "Desktop") pageViews.Desktop = (pageViews.Desktop ?? 0) + pv;
+        if (device === "Mobile") pageViews.Mobile = (pageViews.Mobile ?? 0) + pv;
+        for (const { depth, visitors } of points) {
+          const existing = depthMap.get(depth) ?? { desktop: 0, mobile: 0 };
+          if (device === "Desktop") existing.desktop += visitors;
+          if (device === "Mobile") existing.mobile += visitors;
+          depthMap.set(depth, existing);
+        }
       }
     }
 
     const points = Array.from(depthMap.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([depth, { desktop, mobile }]) => ({ depth, desktop, mobile }));
+      .map(([depth, { desktop, mobile }]) => ({
+        depth,
+        desktop: desktop > 0 ? desktop : null,
+        mobile: mobile > 0 ? mobile : null,
+      }));
 
-    res.json({ adCode, date, points, pageViews });
+    res.json({ adCode, date: date ?? dateFrom, points, pageViews });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch clarity scroll data");
     res.status(500).json({ error: "Clarityスクロールデータの取得に失敗しました" });

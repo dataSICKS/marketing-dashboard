@@ -608,6 +608,7 @@ function ClarityPanel({
   const { data: datesData } = useGetClarityFiles();
   const dates = datesData?.dates ?? [];
 
+  // adCode一覧の取得は「期間内の最新日」を基準にする
   const activeDate = useMemo(() => resolveActiveDate(dates, dateRange), [dates, dateRange]);
 
   // 設定から絞り込み対象adCodeを取得
@@ -629,8 +630,15 @@ function ClarityPanel({
 
   const effectiveAdCode = selectedAdCode || (adCodeOptions[0]?.adCode ?? "");
 
+  // スクロールデータは期間全体を集計して取得
+  const dateFrom = dateRange?.from.replace(/\//g, "-");
+  const dateTo = dateRange?.to.replace(/\//g, "-");
+  const scrollParams = dateFrom && dateTo
+    ? { dateFrom, dateTo, adCode: effectiveAdCode }
+    : { date: activeDate, adCode: effectiveAdCode };
+
   const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
-    { date: activeDate, adCode: effectiveAdCode },
+    scrollParams,
     { query: { enabled: !!(activeDate && effectiveAdCode) } },
   );
 
