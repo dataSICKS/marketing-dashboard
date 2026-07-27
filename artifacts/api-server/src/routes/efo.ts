@@ -192,11 +192,13 @@ router.get("/efo/presets", async (req, res) => {
 
 router.post("/efo/presets", async (req, res) => {
   try {
-    const { name, groupBy, segmentA, segmentB } = req.body as {
+    const { name, groupBy, segmentA, segmentB, clarityA, clarityB } = req.body as {
       name: string;
       groupBy: string;
       segmentA: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
       segmentB: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
+      clarityA?: { dateRange: { from: string; to: string } | null; adCode: string; device: string } | null;
+      clarityB?: { dateRange: { from: string; to: string } | null; adCode: string; device: string } | null;
     };
     if (!name || !groupBy || !segmentA || !segmentB) {
       res.status(400).json({ error: "name, groupBy, segmentA, segmentB は必須です" });
@@ -207,6 +209,8 @@ router.post("/efo/presets", async (req, res) => {
       groupBy,
       segmentA: { dateFrom: segmentA.dateFrom ?? null, dateTo: segmentA.dateTo ?? null, profileNames: segmentA.profileNames, adCodes: segmentA.adCodes },
       segmentB: { dateFrom: segmentB.dateFrom ?? null, dateTo: segmentB.dateTo ?? null, profileNames: segmentB.profileNames, adCodes: segmentB.adCodes },
+      clarityA: clarityA ?? null,
+      clarityB: clarityB ?? null,
     });
     res.status(201).json({ preset });
   } catch (err) {
