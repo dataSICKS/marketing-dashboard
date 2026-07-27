@@ -135,6 +135,42 @@ export async function fetchEfoExitScenariosFromSupabase(): Promise<{ rows: EfoEx
   return { rows, syncedAt: data[0]?.synced_at ?? null };
 }
 
+export async function upsertEcfAdAccessCv(
+  rows: { adUrl: string; adDate: string; accessCount: number; cvCount: number }[],
+  syncedAt: string
+): Promise<void> {
+  if (rows.length === 0) return;
+  const supabase = getSupabaseClient();
+
+  // Delete existing rows for the dates present in the incoming data, then insert
+  const dates = [...new Set(rows.map((r) => r.adDate))];
+  const { error: delErr } = await supabase
+    .from("ecf_ad_access_cv")
+    .delete()
+    .in("ad_date", dates);
+  if (delErr) {
+    logger.error({ error: delErr }, "Supabase delete ecf_ad_access_cv failed");
+    throw new Error(`ecf_ad_access_cv削除失敗: ${delErr.message}`);
+  }
+
+  const records = rows.map((r) => ({
+    ad_url: r.adUrl,
+    ad_date: r.adDate,
+    access_count: r.accessCount,
+    cv_count: r.cvCount,
+    synced_at: syncedAt,
+  }));
+
+  for (let i = 0; i < records.length; i += BATCH) {
+    const { error } = await supabase.from("ecf_ad_access_cv").insert(records.slice(i, i + BATCH));
+    if (error) {
+      logger.error({ error }, "Supabase insert ecf_ad_access_cv failed");
+      throw new Error(`ecf_ad_access_cv投入失敗: ${error.message}`);
+    }
+  }
+  logger.info({ rowCount: records.length, dates: dates.length }, "Upserted ecf_ad_access_cv to Supabase");
+}
+
 export async function fetchEcfAdAccessCvFromSupabase(): Promise<EcfAdAccessCvRow[]> {
   const supabase = getSupabaseClient();
   const data = await fetchAllPages((from, to) =>

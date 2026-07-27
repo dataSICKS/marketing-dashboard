@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { fetchEfoAccessSheet, fetchEfoExitScenariosSheet } from "../lib/efo-sheets.js";
+import { fetchEfoAccessSheet, fetchEfoExitScenariosSheet, fetchEcfAdSheet } from "../lib/efo-sheets.js";
 import { aggregateEfoRows, computeEfoSummary, type EfoGroupBy } from "../lib/efo-aggregate.js";
 import {
   upsertEfoAccessCv,
   upsertEfoExitScenarios,
+  upsertEcfAdAccessCv,
   fetchEfoAccessCvFromSupabase,
   fetchEfoExitScenariosFromSupabase,
   fetchEcfAdAccessCvFromSupabase,
@@ -65,19 +66,28 @@ async function getEfoData(req: { log: { info: (...a: unknown[]) => void; error: 
 router.post("/efo/sync", async (req, res): Promise<void> => {
   try {
     req.log.info("Syncing EFO data from Google Sheets");
-    const [acRows, esRows] = await Promise.all([
+    const [acRows, esRows, ecfSheetRows] = await Promise.all([
       fetchEfoAccessSheet(),
       fetchEfoExitScenariosSheet(),
+      fetchEcfAdSheet(),
     ]);
     const syncedAt = new Date().toISOString();
     await Promise.all([
       upsertEfoAccessCv(acRows, syncedAt),
       upsertEfoExitScenarios(esRows, syncedAt),
+      upsertEcfAdAccessCv(ecfSheetRows, syncedAt),
+    ]);
+    // Reload full dataset from Supabase (Sheets only has a rolling window; Supabase has all history)
+    const [{ rows: fullAcRows, syncedAt: fullSyncedAt }, { rows: fullEsRows }, fullEcfRows] = await Promise.all([
+      fetchEfoAccessCvFromSupabase(),
+      fetchEfoExitScenariosFromSupabase(),
+      fetchEcfAdAccessCvFromSupabase(),
     ]);
     const loadedAt = Date.now();
-    accessCvCache = { rows: acRows, syncedAt, loadedAt };
-    exitScenariosCache = { rows: esRows, syncedAt, loadedAt };
-    res.json({ accessCvRowCount: acRows.length, exitScenarioRowCount: esRows.length, syncedAt });
+    accessCvCache = { rows: fullAcRows, syncedAt: fullSyncedAt ?? syncedAt, loadedAt };
+    exitScenariosCache = { rows: fullEsRows, syncedAt: fullSyncedAt ?? syncedAt, loadedAt };
+    ecfCache = { rows: fullEcfRows, loadedAt };
+    res.json({ accessCvRowCount: fullAcRows.length, exitScenarioRowCount: fullEsRows.length, ecfRowCount: fullEcfRows.length, syncedAt });
   } catch (err) {
     req.log.error({ err }, "Failed to sync EFO data");
     res.status(500).json({ error: "Google Sheets からのEFOデータ取得に失敗しました" });

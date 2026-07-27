@@ -105,3 +105,31 @@ export async function fetchEfoExitScenariosSheet(): Promise<EfoExitScenarioRow[]
   logger.info({ rowCount: rows.length }, "Fetched EFO exit scenario rows from Google Sheets");
   return rows;
 }
+
+export async function fetchEcfAdSheet(): Promise<{ adUrl: string; adDate: string; accessCount: number; cvCount: number }[]> {
+  const connectors = new ReplitConnectors();
+
+  // BQ_ECF_広告集計: A=ad_url, B=ad_date, C=access_count, D=cv_count
+  const resp = await connectors.proxy(
+    "google-sheet",
+    `/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent("BQ_ECF_広告集計!A2:D10000")}`,
+    { method: "GET" }
+  );
+  const data = await resp.json() as { values?: string[][] };
+
+  const rows: { adUrl: string; adDate: string; accessCount: number; cvCount: number }[] = [];
+  for (const row of data.values ?? []) {
+    const adUrl = (row[0] ?? "").trim();
+    const adDate = (row[1] ?? "").trim().replace(/\//g, "-"); // 2026/07/26 -> 2026-07-26
+    if (!adUrl || adDate.length !== 10) continue;
+    rows.push({
+      adUrl,
+      adDate,
+      accessCount: parseNum(row[2]),
+      cvCount: parseNum(row[3]),
+    });
+  }
+
+  logger.info({ rowCount: rows.length }, "Fetched ECF ad rows from Google Sheets");
+  return rows;
+}
