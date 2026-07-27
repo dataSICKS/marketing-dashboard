@@ -570,6 +570,12 @@ const DEVICE_TABS: DeviceTab[] = ["合計", "Desktop", "Mobile"];
 const CLARITY_SEG_COLORS = { A: YELLOW, B: BLUE } as const;
 const CLARITY_SEG_TEXT = { A: "#1A1A1A", B: "#ffffff" } as const;
 
+interface ClarityState {
+  dateRange: EfoDateRange | null;
+  selectedAdCode: string;
+  device: DeviceTab;
+}
+
 function resolveActiveDate(dates: string[], dateRange: EfoDateRange | null): string {
   if (dates.length === 0) return "";
   if (!dateRange) return dates[0];
@@ -581,19 +587,22 @@ function resolveActiveDate(dates: string[], dateRange: EfoDateRange | null): str
   return before[0] ?? dates[0];
 }
 
-function ClarityPanel({ seg }: { seg: "A" | "B" }) {
+function ClarityPanel({
+  seg,
+  state,
+  onChange,
+}: {
+  seg: "A" | "B";
+  state: ClarityState;
+  onChange: (s: ClarityState) => void;
+}) {
   const color = CLARITY_SEG_COLORS[seg];
   const textOnColor = CLARITY_SEG_TEXT[seg];
 
-  const [dateRange, setDateRange] = useState<EfoDateRange | null>(() => {
-    const toD = new Date();
-    const fromD = new Date(toD);
-    fromD.setDate(fromD.getDate() - 29);
-    const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-    return { from: fmt(fromD), to: fmt(toD) };
-  });
-  const [selectedAdCode, setSelectedAdCode] = useState<string>("");
-  const [device, setDevice] = useState<DeviceTab>("合計");
+  const { dateRange, selectedAdCode, device } = state;
+  const setDateRange = (dateRange: EfoDateRange | null) => onChange({ ...state, dateRange });
+  const setSelectedAdCode = (selectedAdCode: string) => onChange({ ...state, selectedAdCode });
+  const setDevice = (device: DeviceTab) => onChange({ ...state, device });
 
   // 利用可能な日付フォルダ一覧（両パネルで共有キャッシュ）
   const { data: datesData } = useGetClarityFiles();
@@ -782,7 +791,17 @@ function ClarityPanel({ seg }: { seg: "A" | "B" }) {
 }
 
 // ─── Clarity Scroll Depth Section ──────────────────────────────────
-function ClarityScrollSection() {
+function ClarityScrollSection({
+  clarityA,
+  clarityB,
+  onClarityAChange,
+  onClarityBChange,
+}: {
+  clarityA: ClarityState;
+  clarityB: ClarityState;
+  onClarityAChange: (s: ClarityState) => void;
+  onClarityBChange: (s: ClarityState) => void;
+}) {
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
       {/* Section header */}
@@ -792,8 +811,8 @@ function ClarityScrollSection() {
       </div>
       {/* Two independent panels */}
       <div className="p-4 flex gap-4 items-start">
-        <ClarityPanel seg="A" />
-        <ClarityPanel seg="B" />
+        <ClarityPanel seg="A" state={clarityA} onChange={onClarityAChange} />
+        <ClarityPanel seg="B" state={clarityB} onChange={onClarityBChange} />
       </div>
     </div>
   );
@@ -970,6 +989,14 @@ function PresetDropdown({
 }
 
 // ─── Main Page ────────────────────────────────────────────────────
+function defaultClarityDateRange(): EfoDateRange {
+  const toD = new Date();
+  const fromD = new Date(toD);
+  fromD.setDate(fromD.getDate() - 29);
+  const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  return { from: fmt(fromD), to: fmt(toD) };
+}
+
 export default function EfoPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("week");
   const defaultDateRange = (() => {
@@ -981,6 +1008,8 @@ export default function EfoPage() {
   })();
   const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
   const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
+  const [clarityA, setClarityA] = useState<ClarityState>({ dateRange: defaultClarityDateRange(), selectedAdCode: "", device: "合計" });
+  const [clarityB, setClarityB] = useState<ClarityState>({ dateRange: defaultClarityDateRange(), selectedAdCode: "", device: "合計" });
   const [showPresetModal, setShowPresetModal] = useState(false);
   const queryClient = useQueryClient();
 
@@ -1048,6 +1077,8 @@ export default function EfoPage() {
   });
 
   const handleSavePreset = (name: string) => {
+    const toIsoRange = (dr: EfoDateRange | null) =>
+      dr ? { from: dr.from.replace(/\//g, "-"), to: dr.to.replace(/\//g, "-") } : null;
     savePreset({
       name,
       groupBy,
@@ -1063,6 +1094,8 @@ export default function EfoPage() {
         profileNames: filterB.profileNames,
         adCodes: filterB.adCodes,
       },
+      clarityA: { dateRange: toIsoRange(clarityA.dateRange), adCode: clarityA.selectedAdCode, device: clarityA.device },
+      clarityB: { dateRange: toIsoRange(clarityB.dateRange), adCode: clarityB.selectedAdCode, device: clarityB.device },
     });
   };
 
@@ -1085,6 +1118,22 @@ export default function EfoPage() {
       adCodes: p.segmentB.adCodes,
       dateRange: toRange(p.segmentB.dateFrom, p.segmentB.dateTo),
     });
+    if (p.clarityA) {
+      const dr = p.clarityA.dateRange;
+      setClarityA({
+        dateRange: dr ? { from: dr.from.replace(/-/g, "/"), to: dr.to.replace(/-/g, "/") } : null,
+        selectedAdCode: p.clarityA.adCode,
+        device: (p.clarityA.device as DeviceTab) || "合計",
+      });
+    }
+    if (p.clarityB) {
+      const dr = p.clarityB.dateRange;
+      setClarityB({
+        dateRange: dr ? { from: dr.from.replace(/-/g, "/"), to: dr.to.replace(/-/g, "/") } : null,
+        selectedAdCode: p.clarityB.adCode,
+        device: (p.clarityB.device as DeviceTab) || "合計",
+      });
+    }
   };
 
   return (
@@ -1172,7 +1221,12 @@ export default function EfoPage() {
         />
 
         {/* Clarity Scroll Depth */}
-        <ClarityScrollSection />
+        <ClarityScrollSection
+          clarityA={clarityA}
+          clarityB={clarityB}
+          onClarityAChange={setClarityA}
+          onClarityBChange={setClarityB}
+        />
       </div>
     </div>
   );

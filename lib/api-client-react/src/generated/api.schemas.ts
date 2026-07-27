@@ -183,12 +183,20 @@ export type EfoPresetSegment = {
   adCodes: string[];
 };
 
+export type ClarityPresetState = {
+  dateRange: { from: string; to: string } | null;
+  adCode: string;
+  device: string;
+};
+
 export type EfoPreset = {
   id: number;
   name: string;
   groupBy: string;
   segmentA: EfoPresetSegment;
   segmentB: EfoPresetSegment;
+  clarityA: ClarityPresetState | null;
+  clarityB: ClarityPresetState | null;
   createdAt: string;
 };
 
@@ -197,6 +205,8 @@ export type EfoPresetInput = {
   groupBy: string;
   segmentA: EfoPresetSegment;
   segmentB: EfoPresetSegment;
+  clarityA?: ClarityPresetState | null;
+  clarityB?: ClarityPresetState | null;
 };
 
 export type EfoPresetListResponse = {

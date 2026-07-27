@@ -1072,6 +1072,28 @@ components:
         - profileNames
         - adCodes
 
+    ClarityPresetState:
+      type: object
+      properties:
+        dateRange:
+          type: object
+          nullable: true
+          properties:
+            from:
+              type: string
+            to:
+              type: string
+          required:
+            - from
+            - to
+        adCode:
+          type: string
+        device:
+          type: string
+      required:
+        - adCode
+        - device
+
     EfoPreset:
       type: object
       properties:
@@ -1085,6 +1107,14 @@ components:
           $ref: "#/components/schemas/EfoPresetSegment"
         segmentB:
           $ref: "#/components/schemas/EfoPresetSegment"
+        clarityA:
+          allOf:
+            - $ref: "#/components/schemas/ClarityPresetState"
+          nullable: true
+        clarityB:
+          allOf:
+            - $ref: "#/components/schemas/ClarityPresetState"
+          nullable: true
         createdAt:
           type: string
       required:
@@ -1093,6 +1123,8 @@ components:
         - groupBy
         - segmentA
         - segmentB
+        - clarityA
+        - clarityB
         - createdAt
 
     EfoPresetInput:
@@ -1106,6 +1138,14 @@ components:
           $ref: "#/components/schemas/EfoPresetSegment"
         segmentB:
           $ref: "#/components/schemas/EfoPresetSegment"
+        clarityA:
+          allOf:
+            - $ref: "#/components/schemas/ClarityPresetState"
+          nullable: true
+        clarityB:
+          allOf:
+            - $ref: "#/components/schemas/ClarityPresetState"
+          nullable: true
       required:
         - name
         - groupBy

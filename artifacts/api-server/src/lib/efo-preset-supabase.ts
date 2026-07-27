@@ -8,12 +8,20 @@ export interface EfoPresetSegment {
   adCodes: string[];
 }
 
+export interface ClarityPresetState {
+  dateRange: { from: string; to: string } | null;
+  adCode: string;
+  device: string;
+}
+
 export interface EfoPreset {
   id: number;
   name: string;
   groupBy: string;
   segmentA: EfoPresetSegment;
   segmentB: EfoPresetSegment;
+  clarityA: ClarityPresetState | null;
+  clarityB: ClarityPresetState | null;
   createdAt: string;
 }
 
@@ -22,6 +30,8 @@ export interface EfoPresetInput {
   groupBy: string;
   segmentA: EfoPresetSegment;
   segmentB: EfoPresetSegment;
+  clarityA?: ClarityPresetState | null;
+  clarityB?: ClarityPresetState | null;
 }
 
 function getSupabaseClient() {
@@ -38,6 +48,8 @@ function toPreset(r: Record<string, unknown>): EfoPreset {
     groupBy: r.group_by as string,
     segmentA: r.segment_a as EfoPresetSegment,
     segmentB: r.segment_b as EfoPresetSegment,
+    clarityA: (r.clarity_a as ClarityPresetState | null) ?? null,
+    clarityB: (r.clarity_b as ClarityPresetState | null) ?? null,
     createdAt: r.created_at as string,
   };
 }
@@ -64,6 +76,8 @@ export async function createEfoPreset(input: EfoPresetInput): Promise<EfoPreset>
       group_by: input.groupBy,
       segment_a: input.segmentA,
       segment_b: input.segmentB,
+      clarity_a: input.clarityA ?? null,
+      clarity_b: input.clarityB ?? null,
     })
     .select()
     .single();
