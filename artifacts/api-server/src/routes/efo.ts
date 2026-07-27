@@ -8,7 +8,7 @@ import {
   fetchEfoExitScenariosFromSupabase,
   fetchEcfAdAccessCvFromSupabase,
 } from "../lib/efo-supabase.js";
-import { listEfoPresets, createEfoPreset, deleteEfoPreset } from "../lib/efo-preset-supabase.js";
+import { listEfoPresets, createEfoPreset, updateEfoPresetName, deleteEfoPreset } from "../lib/efo-preset-supabase.js";
 import type { EfoAccessCvRow, EfoExitScenarioRow, EcfAdAccessCvRow, EfoExitScenarioCount } from "../lib/efo-types.js";
 
 const router: IRouter = Router();
@@ -202,6 +202,20 @@ router.post("/efo/presets", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to create efo preset");
     res.status(500).json({ error: "プリセット作成に失敗しました" });
+  }
+});
+
+router.patch("/efo/presets/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "無効なIDです" }); return; }
+    const { name } = req.body as { name?: string };
+    if (!name?.trim()) { res.status(400).json({ error: "プリセット名が空です" }); return; }
+    const preset = await updateEfoPresetName(id, name.trim());
+    res.json({ preset });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update efo preset");
+    res.status(500).json({ error: "プリセット更新に失敗しました" });
   }
 });
 

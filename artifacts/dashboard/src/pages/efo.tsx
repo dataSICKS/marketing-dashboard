@@ -8,6 +8,7 @@ import {
   useListCampaigns,
   useListEfoPresets,
   useCreateEfoPreset,
+  useUpdateEfoPreset,
   useDeleteEfoPreset,
   useGetSettings,
 } from "@workspace/api-client-react";
@@ -32,7 +33,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, ChevronDown, Trash2, X } from "lucide-react";
+import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, ChevronDown, Trash2, X, Pencil, Check } from "lucide-react";
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 
@@ -830,7 +831,7 @@ function PresetSaveModal({
           placeholder="プリセット名（例：5月CV改善テスト）"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) onSave(name.trim()); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && name.trim()) onSave(name.trim()); }}
         />
         <div className="flex justify-end gap-2 mt-4">
           <button
@@ -859,12 +860,32 @@ function PresetDropdown({
   presets,
   onSelect,
   onDelete,
+  onRename,
 }: {
   presets: EfoPreset[];
   onSelect: (p: EfoPreset) => void;
   onDelete: (id: number) => void;
+  onRename: (id: number, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const startRename = (e: React.MouseEvent, p: EfoPreset) => {
+    e.stopPropagation();
+    setRenamingId(p.id);
+    setRenameValue(p.name);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  };
+
+  const commitRename = () => {
+    if (renamingId !== null && renameValue.trim()) {
+      onRename(renamingId, renameValue.trim());
+    }
+    setRenamingId(null);
+  };
+
   if (presets.length === 0) return null;
   return (
     <div className="relative">
@@ -878,29 +899,67 @@ function PresetDropdown({
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setRenamingId(null); }} />
           <div
             className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg overflow-hidden"
-            style={{ background: "#fff", border: "1px solid #E5E7EB", minWidth: 220 }}
+            style={{ background: "#fff", border: "1px solid #E5E7EB", minWidth: 240 }}
           >
             {presets.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer group"
+                className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 group"
+                style={{ borderBottom: "1px solid #F9FAFB" }}
               >
-                <span
-                  className="text-sm truncate flex-1"
-                  style={{ color: "#1A1A1A" }}
-                  onClick={() => { onSelect(p); setOpen(false); }}
-                >
-                  {p.name}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
-                  className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={13} style={{ color: "#EF4444" }} />
-                </button>
+                {renamingId === p.id ? (
+                  <>
+                    <input
+                      ref={renameInputRef}
+                      className="flex-1 text-sm px-2 py-0.5 rounded border outline-none focus:ring-1"
+                      style={{ borderColor: "#E5E7EB", color: "#1A1A1A" }}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) commitRename();
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); commitRename(); }}
+                      className="shrink-0 p-1 rounded hover:bg-green-50"
+                    >
+                      <Check size={13} style={{ color: "#10B981" }} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(null); }}
+                      className="shrink-0 p-1 rounded hover:bg-gray-100"
+                    >
+                      <X size={13} style={{ color: "#9CA3AF" }} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className="text-sm flex-1 cursor-pointer truncate"
+                      style={{ color: "#1A1A1A" }}
+                      onClick={() => { onSelect(p); setOpen(false); }}
+                    >
+                      {p.name}
+                    </span>
+                    <button
+                      onClick={(e) => startRename(e, p)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-100"
+                    >
+                      <Pencil size={12} style={{ color: "#6B7280" }} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50"
+                    >
+                      <Trash2 size={12} style={{ color: "#EF4444" }} />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -973,6 +1032,14 @@ export default function EfoPage() {
   });
 
   const { mutate: removePreset } = useDeleteEfoPreset({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
+      },
+    },
+  });
+
+  const { mutate: renamePreset } = useUpdateEfoPreset({
     mutation: {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
@@ -1060,6 +1127,7 @@ export default function EfoPage() {
               presets={presets}
               onSelect={handleLoadPreset}
               onDelete={(id) => removePreset(id)}
+              onRename={(id, name) => renamePreset({ id, name })}
             />
             <button
               onClick={() => setShowPresetModal(true)}

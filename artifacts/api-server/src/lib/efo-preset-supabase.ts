@@ -74,6 +74,21 @@ export async function createEfoPreset(input: EfoPresetInput): Promise<EfoPreset>
   return toPreset(data);
 }
 
+export async function updateEfoPresetName(id: number, name: string): Promise<EfoPreset> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("efo_presets")
+    .update({ name })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) {
+    logger.error({ error }, "Failed to update efo_preset name");
+    throw new Error(`efo_preset更新失敗: ${error.message}`);
+  }
+  return toPreset(data);
+}
+
 export async function deleteEfoPreset(id: number): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("efo_presets").delete().eq("id", id);

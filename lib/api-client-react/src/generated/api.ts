@@ -576,6 +576,25 @@ export const useCreateEfoPreset = <
   });
 };
 
+export const updateEfoPreset = ({ id, name }: { id: number; name: string }) =>
+  customFetch<EfoPresetResponse>(`/api/efo/presets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+
+export const useUpdateEfoPreset = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<EfoPresetResponse, TError, { id: number; name: string }, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation<EfoPresetResponse, TError, { id: number; name: string }, TContext>({
+    mutationFn: (vars) => updateEfoPreset(vars),
+    ...mutationOptions,
+  });
+};
+
 export const deleteEfoPreset = (id: number) =>
   customFetch<void>(`/api/efo/presets/${id}`, { method: "DELETE" });
 
