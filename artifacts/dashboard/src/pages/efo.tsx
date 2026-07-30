@@ -113,14 +113,6 @@ function SegmentSelector({
             accentColor={color}
           />
         </div>
-        <div>
-          <div className="text-[10px] font-medium mb-1" style={{ color: "#9CA3AF" }}>期間</div>
-          <EfoDateRangePicker
-            value={filter.dateRange}
-            onChange={(r) => onChange({ ...filter, dateRange: r })}
-            accentColor={color}
-          />
-        </div>
       </div>
     </div>
   );
@@ -796,24 +788,6 @@ function ClarityPanel({
       <div className="px-4 py-2.5" style={{ background: color }}>
         <span className="text-sm font-bold" style={{ color: textOnColor }}>{SEG_LABELS[seg]}</span>
       </div>
-      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
-        <div className="text-[10px] font-medium mb-1.5" style={{ color: "#9CA3AF" }}>
-          期間{activeDate && <span className="ml-1 font-normal">（{activeDate}）</span>}
-        </div>
-        <EfoDateRangePicker value={dateRange} onChange={setDateRange} accentColor={color} />
-      </div>
-      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
-        <div className="text-[10px] font-medium mb-1.5" style={{ color: "#9CA3AF" }}>広告コード</div>
-        {filesLoading ? <Skeleton className="h-8 w-full" /> : (
-          <select value={effectiveAdCode} onChange={(e) => setSelectedAdCode(e.target.value)}
-            className="w-full text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer"
-            style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
-            disabled={adCodeOptions.length === 0}>
-            {adCodeOptions.map((a) => <option key={a.adCode} value={a.adCode}>{a.adCode}</option>)}
-            {adCodeOptions.length === 0 && <option value="">データなし</option>}
-          </select>
-        )}
-      </div>
       <div className="px-4 py-2 flex gap-1" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
         {DEVICE_TABS.map((tab) => (
           <button key={tab} onClick={() => setDevice(tab)}
@@ -845,11 +819,8 @@ function ClarityOverlayView({
     onClarityBChange({ ...clarityB, device: d });
   };
 
-  const setAdCodeA = (selectedAdCode: string) => onClarityAChange({ ...clarityA, selectedAdCode });
-  const setAdCodeB = (selectedAdCode: string) => onClarityBChange({ ...clarityB, selectedAdCode });
-
-  const dataA = useClarityData(clarityA, () => setAdCodeA(""));
-  const dataB = useClarityData(clarityB, () => setAdCodeB(""));
+  const dataA = useClarityData(clarityA, () => {});
+  const dataB = useClarityData(clarityB, () => {});
 
   // A と B の深度ポイントをマージして1行にまとめる
   const allDepths = useMemo(() => {
@@ -891,39 +862,6 @@ function ClarityOverlayView({
 
   return (
     <div>
-      {/* A / B 設定行 */}
-      <div className="grid grid-cols-2 gap-4 px-4 pt-4 pb-3" style={{ borderBottom: "1px solid #F0F0F0" }}>
-        {(["A", "B"] as const).map((seg) => {
-          const data = seg === "A" ? dataA : dataB;
-          const cs = seg === "A" ? clarityA : clarityB;
-          const setAdCode = seg === "A" ? setAdCodeA : setAdCodeB;
-          const setDateRange = (dr: EfoDateRange | null) =>
-            seg === "A" ? onClarityAChange({ ...clarityA, dateRange: dr }) : onClarityBChange({ ...clarityB, dateRange: dr });
-          const color = CLARITY_SEG_COLORS[seg];
-          const textOnColor = CLARITY_SEG_TEXT[seg];
-          return (
-            <div key={seg} className="rounded-lg overflow-hidden" style={{ border: `1.5px solid ${color}` }}>
-              <div className="px-3 py-1.5" style={{ background: color }}>
-                <span className="text-xs font-bold" style={{ color: textOnColor }}>{SEG_LABELS[seg]}</span>
-                {data.activeDate && <span className="ml-2 text-[10px] font-normal opacity-80" style={{ color: textOnColor }}>（{data.activeDate}）</span>}
-              </div>
-              <div className="p-2.5 flex flex-col gap-2" style={{ background: "#fff" }}>
-                <EfoDateRangePicker value={cs.dateRange} onChange={setDateRange} accentColor={color} />
-                {data.filesLoading ? <Skeleton className="h-7 w-full" /> : (
-                  <select value={data.effectiveAdCode} onChange={(e) => setAdCode(e.target.value)}
-                    className="w-full text-xs rounded-md px-2 py-1 outline-none cursor-pointer"
-                    style={{ border: "1px solid #E5E7EB", color: "#374151", background: "#FAFAFA" }}
-                    disabled={data.adCodeOptions.length === 0}>
-                    {data.adCodeOptions.map((a) => <option key={a.adCode} value={a.adCode}>{a.adCode}</option>)}
-                    {data.adCodeOptions.length === 0 && <option value="">データなし</option>}
-                  </select>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* 共通デバイスタブ + PV */}
       <div className="px-4 py-2 flex items-center gap-4" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
         <div className="flex gap-1">
@@ -1206,10 +1144,14 @@ export default function EfoPage() {
     const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
     return { from: fmt(fromD), to: fmt(toD) };
   })();
-  const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
-  const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: defaultDateRange });
-  const [clarityA, setClarityA] = useState<ClarityState>({ dateRange: defaultClarityDateRange(), selectedAdCode: "", device: "合計" });
-  const [clarityB, setClarityB] = useState<ClarityState>({ dateRange: defaultClarityDateRange(), selectedAdCode: "", device: "合計" });
+  const [sharedDateRange, setSharedDateRange] = useState<EfoDateRange | null>(defaultDateRange);
+  const [filterA, setFilterA] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
+  const [filterB, setFilterB] = useState<SegmentFilter>({ profileNames: [], adCodes: [], dateRange: null });
+  const [deviceA, setDeviceA] = useState<DeviceTab>("合計");
+  const [deviceB, setDeviceB] = useState<DeviceTab>("合計");
+  // clarityA/B は共通期間とパターン内広告コードから導出
+  const clarityA: ClarityState = { dateRange: sharedDateRange, selectedAdCode: filterA.adCodes[0] ?? "", device: deviceA };
+  const clarityB: ClarityState = { dateRange: sharedDateRange, selectedAdCode: filterB.adCodes[0] ?? "", device: deviceB };
   const [showPresetModal, setShowPresetModal] = useState(false);
   const queryClient = useQueryClient();
 
@@ -1218,8 +1160,8 @@ export default function EfoPage() {
     dateTo: dateRange?.to ? dateRange.to.replace(/\//g, "-") : undefined,
   });
 
-  const { data: filtersDataA } = useGetEfoFilters(toFilterParams(filterA.dateRange));
-  const { data: filtersDataB } = useGetEfoFilters(toFilterParams(filterB.dateRange));
+  const { data: filtersDataA } = useGetEfoFilters(toFilterParams(sharedDateRange));
+  const { data: filtersDataB } = useGetEfoFilters(toFilterParams(sharedDateRange));
   const profilesA = filtersDataA?.profileNames ?? [];
   const adCodesA = filtersDataA?.adCodes ?? [];
   const profilesB = filtersDataB?.profileNames ?? [];
@@ -1232,8 +1174,8 @@ export default function EfoPage() {
     groupBy,
     ...(filter.profileNames.length ? { profileName: filter.profileNames.join(",") } : {}),
     ...(filter.adCodes.length ? { adCode: filter.adCodes.join(",") } : {}),
-    ...(filter.dateRange?.from ? { dateFrom: filter.dateRange.from.replace(/\//g, "-") } : {}),
-    ...(filter.dateRange?.to ? { dateTo: filter.dateRange.to.replace(/\//g, "-") } : {}),
+    ...(sharedDateRange?.from ? { dateFrom: sharedDateRange.from.replace(/\//g, "-") } : {}),
+    ...(sharedDateRange?.to ? { dateTo: sharedDateRange.to.replace(/\//g, "-") } : {}),
   });
   const { data: dataA, isLoading: isLoadingA } = useGetEfoData(buildParams(filterA));
   const { data: dataB, isLoading: isLoadingB } = useGetEfoData(buildParams(filterB));
@@ -1279,61 +1221,32 @@ export default function EfoPage() {
   const handleSavePreset = (name: string) => {
     const toIsoRange = (dr: EfoDateRange | null) =>
       dr ? { from: dr.from.replace(/\//g, "-"), to: dr.to.replace(/\//g, "-") } : null;
+    const sharedIso = {
+      dateFrom: sharedDateRange?.from?.replace(/\//g, "-") ?? null,
+      dateTo: sharedDateRange?.to?.replace(/\//g, "-") ?? null,
+    };
     savePreset({
       name,
       groupBy,
-      segmentA: {
-        dateFrom: filterA.dateRange?.from?.replace(/\//g, "-") ?? null,
-        dateTo: filterA.dateRange?.to?.replace(/\//g, "-") ?? null,
-        profileNames: filterA.profileNames,
-        adCodes: filterA.adCodes,
-      },
-      segmentB: {
-        dateFrom: filterB.dateRange?.from?.replace(/\//g, "-") ?? null,
-        dateTo: filterB.dateRange?.to?.replace(/\//g, "-") ?? null,
-        profileNames: filterB.profileNames,
-        adCodes: filterB.adCodes,
-      },
-      clarityA: { dateRange: toIsoRange(clarityA.dateRange), adCode: clarityA.selectedAdCode, device: clarityA.device },
-      clarityB: { dateRange: toIsoRange(clarityB.dateRange), adCode: clarityB.selectedAdCode, device: clarityB.device },
+      segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
+      segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
+      clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
+      clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
     });
   };
 
   const handleLoadPreset = (p: EfoPreset) => {
     const toRange = (from: string | null | undefined, to: string | null | undefined): EfoDateRange | null => {
       if (!from && !to) return null;
-      return {
-        from: from?.replace(/-/g, "/") ?? "",
-        to: to?.replace(/-/g, "/") ?? "",
-      };
+      return { from: from?.replace(/-/g, "/") ?? "", to: to?.replace(/-/g, "/") ?? "" };
     };
     setGroupBy(p.groupBy as GroupBy);
-    setFilterA({
-      profileNames: p.segmentA.profileNames,
-      adCodes: p.segmentA.adCodes,
-      dateRange: toRange(p.segmentA.dateFrom, p.segmentA.dateTo),
-    });
-    setFilterB({
-      profileNames: p.segmentB.profileNames,
-      adCodes: p.segmentB.adCodes,
-      dateRange: toRange(p.segmentB.dateFrom, p.segmentB.dateTo),
-    });
-    if (p.clarityA) {
-      const dr = p.clarityA.dateRange;
-      setClarityA({
-        dateRange: dr ? { from: dr.from.replace(/-/g, "/"), to: dr.to.replace(/-/g, "/") } : null,
-        selectedAdCode: p.clarityA.adCode,
-        device: (p.clarityA.device as DeviceTab) || "合計",
-      });
-    }
-    if (p.clarityB) {
-      const dr = p.clarityB.dateRange;
-      setClarityB({
-        dateRange: dr ? { from: dr.from.replace(/-/g, "/"), to: dr.to.replace(/-/g, "/") } : null,
-        selectedAdCode: p.clarityB.adCode,
-        device: (p.clarityB.device as DeviceTab) || "合計",
-      });
-    }
+    // 共通期間は segmentA の期間を使用
+    setSharedDateRange(toRange(p.segmentA.dateFrom, p.segmentA.dateTo));
+    setFilterA({ profileNames: p.segmentA.profileNames, adCodes: p.segmentA.adCodes, dateRange: null });
+    setFilterB({ profileNames: p.segmentB.profileNames, adCodes: p.segmentB.adCodes, dateRange: null });
+    if (p.clarityA) setDeviceA((p.clarityA.device as DeviceTab) || "合計");
+    if (p.clarityB) setDeviceB((p.clarityB.device as DeviceTab) || "合計");
   };
 
   return (
@@ -1400,19 +1313,19 @@ export default function EfoPage() {
       </div>
 
       <div className="flex-1 p-6 space-y-4">
-        {/* Segment Selectors */}
-        <div className="flex gap-4">
-          <SegmentSelector seg="A" filter={filterA} profiles={profilesA} adCodes={adCodesA} onChange={setFilterA} />
-          <SegmentSelector seg="B" filter={filterB} profiles={profilesB} adCodes={adCodesB} onChange={setFilterB} />
+        {/* 条件指定：共通期間 + A/B セグメントセレクタ */}
+        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E5E7EB", background: "#fff" }}>
+          <div className="px-4 py-3" style={{ borderBottom: "1px solid #F0F0F0" }}>
+            <div className="text-[10px] font-medium mb-1.5" style={{ color: "#9CA3AF" }}>期間（共通）</div>
+            <EfoDateRangePicker value={sharedDateRange} onChange={setSharedDateRange} />
+          </div>
+          <div className="p-4 flex gap-4">
+            <SegmentSelector seg="A" filter={filterA} profiles={profilesA} adCodes={adCodesA} onChange={setFilterA} />
+            <SegmentSelector seg="B" filter={filterB} profiles={profilesB} adCodes={adCodesB} onChange={setFilterB} />
+          </div>
         </div>
 
-        {/* Side-by-side Panels */}
-        <div className="flex gap-4 items-start">
-          <SegmentPanel seg="A" groupBy={groupBy} filter={filterA} campaigns={allCampaigns} />
-          <SegmentPanel seg="B" groupBy={groupBy} filter={filterB} campaigns={allCampaigns} />
-        </div>
-
-        {/* Comparison Diff Table */}
+        {/* セグメント比較サマリー */}
         <ComparisonDiffTable
           summaryA={dataA?.summary}
           summaryB={dataB?.summary}
@@ -1420,13 +1333,19 @@ export default function EfoPage() {
           isLoadingB={isLoadingB}
         />
 
-        {/* Clarity Scroll Depth */}
+        {/* スクロール深度分析 */}
         <ClarityScrollSection
           clarityA={clarityA}
           clarityB={clarityB}
-          onClarityAChange={setClarityA}
-          onClarityBChange={setClarityB}
+          onClarityAChange={(s) => setDeviceA(s.device)}
+          onClarityBChange={(s) => setDeviceB(s.device)}
         />
+
+        {/* チャットボット内のデータ */}
+        <div className="flex gap-4 items-start">
+          <SegmentPanel seg="A" groupBy={groupBy} filter={{ ...filterA, dateRange: sharedDateRange }} campaigns={allCampaigns} />
+          <SegmentPanel seg="B" groupBy={groupBy} filter={{ ...filterB, dateRange: sharedDateRange }} campaigns={allCampaigns} />
+        </div>
       </div>
     </div>
   );
