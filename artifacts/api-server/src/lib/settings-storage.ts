@@ -6,10 +6,12 @@ const FILE = "config.json";
 
 export interface AppSettings {
   clarityTargetUrls: string[];
+  adCodes: string[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   clarityTargetUrls: [],
+  adCodes: [],
 };
 
 function getSupabase() {
@@ -49,6 +51,7 @@ export async function getSettings(): Promise<AppSettings> {
 
     return {
       clarityTargetUrls: Array.isArray(raw.clarityTargetUrls) ? (raw.clarityTargetUrls as string[]) : [],
+      adCodes: Array.isArray(raw.adCodes) ? (raw.adCodes as string[]) : [],
     };
   } catch (err) {
     logger.warn({ err }, "設定の読み込みに失敗しました。デフォルト値を使用します");

@@ -219,8 +219,10 @@ export type EfoPresetResponse = {
 
 export type AppSettings = {
   clarityTargetUrls: string[];
+  adCodes: string[];
 };
 
 export type AppSettingsInput = {
   clarityTargetUrls?: string[];
+  adCodes?: string[];
 };

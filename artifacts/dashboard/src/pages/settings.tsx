@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Link2 } from "lucide-react";
+import { Plus, X, Link2, Tag } from "lucide-react";
 import { useGetSettings, useUpdateSettings, useGetClarityFiles } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: settings, isLoading: settingsLoading } = useGetSettings();
   const { mutate: update, isPending } = useUpdateSettings({
     mutation: {
       onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
         toast({ title: "設定を保存しました" });
       },
       onError: () => {
@@ -21,27 +24,33 @@ export default function SettingsPage() {
   const { data: clarityFiles, isLoading: filesLoading } = useGetClarityFiles();
 
   const [urls, setUrls] = useState<string[]>([""]);
+  const [adCodes, setAdCodes] = useState<string[]>([""]);
 
   useEffect(() => {
     if (settings) {
       setUrls(settings.clarityTargetUrls.length > 0 ? settings.clarityTargetUrls : [""]);
+      setAdCodes(settings.adCodes.length > 0 ? settings.adCodes : [""]);
     }
   }, [settings]);
 
+  // ─── URL helpers ────────────────────────────────────────────────
   const addUrl = () => setUrls((prev) => [...prev, ""]);
-
   const removeUrl = (i: number) =>
-    setUrls((prev) => {
-      const next = prev.filter((_, idx) => idx !== i);
-      return next.length === 0 ? [""] : next;
-    });
-
+    setUrls((prev) => { const next = prev.filter((_, idx) => idx !== i); return next.length === 0 ? [""] : next; });
   const changeUrl = (i: number, val: string) =>
     setUrls((prev) => prev.map((u, idx) => (idx === i ? val : u)));
 
+  // ─── adCode helpers ─────────────────────────────────────────────
+  const addAdCode = () => setAdCodes((prev) => [...prev, ""]);
+  const removeAdCode = (i: number) =>
+    setAdCodes((prev) => { const next = prev.filter((_, idx) => idx !== i); return next.length === 0 ? [""] : next; });
+  const changeAdCode = (i: number, val: string) =>
+    setAdCodes((prev) => prev.map((c, idx) => (idx === i ? val : c)));
+
   const handleSave = () => {
-    const filtered = urls.map((u) => u.trim()).filter(Boolean);
-    update({ clarityTargetUrls: filtered });
+    const filteredUrls = urls.map((u) => u.trim()).filter(Boolean);
+    const filteredAdCodes = adCodes.map((c) => c.trim()).filter(Boolean);
+    update({ clarityTargetUrls: filteredUrls, adCodes: filteredAdCodes });
   };
 
   const dates = clarityFiles?.dates ?? [];
@@ -49,6 +58,57 @@ export default function SettingsPage() {
   return (
     <div className="p-6 md:p-8 max-w-2xl flex flex-col gap-6">
       <h1 className="text-xl font-bold" style={{ color: "#1A1A1A" }}>設定</h1>
+
+      {/* 広告コード設定 */}
+      <div className="rounded-xl border p-6" style={{ background: "#fff", borderColor: "#EBEBEB" }}>
+        <div className="flex items-center gap-2 mb-1">
+          <Tag size={14} style={{ color: "#374151" }} />
+          <h2 className="text-sm font-semibold" style={{ color: "#374151" }}>
+            CVRレポート — 広告コード
+          </h2>
+        </div>
+        <p className="text-xs mb-4" style={{ color: "#9CA3AF" }}>
+          条件指定の広告コード選択肢に表示するコードを登録します。未登録の場合はデータに存在する全コードが表示されます。
+        </p>
+
+        <div className="flex flex-col gap-2">
+          {(settingsLoading ? [""] : adCodes).map((code, i) => (
+            <div key={i} className="flex items-center gap-2">
+              {settingsLoading ? (
+                <div className="flex-1 h-9 rounded-lg animate-pulse" style={{ background: "#F3F4F6" }} />
+              ) : (
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => changeAdCode(i, e.target.value)}
+                  placeholder="例: ad_code_001"
+                  className="flex-1 h-9 rounded-lg border px-3 text-sm outline-none transition-colors"
+                  style={{ borderColor: "#E5E7EB", color: "#1A1A1A", background: "#FAFAFA" }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#FBBF24")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "#E5E7EB")}
+                />
+              )}
+              <button
+                onClick={() => removeAdCode(i)}
+                disabled={adCodes.length === 1}
+                className="p-1.5 rounded-md transition-colors disabled:opacity-30"
+                style={{ color: "#9CA3AF" }}
+                title="削除"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={addAdCode}
+          className="mt-2 flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+          style={{ color: "#FBBF24" }}
+        >
+          <Plus size={13} /> 広告コードを追加
+        </button>
+      </div>
 
       {/* URL フィルター設定 */}
       <div className="rounded-xl border p-6" style={{ background: "#fff", borderColor: "#EBEBEB" }}>
@@ -96,17 +156,18 @@ export default function SettingsPage() {
         >
           <Plus size={13} /> URL を追加
         </button>
+      </div>
 
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={isPending || settingsLoading}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-50"
-            style={{ background: "#FBBF24", color: "#fff" }}
-          >
-            {isPending ? "保存中…" : "保存する"}
-          </button>
-        </div>
+      {/* 保存ボタン（共通） */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={isPending || settingsLoading}
+          className="px-5 py-2 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-50"
+          style={{ background: "#FBBF24", color: "#fff" }}
+        >
+          {isPending ? "保存中…" : "保存する"}
+        </button>
       </div>
 
       {/* Clarity 取得済みデータ一覧 */}

@@ -1162,10 +1162,13 @@ export default function EfoPage() {
 
   const { data: filtersDataA } = useGetEfoFilters(toFilterParams(sharedDateRange));
   const { data: filtersDataB } = useGetEfoFilters(toFilterParams(sharedDateRange));
+  const { data: efoSettings } = useGetSettings();
   const profilesA = filtersDataA?.profileNames ?? [];
-  const adCodesA = filtersDataA?.adCodes ?? [];
   const profilesB = filtersDataB?.profileNames ?? [];
-  const adCodesB = filtersDataB?.adCodes ?? [];
+  // 設定画面で登録済みの広告コードがあればそちらを優先、なければDBから取得した全コードを使用
+  const settingsAdCodes = efoSettings?.adCodes ?? [];
+  const adCodesA = settingsAdCodes.length > 0 ? settingsAdCodes : (filtersDataA?.adCodes ?? []);
+  const adCodesB = settingsAdCodes.length > 0 ? settingsAdCodes : (filtersDataB?.adCodes ?? []);
 
   const { data: campaignsData } = useListCampaigns();
   const allCampaigns = campaignsData?.campaigns ?? [];
