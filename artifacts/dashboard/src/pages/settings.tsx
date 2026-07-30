@@ -28,8 +28,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (settings) {
-      setUrls(settings.clarityTargetUrls.length > 0 ? settings.clarityTargetUrls : [""]);
-      setAdCodes(settings.adCodes.length > 0 ? settings.adCodes : [""]);
+      setUrls((settings.clarityTargetUrls?.length ?? 0) > 0 ? settings.clarityTargetUrls : [""]);
+      setAdCodes((settings.adCodes?.length ?? 0) > 0 ? settings.adCodes : [""]);
     }
   }, [settings]);
 
