@@ -586,7 +586,7 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
   const dates = datesData?.dates ?? [];
   const activeDate = useMemo(() => resolveActiveDate(dates, dateRange), [dates, dateRange]);
   const { data: settingsData } = useGetSettings();
-  const allowedAdCodes = settingsData?.clarityTargetUrls ?? [];
+  const allowedAdCodes = settingsData?.adCodes ?? [];
   const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
     activeDate ? { date: activeDate } : undefined,
     { query: { enabled: !!activeDate } },

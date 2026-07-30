@@ -9,14 +9,11 @@ router.get("/settings", async (req, res) => {
 });
 
 router.put("/settings", async (req, res) => {
-  const { clarityTargetUrls, adCodes } = req.body as { clarityTargetUrls?: string[]; adCodes?: string[] };
-  const urls = Array.isArray(clarityTargetUrls)
-    ? clarityTargetUrls.map((u) => u.trim()).filter(Boolean)
-    : [];
+  const { adCodes } = req.body as { adCodes?: string[] };
   const codes = Array.isArray(adCodes)
     ? adCodes.map((c) => c.trim()).filter(Boolean)
     : [];
-  const updated = await updateSettings({ clarityTargetUrls: urls, adCodes: codes });
+  const updated = await updateSettings({ adCodes: codes });
   res.json(updated);
 });
 

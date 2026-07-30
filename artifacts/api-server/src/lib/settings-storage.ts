@@ -5,12 +5,10 @@ const BUCKET = "app-settings";
 const FILE = "config.json";
 
 export interface AppSettings {
-  clarityTargetUrls: string[];
   adCodes: string[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  clarityTargetUrls: [],
   adCodes: [],
 };
 
@@ -49,10 +47,13 @@ export async function getSettings(): Promise<AppSettings> {
       raw.clarityTargetUrls = [raw.clarityTargetUrl as string];
     }
 
-    return {
-      clarityTargetUrls: Array.isArray(raw.clarityTargetUrls) ? (raw.clarityTargetUrls as string[]) : [],
-      adCodes: Array.isArray(raw.adCodes) ? (raw.adCodes as string[]) : [],
-    };
+    // 旧フォーマット移行: clarityTargetUrls → adCodes
+    const adCodes = Array.isArray(raw.adCodes)
+      ? (raw.adCodes as string[])
+      : Array.isArray(raw.clarityTargetUrls)
+        ? (raw.clarityTargetUrls as string[])
+        : [];
+    return { adCodes };
   } catch (err) {
     logger.warn({ err }, "設定の読み込みに失敗しました。デフォルト値を使用します");
     return { ...DEFAULT_SETTINGS };
