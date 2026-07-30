@@ -680,8 +680,8 @@ function MatrixView({
   const baseParams = {
     timeGroupBy,
     metrics: selectedMetrics.join(","),
-    scenarios: selectedScenarios.join(","),
-    templates: selectedTemplates.join(","),
+    scenarios: selectedScenarios.join("|"),
+    templates: selectedTemplates.join("|"),
   };
 
   const toIso = (s: string | undefined) => s?.replace(/\//g, "-");

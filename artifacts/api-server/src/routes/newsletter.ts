@@ -206,8 +206,8 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     const timeGroupBy = (validTime.includes(q.timeGroupBy ?? "") ? q.timeGroupBy : "month") as "day" | "week" | "month";
     const rawMetrics = q.metrics ? q.metrics.split(",").map((s) => s.trim()).filter((s) => validMetric.includes(s)) as MatrixMetric[] : [];
     const metrics = rawMetrics.length > 0 ? rawMetrics : (["deliveryCount"] as MatrixMetric[]);
-    const scenarios = q.scenarios ? q.scenarios.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const templates = q.templates ? q.templates.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const scenarios = q.scenarios ? q.scenarios.split("|").map((s) => s.trim()).filter(Boolean) : [];
+    const templates = q.templates ? q.templates.split("|").map((s) => s.trim()).filter(Boolean) : [];
 
     let rows = allRows;
     const toIsoMtx = (s: string) => s.replace(/\//g, "-");
