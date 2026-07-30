@@ -674,7 +674,7 @@ function ClarityScrollChart({
   device: DeviceTab;
   isLoading: boolean;
 }) {
-  const autoHeight = Math.max(240, chartData.length * 18 + 48);
+  const autoHeight = 320;
   const [manualHeight, setManualHeight] = useState<number | null>(null);
   const chartHeight = manualHeight ?? autoHeight;
 
@@ -708,11 +708,12 @@ function ClarityScrollChart({
     </div>
   ) : (
     <ResponsiveContainer width="100%" height={chartHeight}>
-      <ComposedChart layout="vertical" data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#F3F4F6" />
-        <XAxis type="number" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false}
+      <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 24 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} horizontal={true} stroke="#F3F4F6" />
+        <XAxis type="category" dataKey="depth" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false}
+          interval={Math.max(0, Math.ceil(chartData.length / 20) - 1)} angle={-45} textAnchor="end" />
+        <YAxis type="number" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={40}
           tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)} />
-        <YAxis type="category" dataKey="depth" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={30} />
         <Tooltip content={<TooltipContent />} />
         {lines.map(({ key, color, dashed }) => (
           <Line key={key} type="monotone" dataKey={key} stroke={color} strokeWidth={2.5}
