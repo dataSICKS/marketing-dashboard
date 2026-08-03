@@ -1,7 +1,8 @@
 """Clarity スクロールヒートマップを CSV/PNG でダウンロードし Supabase Storage へ保存。
 
 - 永続プロファイル(chrome_profile/)のセッションを再利用（再ログイン不要）
-- 対象: config.yml の pages（広告コード）× devices（Desktop/Mobile）
+- 対象: 管理画面設定(app-settings/config.json の clarityTargetUrls) ＋ config.yml の pages
+  を合わせた広告コード × devices（Desktop/Mobile）。target_adcodes() 参照
 - 各ヒートマップ画面URLを直接組み立てて遷移 → スクロール選択 → デバイス選択
   → 「CSV をダウンロード」「PNG をダウンロード」を取得
 - ローカル downloads/ に保存し、Supabase Storage バケットへアップロード
@@ -150,6 +151,48 @@ def download_one(page, adcode, device, date_str):
     return saved
 
 
+SETTINGS_BUCKET = "app-settings"
+SETTINGS_FILE = "config.json"
+
+
+def admin_target_urls():
+    """管理画面(app-settings/config.json)の clarityTargetUrls を取得。失敗時は空リスト。"""
+    base = SB["url"].rstrip("/")
+    key = SB["service_role_key"]
+    try:
+        r = requests.get(
+            f"{base}/storage/v1/object/{SETTINGS_BUCKET}/{SETTINGS_FILE}",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"}, timeout=30)
+        r.raise_for_status()
+        return list(r.json().get("clarityTargetUrls", []))
+    except Exception as e:
+        print(f"警告: 管理画面設定の取得に失敗 ({e}) → config.yml の pages のみを対象にします",
+              flush=True)
+        return []
+
+
+def target_adcodes():
+    """取得対象の広告コード。管理画面(clarityTargetUrls)を正としつつ config.yml の pages も含める。
+
+    管理画面に登録したURLが日次cronの対象から漏れる事故を防ぐため。
+    2026-08-03: ch_1_a / ch_1_b が管理画面にだけあり、日次では一度も取得されていなかった
+    （日次は config.yml の pages しか見ていなかった）。
+    config.yml のみのコードを取得対象から外したい場合は末尾の only_yml を返り値から除く。
+    """
+    admin = admin_target_urls()
+    pages = list(CL.get("pages", []))
+    only_admin = [a for a in admin if a not in pages]
+    only_yml = [p for p in pages if p not in admin]
+    targets = admin + only_yml
+    print(f"対象広告コード: {len(targets)}件"
+          f"（管理画面 {len(admin)}件 / config.ymlのみ {len(only_yml)}件）", flush=True)
+    if only_admin:
+        print(f"  管理画面のみ（config.yml未登録）: {', '.join(only_admin)}", flush=True)
+    if only_yml:
+        print(f"  config.ymlのみ（管理画面未登録）: {', '.join(only_yml)}", flush=True)
+    return targets
+
+
 def upload_to_supabase(path, date_str):
     """Supabase Storage バケットへアップロード（{date}/{filename}）。"""
     base = SB["url"].rstrip("/")
@@ -180,7 +223,7 @@ def main():
             user_data_dir=str(HERE / "chrome_profile"), headless=True,
             accept_downloads=True)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        for adcode in CL["pages"]:
+        for adcode in target_adcodes():
             for device in CL["devices"]:
                 try:
                     files = download_one(page, adcode, device, date_str)

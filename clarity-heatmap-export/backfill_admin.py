@@ -20,10 +20,8 @@ from datetime import date, timedelta
 import requests
 from playwright.sync_api import sync_playwright
 
-from export import CL, SB, download_one, upload_to_supabase
+from export import CL, SB, admin_target_urls, download_one, upload_to_supabase
 
-SETTINGS_BUCKET = "app-settings"
-SETTINGS_FILE = "config.json"
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
 FNAME_RE = re.compile(r"^(.+?)_(Desktop|Mobile)_scroll_.*\.csv$")
 
@@ -31,16 +29,6 @@ FNAME_RE = re.compile(r"^(.+?)_(Desktop|Mobile)_scroll_.*\.csv$")
 def _headers():
     key = SB["service_role_key"]
     return {"apikey": key, "Authorization": f"Bearer {key}"}
-
-
-def admin_target_urls() -> list[str]:
-    """管理画面の設定 clarityTargetUrls を取得。"""
-    base = SB["url"].rstrip("/")
-    r = requests.get(
-        f"{base}/storage/v1/object/{SETTINGS_BUCKET}/{SETTINGS_FILE}",
-        headers=_headers(), timeout=30)
-    r.raise_for_status()
-    return list(r.json().get("clarityTargetUrls", []))
 
 
 def existing_combos(date_str: str) -> set[tuple[str, str]]:
