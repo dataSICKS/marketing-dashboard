@@ -1,8 +1,8 @@
 """Clarity スクロールヒートマップを CSV/PNG でダウンロードし Supabase Storage へ保存。
 
 - 永続プロファイル(chrome_profile/)のセッションを再利用（再ログイン不要）
-- 対象: 管理画面設定(app-settings/config.json の clarityTargetUrls) ＋ config.yml の pages
-  を合わせた広告コード × devices（Desktop/Mobile）。target_adcodes() 参照
+- 対象: 管理画面設定(app-settings/config.json の clarityTargetUrls) の広告コード
+  × devices（Desktop/Mobile）。config.yml の pages は対象判定に使わない。target_adcodes() 参照
 - 各ヒートマップ画面URLを直接組み立てて遷移 → スクロール選択 → デバイス選択
   → 「CSV をダウンロード」「PNG をダウンロード」を取得
 - ローカル downloads/ に保存し、Supabase Storage バケットへアップロード
@@ -172,25 +172,26 @@ def admin_target_urls():
 
 
 def target_adcodes():
-    """取得対象の広告コード。管理画面(clarityTargetUrls)を正としつつ config.yml の pages も含める。
+    """取得対象の広告コード＝**管理画面設定(clarityTargetUrls)のみ**。
 
-    管理画面に登録したURLが日次cronの対象から漏れる事故を防ぐため。
-    2026-08-03: ch_1_a / ch_1_b が管理画面にだけあり、日次では一度も取得されていなかった
-    （日次は config.yml の pages しか見ていなかった）。
-    config.yml のみのコードを取得対象から外したい場合は末尾の only_yml を返り値から除く。
+    2026-08-03: 管理画面に登録されたLPだけを対象にする方針。
+    以前は config.yml の pages しか見ておらず、管理画面にだけ登録された
+    ch_1_a / ch_1_b が7/27以降ずっと取得漏れになっていた。二重管理でズレるため
+    管理画面を単一の正とし、config.yml の pages は対象判定に使わない
+    （差分をログに出すだけ。管理画面に足せば翌朝の実行から対象に入る）。
+
+    設定が取れない/空のときは黙って0件実行にせず中止する（無音の取得漏れを防ぐ）。
     """
     admin = admin_target_urls()
-    pages = list(CL.get("pages", []))
-    only_admin = [a for a in admin if a not in pages]
-    only_yml = [p for p in pages if p not in admin]
-    targets = admin + only_yml
-    print(f"対象広告コード: {len(targets)}件"
-          f"（管理画面 {len(admin)}件 / config.ymlのみ {len(only_yml)}件）", flush=True)
-    if only_admin:
-        print(f"  管理画面のみ（config.yml未登録）: {', '.join(only_admin)}", flush=True)
-    if only_yml:
-        print(f"  config.ymlのみ（管理画面未登録）: {', '.join(only_yml)}", flush=True)
-    return targets
+    if not admin:
+        print("エラー: 管理画面設定(clarityTargetUrls)が空、または取得に失敗したため中止します。"
+              "管理画面で対象URLを登録してください。", flush=True)
+        sys.exit(1)
+    dropped = [p for p in CL.get("pages", []) if p not in admin]
+    print(f"対象広告コード: {len(admin)}件（管理画面設定）", flush=True)
+    if dropped:
+        print(f"  対象外（config.ymlにのみ存在・取得しません）: {', '.join(dropped)}", flush=True)
+    return admin
 
 
 def upload_to_supabase(path, date_str):

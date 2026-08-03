@@ -28,24 +28,23 @@ python3 export.py                # 前日分（JST, date=Yesterday）
 python3 export.py 2026-06-23     # 指定日（Custom）
 ```
 
-## 取得対象の広告コード（2系統・重要）
+## 取得対象の広告コード（管理画面設定が単一の正）
 
-`export.py` の `target_adcodes()` が、次の2つを**合わせて**対象にする。
+`export.py` の `target_adcodes()` が **管理画面設定のみ**を対象にする。
 
-1. **管理画面設定**（正）… Supabase Storage `app-settings/config.json` の `clarityTargetUrls`
-2. `config.yml` の `clarity.pages`（旧来のリスト）
+- 正: Supabase Storage `app-settings/config.json` の `clarityTargetUrls`
+- **対象を増やす/減らすのは管理画面での登録操作だけ**。翌朝7:30の実行から反映される
+- `config.yml` の `clarity.pages` は対象判定に**使わない**（管理画面に無いコードは
+  「対象外」としてログに出るだけ）
+- 設定が空/取得失敗のときは0件実行せず**エラー終了**する（無音の取得漏れを防ぐため）
 
-実行時に内訳（管理画面のみ / config.ymlのみ）をログに出すので、ズレはログで確認できる。
-
-> 2026-08-03修正: 以前は日次cronが `config.yml` の `pages` **のみ**を見ていたため、
+> 経緯: 2026-08-03まで日次cronは `config.yml` の `pages` のみを見ていたため、
 > 管理画面にだけ登録された `ch_1_a` / `ch_1_b` が7/27以降ずっと取得されていなかった。
-> 管理画面に登録すれば翌朝の実行から対象に入る。
-> `config.yml` のみのコードを外したい場合は `target_adcodes()` の `only_yml` を返り値から除く。
+> 二重管理を廃止し管理画面を正に一本化した（欠損分は `backfill_admin.py` で復旧済み）。
 
 ## 設定（config.yml / gitignore）
 
-- `clarity.pages` … 対象の広告コード（`lp?u=<code>` で部分一致＝「を含む」検索）。
-  管理画面設定と合算されるため、こちらだけに書いたコードも取得される
+- `clarity.pages` … **対象判定には未使用**（管理画面設定との差分表示のみ。上記参照）
 - `clarity.devices` … [Desktop, Mobile]
 - `clarity.heatmap_type` … scroll
 - `supabase.url` / `service_role_key` / `storage_bucket`（clarity-heatmaps）
