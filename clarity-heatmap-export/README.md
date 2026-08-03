@@ -28,9 +28,24 @@ python3 export.py                # 前日分（JST, date=Yesterday）
 python3 export.py 2026-06-23     # 指定日（Custom）
 ```
 
+## 取得対象の広告コード（2系統・重要）
+
+`export.py` の `target_adcodes()` が、次の2つを**合わせて**対象にする。
+
+1. **管理画面設定**（正）… Supabase Storage `app-settings/config.json` の `clarityTargetUrls`
+2. `config.yml` の `clarity.pages`（旧来のリスト）
+
+実行時に内訳（管理画面のみ / config.ymlのみ）をログに出すので、ズレはログで確認できる。
+
+> 2026-08-03修正: 以前は日次cronが `config.yml` の `pages` **のみ**を見ていたため、
+> 管理画面にだけ登録された `ch_1_a` / `ch_1_b` が7/27以降ずっと取得されていなかった。
+> 管理画面に登録すれば翌朝の実行から対象に入る。
+> `config.yml` のみのコードを外したい場合は `target_adcodes()` の `only_yml` を返り値から除く。
+
 ## 設定（config.yml / gitignore）
 
-- `clarity.pages` … 対象の広告コード（`lp?u=<code>` で部分一致＝「を含む」検索）
+- `clarity.pages` … 対象の広告コード（`lp?u=<code>` で部分一致＝「を含む」検索）。
+  管理画面設定と合算されるため、こちらだけに書いたコードも取得される
 - `clarity.devices` … [Desktop, Mobile]
 - `clarity.heatmap_type` … scroll
 - `supabase.url` / `service_role_key` / `storage_bucket`（clarity-heatmaps）
