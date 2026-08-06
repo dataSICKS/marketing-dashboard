@@ -499,17 +499,21 @@ function SegmentPanel({
   campaigns?: Campaign[];
 }) {
   const color = SEG_COLORS[seg];
-  const params = {
-    groupBy,
+  const baseFilter = {
     ...(filter.profileNames.length ? { profileName: filter.profileNames.join(",") } : {}),
     ...(filter.adCodes.length ? { adCode: filter.adCodes.join(",") } : {}),
     ...(filter.dateRange?.from ? { dateFrom: filter.dateRange.from.replace(/\//g, "-") } : {}),
     ...(filter.dateRange?.to ? { dateTo: filter.dateRange.to.replace(/\//g, "-") } : {}),
   };
+  const params = { groupBy, ...baseFilter };
+  // テーブルは常に日別で表示（チャートの粒度とは独立）
+  const tableParams = { groupBy: "day" as GroupBy, ...baseFilter };
   const { data, isLoading, error } = useGetEfoData(params);
+  const { data: tableData, isLoading: isTableLoading } = useGetEfoData(tableParams);
 
   const summary = data?.summary;
   const items = data?.items ?? [];
+  const tableItems = tableData?.items ?? [];
   const exitScenarios = data?.exitScenarios ?? [];
 
   const campaignLines = useMemo<Campaign[]>(() => {
@@ -551,8 +555,11 @@ function SegmentPanel({
         )}
       </div>
 
-      {/* Table */}
-      {!isLoading && items.length > 0 && <DataTable items={items} />}
+      {/* Table（常に日別） */}
+      {isTableLoading
+        ? <div className="px-4 py-3"><Skeleton className="h-24 w-full" /></div>
+        : tableItems.length > 0 && <DataTable items={tableItems} />
+      }
     </div>
   );
 }
