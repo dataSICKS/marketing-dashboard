@@ -9,6 +9,7 @@ import {
   useListEfoPresets,
   useCreateEfoPreset,
   useUpdateEfoPreset,
+  useOverwriteEfoPreset,
   useDeleteEfoPreset,
   useGetSettings,
 } from "@workspace/api-client-react";
@@ -1153,7 +1154,27 @@ export default function EfoPage() {
   const clarityA: ClarityState = { dateRange: sharedDateRange, selectedAdCode: filterA.adCodes[0] ?? "", device: deviceA };
   const clarityB: ClarityState = { dateRange: sharedDateRange, selectedAdCode: filterB.adCodes[0] ?? "", device: deviceB };
   const [showPresetModal, setShowPresetModal] = useState(false);
+  const [activePreset, setActivePreset] = useState<EfoPreset | null>(null);
   const queryClient = useQueryClient();
+
+  // アクティブプリセットに対して条件が変わっているか
+  const isDirty = useMemo(() => {
+    if (!activePreset) return false;
+    const toSlash = (s: string | null | undefined) => s?.replace(/-/g, "/") ?? null;
+    const sameArr = (a: string[], b: string[]) =>
+      a.length === b.length && a.every((v, i) => v === b[i]);
+    return (
+      groupBy !== activePreset.groupBy ||
+      toSlash(activePreset.segmentA.dateFrom) !== (sharedDateRange?.from ?? null) ||
+      toSlash(activePreset.segmentA.dateTo) !== (sharedDateRange?.to ?? null) ||
+      !sameArr(filterA.profileNames, activePreset.segmentA.profileNames) ||
+      !sameArr(filterA.adCodes, activePreset.segmentA.adCodes) ||
+      !sameArr(filterB.profileNames, activePreset.segmentB.profileNames) ||
+      !sameArr(filterB.adCodes, activePreset.segmentB.adCodes) ||
+      deviceA !== (activePreset.clarityA?.device ?? "合計") ||
+      deviceB !== (activePreset.clarityB?.device ?? "合計")
+    );
+  }, [activePreset, groupBy, sharedDateRange, filterA, filterB, deviceA, deviceB]);
 
   const toFilterParams = (dateRange: SegmentFilter["dateRange"]) => ({
     dateFrom: dateRange?.from ? dateRange.from.replace(/\//g, "-") : undefined,
@@ -1221,6 +1242,34 @@ export default function EfoPage() {
     },
   });
 
+  const { mutate: overwritePreset, isPending: isOverwriting } = useOverwriteEfoPreset({
+    mutation: {
+      onSuccess: (res) => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
+        setActivePreset(res.preset);
+      },
+    },
+  });
+
+  const handleOverwritePreset = () => {
+    if (!activePreset) return;
+    const toIsoRange = (dr: EfoDateRange | null) =>
+      dr ? { from: dr.from.replace(/\//g, "-"), to: dr.to.replace(/\//g, "-") } : null;
+    const sharedIso = {
+      dateFrom: sharedDateRange?.from?.replace(/\//g, "-") ?? null,
+      dateTo: sharedDateRange?.to?.replace(/\//g, "-") ?? null,
+    };
+    overwritePreset({
+      id: activePreset.id,
+      name: activePreset.name,
+      groupBy,
+      segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
+      segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
+      clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
+      clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
+    });
+  };
+
   const handleSavePreset = (name: string) => {
     const toIsoRange = (dr: EfoDateRange | null) =>
       dr ? { from: dr.from.replace(/\//g, "-"), to: dr.to.replace(/\//g, "-") } : null;
@@ -1250,6 +1299,7 @@ export default function EfoPage() {
     setFilterB({ profileNames: p.segmentB.profileNames, adCodes: p.segmentB.adCodes, dateRange: null });
     if (p.clarityA) setDeviceA((p.clarityA.device as DeviceTab) || "合計");
     if (p.clarityB) setDeviceB((p.clarityB.device as DeviceTab) || "合計");
+    setActivePreset(p);
   };
 
   return (
@@ -1294,13 +1344,26 @@ export default function EfoPage() {
               onDelete={(id) => removePreset(id)}
               onRename={(id, name) => renamePreset({ id, name })}
             />
+            {/* 上書き保存: プリセット読み込み済みで条件変更時のみ表示 */}
+            {activePreset && isDirty && (
+              <button
+                onClick={handleOverwritePreset}
+                disabled={isOverwriting}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+                style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FCD34D", opacity: isOverwriting ? 0.6 : 1 }}
+                title={`「${activePreset.name}」に上書き保存`}
+              >
+                <BookmarkPlus size={14} />
+                {isOverwriting ? "保存中…" : `「${activePreset.name}」を更新`}
+              </button>
+            )}
             <button
               onClick={() => setShowPresetModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all"
               style={{ background: "#fff", color: "#1A1A1A", borderColor: "#E5E7EB" }}
             >
               <BookmarkPlus size={14} />
-              保存
+              新規保存
             </button>
             <button
               onClick={() => syncEfo(undefined)}

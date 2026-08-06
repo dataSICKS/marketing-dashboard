@@ -9,7 +9,7 @@ import {
   fetchEfoExitScenariosFromSupabase,
   fetchEcfAdAccessCvFromSupabase,
 } from "../lib/efo-supabase.js";
-import { listEfoPresets, createEfoPreset, updateEfoPresetName, deleteEfoPreset } from "../lib/efo-preset-supabase.js";
+import { listEfoPresets, createEfoPreset, updateEfoPresetName, updateEfoPreset, deleteEfoPreset } from "../lib/efo-preset-supabase.js";
 import type { EfoAccessCvRow, EfoExitScenarioRow, EcfAdAccessCvRow, EfoExitScenarioCount } from "../lib/efo-types.js";
 
 const router: IRouter = Router();
@@ -230,6 +230,37 @@ router.patch("/efo/presets/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update efo preset");
     res.status(500).json({ error: "プリセット更新に失敗しました" });
+  }
+});
+
+router.put("/efo/presets/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "無効なIDです" }); return; }
+    const { name, groupBy, segmentA, segmentB, clarityA, clarityB } = req.body as {
+      name: string;
+      groupBy: string;
+      segmentA: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
+      segmentB: { dateFrom?: string | null; dateTo?: string | null; profileNames: string[]; adCodes: string[] };
+      clarityA?: { dateRange: { from: string; to: string } | null; adCode: string; device: string } | null;
+      clarityB?: { dateRange: { from: string; to: string } | null; adCode: string; device: string } | null;
+    };
+    if (!name || !groupBy || !segmentA || !segmentB) {
+      res.status(400).json({ error: "name, groupBy, segmentA, segmentB は必須です" });
+      return;
+    }
+    const preset = await updateEfoPreset(id, {
+      name,
+      groupBy,
+      segmentA: { dateFrom: segmentA.dateFrom ?? null, dateTo: segmentA.dateTo ?? null, profileNames: segmentA.profileNames, adCodes: segmentA.adCodes },
+      segmentB: { dateFrom: segmentB.dateFrom ?? null, dateTo: segmentB.dateTo ?? null, profileNames: segmentB.profileNames, adCodes: segmentB.adCodes },
+      clarityA: clarityA ?? null,
+      clarityB: clarityB ?? null,
+    });
+    res.json({ preset });
+  } catch (err) {
+    req.log.error({ err }, "Failed to overwrite efo preset");
+    res.status(500).json({ error: "プリセット上書き保存に失敗しました" });
   }
 });
 

@@ -597,6 +597,25 @@ export const useUpdateEfoPreset = <
   });
 };
 
+export const overwriteEfoPreset = ({ id, ...input }: { id: number } & EfoPresetInput) =>
+  customFetch<EfoPresetResponse>(`/api/efo/presets/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+
+export const useOverwriteEfoPreset = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<EfoPresetResponse, TError, { id: number } & EfoPresetInput, TContext>;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation<EfoPresetResponse, TError, { id: number } & EfoPresetInput, TContext>({
+    mutationFn: (vars) => overwriteEfoPreset(vars),
+    ...mutationOptions,
+  });
+};
+
 export const deleteEfoPreset = (id: number) =>
   customFetch<void>(`/api/efo/presets/${id}`, { method: "DELETE" });
 
