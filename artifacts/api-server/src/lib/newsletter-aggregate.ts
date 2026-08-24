@@ -150,7 +150,7 @@ export function computeMatrixData(
   };
 
   const series: MatrixSeriesRow[] = [
-    ...scenarios.map((s) => buildRow(rows.filter((r) => r.segment === s), s, "scenario")),
+    ...scenarios.map((s) => buildRow(rows.filter((r) => r.scenarioName === s), s, "scenario")),
     ...templates.map((t) => buildRow(rows.filter((r) => r.templateName === t), t, "template")),
   ];
 
