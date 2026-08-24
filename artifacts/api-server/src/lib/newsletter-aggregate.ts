@@ -45,7 +45,7 @@ export function aggregateRows(
         key = row.deliveryYearMonth;
         break;
       case "scenario":
-        key = row.segment ?? "(未設定)";
+        key = row.scenarioName ?? "(未設定)";
         break;
       case "template":
         key = row.templateName;
