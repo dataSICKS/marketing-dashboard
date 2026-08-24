@@ -67,7 +67,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [day, week, month, template]
+            enum: [day, week, month, scenario, template]
             default: day
           description: Aggregation dimension
         - name: dateFrom
@@ -82,12 +82,12 @@ paths:
           schema:
             type: ["string", "null"]
           description: Filter end date (YYYY/MM/DD)
-        - name: segment
+        - name: scenarioName
           in: query
           required: false
           schema:
             type: ["string", "null"]
-          description: Filter by segment name (comma-separated for multiple)
+          description: Filter by scenario name (comma-separated for multiple)
         - name: compareFrom
           in: query
           required: false
@@ -728,10 +728,10 @@ components:
         - clickRate
         - cvr
 
-    NewsletterSegmentGroup:
+    NewsletterScenarioGroup:
       type: object
       properties:
-        segment:
+        scenarioName:
           type: string
           description: セグメント名
         items:
@@ -741,7 +741,7 @@ components:
         summary:
           $ref: "#/components/schemas/NewsletterMetrics"
       required:
-        - segment
+        - scenarioName
         - items
         - summary
 
@@ -754,26 +754,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NewsletterMetrics"
-        segmentGroups:
+        scenarioGroups:
           type: array
           items:
-            $ref: "#/components/schemas/NewsletterSegmentGroup"
-          description: セグメント別グループ（セグメントフィルタ複数指定時）
+            $ref: "#/components/schemas/NewsletterScenarioGroup"
+          description: シナリオ別グループ（シナリオフィルタ複数指定時）
         summary:
           $ref: "#/components/schemas/NewsletterMetrics"
         lastSyncedAt:
           type: ["string", "null"]
-        availableSegments:
+        availableScenarios:
           type: array
           items:
             type: string
-          description: 選択可能なセグメント一覧
+          description: 選択可能なシナリオ一覧
       required:
         - groupBy
         - items
         - summary
         - lastSyncedAt
-        - availableSegments
+        - availableScenarios
 
     NewsletterSegmentsResponse:
       type: object

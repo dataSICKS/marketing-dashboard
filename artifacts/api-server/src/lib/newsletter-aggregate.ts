@@ -158,10 +158,10 @@ export function computeMatrixData(
   return { timePeriods, series, metrics };
 }
 
-export function getUniqueSegments(rows: NewsletterRow[]): string[] {
+export function getUniqueScenarioNames(rows: NewsletterRow[]): string[] {
   const set = new Set<string>();
   for (const r of rows) {
-    if (r.segment) set.add(r.segment);
+    if (r.scenarioName) set.add(r.scenarioName);
   }
   return Array.from(set).sort();
 }

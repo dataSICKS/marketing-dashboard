@@ -5,7 +5,7 @@ import {
   computeSummary,
   mergeComparisonMetrics,
   computeMatrixData,
-  getUniqueSegments,
+  getUniqueScenarioNames,
   getUniqueTemplates,
   type GroupBy,
   type MatrixMetric,
@@ -57,18 +57,18 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const groupBy: GroupBy = ((parsed.success ? parsed.data.groupBy : "day") ?? "day") as GroupBy;
     const dateFrom = parsed.success ? (parsed.data.dateFrom ?? undefined) : undefined;
     const dateTo = parsed.success ? (parsed.data.dateTo ?? undefined) : undefined;
-    const segmentParam = parsed.success ? ((parsed.data as Record<string, unknown>).segment as string | undefined) : undefined;
+    const scenarioNameParam = parsed.success ? ((parsed.data as Record<string, unknown>).scenarioName as string | undefined) : undefined;
     const templateNameParam = parsed.success ? ((parsed.data as Record<string, unknown>).templateName as string | undefined) : undefined;
     const compareFrom = parsed.success ? ((parsed.data as Record<string, unknown>).compareFrom as string | undefined) : undefined;
     const compareTo = parsed.success ? ((parsed.data as Record<string, unknown>).compareTo as string | undefined) : undefined;
 
     const { rows: allRows, syncedAt } = await getRows(req);
 
-    const availableSegments = getUniqueSegments(allRows);
+    const availableScenarios = getUniqueScenarioNames(allRows);
 
-    // parse comma-separated segments
-    const selectedSegments = segmentParam
-      ? segmentParam.split(",").map((s) => s.trim()).filter(Boolean)
+    // parse comma-separated scenario names
+    const selectedScenarioNames = scenarioNameParam
+      ? scenarioNameParam.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
     // parse comma-separated template names
@@ -93,8 +93,8 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       if (selectedTemplates.length > 0) prevRows = prevRows.filter((r) => selectedTemplates.includes(r.templateName));
     }
 
-    // no segment filter → single flat aggregation
-    if (selectedSegments.length === 0) {
+    // no scenario filter → single flat aggregation
+    if (selectedScenarioNames.length === 0) {
       let items = aggregateRows(rows, groupBy);
       const summary = computeSummary(rows);
 
@@ -103,35 +103,35 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
         items = mergeComparisonMetrics(items, prevItems);
       }
 
-      res.json({ groupBy, items, segmentGroups: [], summary, lastSyncedAt: syncedAt, availableSegments });
+      res.json({ groupBy, items, scenarioGroups: [], summary, lastSyncedAt: syncedAt, availableScenarios });
       return;
     }
 
-    // segment filter → build segmentGroups
-    const segmentGroups = selectedSegments.map((seg) => {
-      const segRows = rows.filter((r) => r.segment === seg);
-      let items = aggregateRows(segRows, groupBy);
-      const summary = computeSummary(segRows);
+    // scenario filter → build scenarioGroups
+    const scenarioGroups = selectedScenarioNames.map((scenarioName) => {
+      const scenarioRows = rows.filter((r) => r.scenarioName === scenarioName);
+      let items = aggregateRows(scenarioRows, groupBy);
+      const summary = computeSummary(scenarioRows);
       if (hasComparison) {
-        const prevSegRows = prevRows.filter((r) => r.segment === seg);
-        const prevItems = aggregateRows(prevSegRows, groupBy);
+        const prevScenarioRows = prevRows.filter((r) => r.scenarioName === scenarioName);
+        const prevItems = aggregateRows(prevScenarioRows, groupBy);
         items = mergeComparisonMetrics(items, prevItems);
       }
-      return { segment: seg, items, summary };
+      return { scenarioName, items, summary };
     });
 
-    // top-level items = all selected segments combined
-    const combinedRows = selectedSegments.length > 0
-      ? rows.filter((r) => selectedSegments.includes(r.segment))
+    // top-level items = all selected scenarios combined
+    const combinedRows = selectedScenarioNames.length > 0
+      ? rows.filter((r) => selectedScenarioNames.includes(r.scenarioName))
       : rows;
     let items = aggregateRows(combinedRows, groupBy);
     const summary = computeSummary(combinedRows);
     if (hasComparison) {
-      const prevCombined = prevRows.filter((r) => selectedSegments.includes(r.segment));
+      const prevCombined = prevRows.filter((r) => selectedScenarioNames.includes(r.scenarioName));
       items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy));
     }
 
-    res.json({ groupBy, items, segmentGroups, summary, lastSyncedAt: syncedAt, availableSegments });
+    res.json({ groupBy, items, scenarioGroups, summary, lastSyncedAt: syncedAt, availableScenarios });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch newsletter data");
     res.status(500).json({ error: "データ取得に失敗しました" });
@@ -225,8 +225,8 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
 router.get("/newsletter/segments", async (req, res): Promise<void> => {
   try {
     const { rows } = await getRows(req);
-    const segments = getUniqueSegments(rows);
-    res.json({ segments });
+    const scenarios = getUniqueScenarioNames(rows);
+    res.json({ segments: scenarios });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch segments");
     res.status(500).json({ error: "セグメント取得に失敗しました" });

@@ -10,7 +10,7 @@ import {
 import type {
   GetNewsletterDataGroupBy,
   NewsletterMetrics,
-  NewsletterSegmentGroup,
+  NewsletterScenarioGroup,
   MatrixResponse,
   Campaign,
 } from "@workspace/api-client-react";
@@ -79,7 +79,9 @@ interface Preset {
   groupBy: TabMode;
   dateFrom?: string;
   dateTo?: string;
-  segments: string[];
+  /** Legacy field: old presets stored segment values here. */
+  segments?: string[];
+  scenarios?: string[];
   templates: string[];
 }
 
@@ -1035,8 +1037,8 @@ export default function Dashboard() {
   const [compareRange, setCompareRange] = useState<DateRange | null>(null);
   const [compareEnabled, setCompareEnabled] = useState(false);
 
-  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
-  const [segmentDropdownOpen, setSegmentDropdownOpen] = useState(false);
+  const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
+  const [scenarioDropdownOpen, setScenarioDropdownOpen] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
@@ -1070,7 +1072,7 @@ export default function Dashboard() {
     groupBy: effectiveGroupBy,
     dateFrom: slashToHyphen(dateRange?.from),
     dateTo: slashToHyphen(dateRange?.to),
-    segment: selectedSegments.length > 0 ? selectedSegments.join(",") : undefined,
+    scenarioName: selectedScenarios.length > 0 ? selectedScenarios.join(",") : undefined,
     templateName: selectedTemplates.length > 0 ? selectedTemplates.join(",") : undefined,
     compareFrom: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.from) : undefined,
     compareTo: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.to) : undefined,
@@ -1102,10 +1104,19 @@ export default function Dashboard() {
 
   const summary = data?.summary;
   const items = data?.items ?? [];
-  const segmentGroups: NewsletterSegmentGroup[] = (data?.segmentGroups ?? []) as NewsletterSegmentGroup[];
+  const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
-  const availableSegments = data?.availableSegments ?? [];
+  const availableScenarios = data?.availableScenarios ?? [];
   const showComparison = compareMode === "date" && compareEnabled && !!compareRange;
+
+  // Old presets can contain values from the former segment-based filter.
+  // Keep only scenario names that are valid for the current dataset.
+  useEffect(() => {
+    setSelectedScenarios((current) => {
+      const valid = current.filter((scenario) => availableScenarios.includes(scenario));
+      return valid.length === current.length ? current : valid;
+    });
+  }, [availableScenarios]);
 
   // Resolve selected campaign for change compare mode
   const allCampaigns = campaignsData?.campaigns ?? [];
@@ -1146,9 +1157,9 @@ export default function Dashboard() {
     if (cmpEnabled) setCompareMode("date");
   };
 
-  const toggleSegment = (seg: string) => {
-    setSelectedSegments((prev) =>
-      prev.includes(seg) ? prev.filter((s) => s !== seg) : [...prev, seg]
+  const toggleScenario = (scenario: string) => {
+    setSelectedScenarios((prev) =>
+      prev.includes(scenario) ? prev.filter((s) => s !== scenario) : [...prev, scenario]
     );
   };
 
@@ -1156,7 +1167,7 @@ export default function Dashboard() {
   const applyPreset = (p: Preset) => {
     setGroupBy(p.groupBy);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
-    setSelectedSegments(p.segments ?? []);
+    setSelectedScenarios(p.scenarios ?? p.segments ?? []);
     setSelectedTemplates(p.templates ?? []);
     setActivePresetId(p.id);
     setCompareMode("none");
@@ -1170,7 +1181,7 @@ export default function Dashboard() {
       groupBy,
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
-      segments: selectedSegments,
+      scenarios: selectedScenarios,
       templates: selectedTemplates,
     };
     const updated = [...presets, newPreset];
@@ -1288,28 +1299,28 @@ export default function Dashboard() {
             {/* Segment dropdown — hidden in matrix mode */}
             {groupBy !== "matrix" && <div className="relative">
               <button
-                onClick={() => setSegmentDropdownOpen((v) => !v)}
+                onClick={() => setScenarioDropdownOpen((v) => !v)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={selectedSegments.length > 0
+                style={selectedScenarios.length > 0
                   ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
                   : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
               >
-                {selectedSegments.length > 0 ? `シナリオ (${selectedSegments.length})` : "シナリオ"}
+                {selectedScenarios.length > 0 ? `シナリオ (${selectedScenarios.length})` : "シナリオ"}
                 <ChevronDown size={13} />
               </button>
-              {segmentDropdownOpen && (
+              {scenarioDropdownOpen && (
                 <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden" style={{ border: "1px solid #EBEBEB", minWidth: 180 }}>
-                  {availableSegments.length === 0 ? (
+                  {availableScenarios.length === 0 ? (
                     <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>シナリオなし</div>
-                  ) : availableSegments.map((seg) => (
-                    <label key={seg} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
-                      <input type="checkbox" checked={selectedSegments.includes(seg)} onChange={() => toggleSegment(seg)} style={{ accentColor: YELLOW }} />
-                      {seg}
+                  ) : availableScenarios.map((scenario) => (
+                    <label key={scenario} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
+                      <input type="checkbox" checked={selectedScenarios.includes(scenario)} onChange={() => toggleScenario(scenario)} style={{ accentColor: YELLOW }} />
+                      {scenario}
                     </label>
                   ))}
-                  {selectedSegments.length > 0 && (
+                  {selectedScenarios.length > 0 && (
                     <div style={{ borderTop: "1px solid #F3F4F6" }}>
-                      <button onClick={() => { setSelectedSegments([]); setSegmentDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
+                      <button onClick={() => { setSelectedScenarios([]); setScenarioDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
                     </div>
                   )}
                 </div>
@@ -1406,7 +1417,7 @@ export default function Dashboard() {
           {/* ── Matrix view ── */}
           {groupBy === "matrix" ? (
             <MatrixView
-              availableScenarios={availableSegments}
+              availableScenarios={availableScenarios}
               availableTemplates={templatesData?.templates ?? []}
               dateRange={dateRange}
               compareMode={compareMode}
@@ -1555,14 +1566,14 @@ export default function Dashboard() {
               </div>
 
               {/* ── Tables ── */}
-              {segmentGroups.length > 0 ? (
-                segmentGroups.map((group) => (
-                  <div key={group.segment} className="bg-white rounded-xl overflow-hidden"
+              {scenarioGroups.length > 0 ? (
+                scenarioGroups.map((group) => (
+                  <div key={group.scenarioName} className="bg-white rounded-xl overflow-hidden"
                     style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
                     <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
                       style={{ borderBottom: "1px solid #F3F4F6", background: YELLOW_LIGHT }}>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>セグメント：{group.segment}</span>
+                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>シナリオ：{group.scenarioName}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: YELLOW, color: "#fff" }}>
                           配信数 {formatNumber(group.summary.deliveryCount)}
                         </span>
@@ -1588,8 +1599,8 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {segmentDropdownOpen && (
-        <div className="fixed inset-0 z-10" onClick={() => setSegmentDropdownOpen(false)} />
+      {scenarioDropdownOpen && (
+        <div className="fixed inset-0 z-10" onClick={() => setScenarioDropdownOpen(false)} />
       )}
       {templateDropdownOpen && (
         <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />

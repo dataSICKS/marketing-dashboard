@@ -104,7 +104,7 @@ export type GetNewsletterDataParams = {
   groupBy?: GetNewsletterDataGroupBy;
   dateFrom?: string | null;
   dateTo?: string | null;
-  segment?: string | null;
+  scenarioName?: string | null;
   compareFrom?: string | null;
   compareTo?: string | null;
 };

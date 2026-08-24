@@ -43,8 +43,8 @@ export type NewsletterMetrics = {
   prevCvr?: number | null;
 };
 
-export type NewsletterSegmentGroup = {
-  segment: string;
+export type NewsletterScenarioGroup = {
+  scenarioName: string;
   items: NewsletterMetrics[];
   summary: NewsletterMetrics;
 };
@@ -52,10 +52,10 @@ export type NewsletterSegmentGroup = {
 export type NewsletterReportResponse = {
   groupBy: string;
   items: NewsletterMetrics[];
-  segmentGroups?: NewsletterSegmentGroup[];
+  scenarioGroups?: NewsletterScenarioGroup[];
   summary: NewsletterMetrics;
   lastSyncedAt: string | null;
-  availableSegments: string[];
+  availableScenarios: string[];
 };
 
 export type NewsletterSegmentsResponse = {
