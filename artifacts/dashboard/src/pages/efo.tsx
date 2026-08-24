@@ -1198,6 +1198,37 @@ export default function EfoPage() {
   const adCodesA = settingsAdCodes.length > 0 ? settingsAdCodes : (filtersDataA?.adCodes ?? []);
   const adCodesB = settingsAdCodes.length > 0 ? settingsAdCodes : (filtersDataB?.adCodes ?? []);
 
+  // 期間変更後に選択肢から外れた値は自動的に選択解除する
+  useEffect(() => {
+    if (!filtersDataA) return;
+    setFilterA((current) => {
+      const profileNames = current.profileNames.filter((name) => profilesA.includes(name));
+      const adCodes = current.adCodes.filter((code) => adCodesA.includes(code));
+      if (
+        profileNames.length === current.profileNames.length &&
+        adCodes.length === current.adCodes.length
+      ) {
+        return current;
+      }
+      return { ...current, profileNames, adCodes };
+    });
+  }, [filtersDataA, profilesA, adCodesA]);
+
+  useEffect(() => {
+    if (!filtersDataB) return;
+    setFilterB((current) => {
+      const profileNames = current.profileNames.filter((name) => profilesB.includes(name));
+      const adCodes = current.adCodes.filter((code) => adCodesB.includes(code));
+      if (
+        profileNames.length === current.profileNames.length &&
+        adCodes.length === current.adCodes.length
+      ) {
+        return current;
+      }
+      return { ...current, profileNames, adCodes };
+    });
+  }, [filtersDataB, profilesB, adCodesB]);
+
   const { data: campaignsData } = useListCampaigns();
   const allCampaigns = campaignsData?.campaigns ?? [];
 
