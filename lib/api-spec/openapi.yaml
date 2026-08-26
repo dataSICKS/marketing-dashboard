@@ -67,7 +67,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [day, week, month, scenario, template]
+            enum: [day, week, month, template, scenario]
             default: day
           description: Aggregation dimension
         - name: dateFrom
@@ -173,6 +173,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /newsletter/templates:
+    get:
+      operationId: getNewsletterTemplates
+      tags: [newsletter]
+      summary: Get available templates
+      responses:
+        "200":
+          description: Template list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterTemplatesResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /newsletter/matrix:
+    get:
+      operationId: getNewsletterMatrix
+      tags: [newsletter]
+      summary: Get newsletter comparison matrix
+      parameters:
+        - name: timeGroupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+        - name: metrics
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated metrics
+        - name: scenarios
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pipe-separated scenario names
+        - name: templates
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pipe-separated template names
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Newsletter comparison matrix
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatrixResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /clarity/files:
     get:
       operationId: getClarityFiles
@@ -209,10 +283,22 @@ paths:
       parameters:
         - name: date
           in: query
-          required: true
+          required: false
           schema:
             type: string
           description: Date folder (YYYY-MM-DD)
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Range start date (YYYY-MM-DD)
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Range end date (YYYY-MM-DD)
         - name: adCode
           in: query
           required: true
@@ -433,7 +519,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -468,7 +554,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "204":
           description: Deleted
@@ -535,7 +621,7 @@ paths:
 
   /efo/presets/{id}:
     patch:
-      operationId: updateEfoPreset
+      operationId: renameEfoPreset
       tags: [efo]
       summary: Update an EFO preset name
       parameters:
@@ -549,11 +635,42 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
+              $ref: "#/components/schemas/EfoPresetNameInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EfoPresetResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: overwriteEfoPreset
+      tags: [efo]
+      summary: Overwrite an EFO preset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EfoPresetInput"
       responses:
         "200":
           description: Updated
@@ -739,7 +856,7 @@ components:
       properties:
         scenarioName:
           type: string
-          description: セグメント名
+          description: シナリオ名
         items:
           type: array
           items:
@@ -790,6 +907,62 @@ components:
             type: string
       required:
         - segments
+
+    NewsletterTemplatesResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            type: string
+      required:
+        - templates
+
+    MatrixMetric:
+      type: string
+      enum: [deliveryCount, openRate, clickRate, cvr, cvCount]
+
+    MatrixMetricValues:
+      type: object
+      additionalProperties:
+        type: object
+        additionalProperties:
+          type: number
+
+    MatrixSeriesRow:
+      type: object
+      properties:
+        key:
+          type: string
+        type:
+          type: string
+          enum: [scenario, template]
+        metricValues:
+          $ref: "#/components/schemas/MatrixMetricValues"
+      required:
+        - key
+        - type
+        - metricValues
+
+    MatrixResponse:
+      type: object
+      properties:
+        timePeriods:
+          type: array
+          items:
+            type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatrixSeriesRow"
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatrixMetric"
+      required:
+        - timePeriods
+        - series
+        - metrics
 
     NewsletterChangeEvent:
       type: object
@@ -891,7 +1064,7 @@ components:
           type: object
           additionalProperties:
             type: number
-          description: Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })
+          description: "Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })"
       required:
         - adCode
         - date
@@ -922,11 +1095,14 @@ components:
           type: number
         exitScenarioRowCount:
           type: number
+        ecfRowCount:
+          type: number
         syncedAt:
           type: string
       required:
         - accessCvRowCount
         - exitScenarioRowCount
+        - ecfRowCount
         - syncedAt
 
     EfoMetrics:
@@ -1158,6 +1334,14 @@ components:
         - segmentA
         - segmentB
 
+    EfoPresetNameInput:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
+
     EfoPresetListResponse:
       type: object
       properties:
@@ -1179,17 +1363,17 @@ components:
     AppSettings:
       type: object
       properties:
-        clarityTargetUrls:
+        adCodes:
           type: array
           items:
             type: string
       required:
-        - clarityTargetUrls
+        - adCodes
 
     AppSettingsInput:
       type: object
       properties:
-        clarityTargetUrls:
+        adCodes:
           type: array
           items:
             type: string

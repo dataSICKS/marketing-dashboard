@@ -351,12 +351,12 @@ export default function CampaignsPage() {
   const closeModal = () => { setModalOpen(false); setEditTarget(null); };
 
   const handleSave = (input: CampaignInput) => {
-    if (editTarget) update({ id: editTarget.id, input });
-    else create(input);
+    if (editTarget) update({ id: editTarget.id, data: input });
+    else create({ data: input });
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("この施策を削除しますか？")) remove(id);
+    if (window.confirm("この施策を削除しますか？")) remove({ id });
   };
 
   const sorted = [...campaigns].sort((a, b) => a.startDate.localeCompare(b.startDate));

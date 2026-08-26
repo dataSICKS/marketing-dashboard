@@ -39,7 +39,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     const filtered = adCodes.map((c) => c.trim()).filter(Boolean);
-    update({ adCodes: filtered });
+    update({ data: { adCodes: filtered } });
   };
 
   const dates = clarityFiles?.dates ?? [];

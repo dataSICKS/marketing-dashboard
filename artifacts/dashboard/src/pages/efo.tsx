@@ -5,10 +5,12 @@ import {
   useSyncEfo,
   useGetClarityFiles,
   useGetClarityScroll,
+  getGetClarityFilesQueryKey,
+  getGetClarityScrollQueryKey,
   useListCampaigns,
   useListEfoPresets,
   useCreateEfoPreset,
-  useUpdateEfoPreset,
+  useRenameEfoPreset,
   useOverwriteEfoPreset,
   useDeleteEfoPreset,
   useGetSettings,
@@ -597,7 +599,12 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
   const allowedAdCodes = settingsData?.adCodes ?? [];
   const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
     activeDate ? { date: activeDate } : undefined,
-    { query: { enabled: !!activeDate } },
+    {
+      query: {
+        enabled: !!activeDate,
+        queryKey: getGetClarityFilesQueryKey(activeDate ? { date: activeDate } : undefined),
+      },
+    },
   );
   const rawAdCodeOptions = filesData?.adCodes ?? [];
   const adCodeOptions = allowedAdCodes.length > 0
@@ -612,7 +619,12 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
     : { date: activeDate, adCode: effectiveAdCode };
   const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
     scrollParams,
-    { query: { enabled: !!(activeDate && effectiveAdCode) } },
+    {
+      query: {
+        enabled: !!(activeDate && effectiveAdCode),
+        queryKey: getGetClarityScrollQueryKey(scrollParams),
+      },
+    },
   );
   return {
     activeDate, adCodeOptions, filesLoading, effectiveAdCode,
@@ -1272,7 +1284,7 @@ export default function EfoPage() {
     },
   });
 
-  const { mutate: renamePreset } = useUpdateEfoPreset({
+  const { mutate: renamePreset } = useRenameEfoPreset({
     mutation: {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ["/api/efo/presets"] });
@@ -1299,12 +1311,14 @@ export default function EfoPage() {
     };
     overwritePreset({
       id: activePreset.id,
-      name: activePreset.name,
-      groupBy,
-      segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
-      segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
-      clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
-      clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
+      data: {
+        name: activePreset.name,
+        groupBy,
+        segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
+        segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
+        clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
+        clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
+      },
     });
   };
 
@@ -1316,12 +1330,14 @@ export default function EfoPage() {
       dateTo: sharedDateRange?.to?.replace(/\//g, "-") ?? null,
     };
     savePreset({
-      name,
-      groupBy,
-      segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
-      segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
-      clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
-      clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
+      data: {
+        name,
+        groupBy,
+        segmentA: { ...sharedIso, profileNames: filterA.profileNames, adCodes: filterA.adCodes },
+        segmentB: { ...sharedIso, profileNames: filterB.profileNames, adCodes: filterB.adCodes },
+        clarityA: { dateRange: toIsoRange(sharedDateRange), adCode: filterA.adCodes[0] ?? "", device: deviceA },
+        clarityB: { dateRange: toIsoRange(sharedDateRange), adCode: filterB.adCodes[0] ?? "", device: deviceB },
+      },
     });
   };
 
@@ -1379,8 +1395,8 @@ export default function EfoPage() {
             <PresetDropdown
               presets={presets}
               onSelect={handleLoadPreset}
-              onDelete={(id) => removePreset(id)}
-              onRename={(id, name) => renamePreset({ id, name })}
+              onDelete={(id) => removePreset({ id })}
+              onRename={(id, name) => renamePreset({ id, data: { name } })}
             />
             {/* 上書き保存: プリセット読み込み済みで条件変更時のみ表示 */}
             {activePreset && isDirty && (

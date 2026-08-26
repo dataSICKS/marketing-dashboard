@@ -1,21 +1,11 @@
 ---
-name: Orval codegen manual update
-description: Orval codegen fails due to "Failed to resolve input" error and cleans generated files; manual restoration approach required.
+name: Orval codegen safeguards
+description: How to preserve generated clients and diagnose Orval input-resolution errors caused by invalid OpenAPI YAML.
 ---
 
 ## Rule
-When `pnpm --filter @workspace/api-spec run codegen` fails with "Failed to resolve input", do NOT retry codegen. Instead:
-1. Restore generated files from git: `git show HEAD:lib/api-client-react/src/generated/api.ts > lib/api-client-react/src/generated/api.ts` (and other generated files)
-2. Add new types to `lib/api-client-react/src/generated/api.schemas.ts` by appending
-3. Add new types to the top-level import block in `lib/api-client-react/src/generated/api.ts`
-4. Append new hook functions to `lib/api-client-react/src/generated/api.ts`
+Keep Orval output cleanup disabled so a failed generation does not delete the last working generated clients. When Orval reports `Failed to resolve input`, validate the OpenAPI YAML before assuming the path or `import.meta.url` is at fault; quote scalar text containing YAML-significant punctuation such as a colon followed by a space.
 
-**Why:** Orval v8 with `clean: true` deletes generated files before failing, leaving the workspace broken. The root cause of the parse failure is unclear (possibly OpenAPI 3.1 nullable syntax or a spec validation issue). Working around it manually is faster than debugging Orval.
+**Why:** Orval's YAML loader can wrap a YAML parser exception in the generic input-resolution error. This made an invalid unquoted description look like a configuration-path issue and previously led to unnecessary manual generated-file edits.
 
-**How to apply:** Any time a new API endpoint is added and codegen is needed.
-
-## Generated files to restore
-- `lib/api-client-react/src/generated/api.schemas.ts`
-- `lib/api-client-react/src/generated/api.ts`
-- `lib/api-zod/src/generated/api.ts`
-- `lib/api-zod/src/generated/types/index.ts`
+**How to apply:** After changing the OpenAPI spec, run the codegen command and the library typecheck. If input resolution fails, fix YAML syntax first; the retained outputs provide a safe fallback while the specification is corrected.

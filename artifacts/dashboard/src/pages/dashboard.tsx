@@ -4,6 +4,7 @@ import {
   useSyncNewsletter,
   useGetNewsletterTemplates,
   useGetNewsletterMatrix,
+  getGetNewsletterMatrixQueryKey,
   getGetNewsletterDataQueryKey,
   useListCampaigns,
 } from "@workspace/api-client-react";
@@ -698,13 +699,22 @@ function MatrixView({
   const afterParams  = { ...baseParams, dateFrom: toIso(splitDate ?? undefined), dateTo: toIso(dateRange?.to) };
 
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
-    query: { enabled: !isCompare && hasSelections && hasMetrics },
+    query: {
+      enabled: !isCompare && hasSelections && hasMetrics,
+      queryKey: getGetNewsletterMatrixQueryKey(matrixParams),
+    },
   });
   const { data: beforeData, isLoading: beforeLoading } = useGetNewsletterMatrix(beforeParams, {
-    query: { enabled: isCompare && hasSelections && hasMetrics },
+    query: {
+      enabled: isCompare && hasSelections && hasMetrics,
+      queryKey: getGetNewsletterMatrixQueryKey(beforeParams),
+    },
   });
   const { data: afterData, isLoading: afterLoading } = useGetNewsletterMatrix(afterParams, {
-    query: { enabled: isCompare && hasSelections && hasMetrics },
+    query: {
+      enabled: isCompare && hasSelections && hasMetrics,
+      queryKey: getGetNewsletterMatrixQueryKey(afterParams),
+    },
   });
 
   const series: MatrixResponse["series"] = isCompare
