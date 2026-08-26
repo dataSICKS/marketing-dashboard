@@ -268,12 +268,13 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 }
 
 function MetricsTable({
-  items, groupBy, showComparison, getRowPhase,
+  items, groupBy, showComparison, getRowPhase, scenarioGroups,
 }: {
   items: NewsletterMetrics[];
   groupBy: GroupBy;
   showComparison: boolean;
   getRowPhase?: (label: string) => "before" | "after" | null;
+  scenarioGroups?: NewsletterScenarioGroup[];
 }) {
   const showSubject = groupBy === "template" || groupBy === "day";
   const [sortKey, setSortKey] = useState<SortKey>("label");
@@ -288,8 +289,8 @@ function MetricsTable({
     }
   };
 
-  const sorted = useMemo(() => {
-    const arr = [...items];
+  const sortItems = useCallback((source: NewsletterMetrics[]) => {
+    const arr = [...source];
     arr.sort((a, b) => {
       const av = a[sortKey as keyof NewsletterMetrics] ?? 0;
       const bv = b[sortKey as keyof NewsletterMetrics] ?? 0;
@@ -299,7 +300,13 @@ function MetricsTable({
       return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return arr;
-  }, [items, sortKey, sortDir]);
+  }, [sortKey, sortDir]);
+
+  const sorted = useMemo(() => sortItems(items), [items, sortItems]);
+  const sortedGroups = useMemo(
+    () => scenarioGroups?.map((group) => ({ ...group, items: sortItems(group.items) })),
+    [scenarioGroups, sortItems],
+  );
 
   const colSpan = showSubject ? 9 : 8;
 
@@ -335,7 +342,86 @@ function MetricsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.length === 0 ? (
+          {sortedGroups ? (
+            sortedGroups.map((group) => (
+              <Fragment key={group.scenarioName}>
+                <TableRow
+                  className="hover:bg-[#FFF8E1] transition-colors"
+                  style={{ borderTop: "1px solid #FDE68A", borderBottom: "1px solid #FDE68A", background: YELLOW_LIGHT }}
+                >
+                  <TableCell colSpan={colSpan} className="px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-bold truncate" style={{ color: YELLOW_DARK }}>
+                          シナリオ：{group.scenarioName}
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: YELLOW, color: "#fff" }}>
+                          配信数 {formatNumber(group.summary.deliveryCount)}
+                        </span>
+                      </div>
+                      <span className="text-[11px] shrink-0" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {group.items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={colSpan} className="text-center py-6 text-sm" style={{ color: "#bbb" }}>
+                      データがありません
+                    </TableCell>
+                  </TableRow>
+                ) : group.items.map((item, i) => {
+                  const phase = getRowPhase ? getRowPhase(item.label) : null;
+                  return (
+                    <TableRow
+                      key={`${group.scenarioName}-${item.label}-${i}`}
+                      className="hover:bg-[#FAFAFA] transition-colors"
+                      style={{
+                        borderBottom: "1px solid #F9FAFB",
+                        background: phase === "before" ? "#EFF6FF" : phase === "after" ? "#FDF2F8" : undefined,
+                      }}
+                    >
+                      <TableCell className="text-sm font-medium break-words min-w-[140px]" style={{ color: phase === "before" ? "#1D4ED8" : phase === "after" ? "#9D174D" : "#6B7280" }}>
+                        {phase && (
+                          <span className="inline-block w-2 h-2 rounded-full mr-1.5 shrink-0 align-middle" style={{ background: phase === "before" ? BEFORE_COLOR : AFTER_COLOR }} />
+                        )}
+                        {item.label}
+                      </TableCell>
+                      {showSubject && (
+                        <TableCell className="text-xs min-w-[200px] break-words" style={{ color: "#374151" }}>
+                          {item.subject ?? "—"}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
+                        {formatNumber(item.deliveryCount)}
+                        {showComparison && <DiffBadge current={item.deliveryCount} prev={item.prevDeliveryCount} />}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                        {formatNumber(item.openCount)}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                        {formatPercent(item.openRate)}
+                        {showComparison && <DiffBadge current={item.openRate} prev={item.prevOpenRate} />}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                        {formatNumber(item.clickCount)}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                        {formatPercent(item.clickRate)}
+                        {showComparison && <DiffBadge current={item.clickRate} prev={item.prevClickRate} />}
+                      </TableCell>
+                      <TableCell className="text-sm font-semibold whitespace-nowrap" style={{ color: "#1A1A1A" }}>
+                        {formatNumber(item.cvCount)}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                        {formatPercent(item.cvr)}
+                        {showComparison && <DiffBadge current={item.cvr} prev={item.prevCvr} />}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </Fragment>
+            ))
+          ) : sorted.length === 0 ? (
             <TableRow>
               <TableCell colSpan={colSpan} className="text-center py-10 text-sm" style={{ color: "#bbb" }}>
                 データがありません
@@ -1540,34 +1626,21 @@ export default function Dashboard() {
               </div>
 
               {/* ── Tables ── */}
-              {scenarioGroups.length > 0 ? (
-                scenarioGroups.map((group) => (
-                  <div key={group.scenarioName} className="bg-white rounded-xl overflow-hidden"
-                    style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                    <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
-                      style={{ borderBottom: "1px solid #F3F4F6", background: YELLOW_LIGHT }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold" style={{ color: YELLOW_DARK }}>シナリオ：{group.scenarioName}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: YELLOW, color: "#fff" }}>
-                          配信数 {formatNumber(group.summary.deliveryCount)}
-                        </span>
-                      </div>
-                      <span className="text-xs" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
-                    </div>
-                    <MetricsTable items={group.items} groupBy={effectiveGroupBy} showComparison={showComparison} getRowPhase={getRowPhase} />
-                  </div>
-                ))
-              ) : (
-                <div className="bg-white rounded-xl overflow-hidden"
-                  style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
-                  <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
-                    style={{ borderBottom: "1px solid #F3F4F6" }}>
-                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
-                    <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
-                  </div>
-                  <MetricsTable items={items} groupBy={effectiveGroupBy} showComparison={showComparison} getRowPhase={getRowPhase} />
+              <div className="bg-white rounded-xl overflow-hidden"
+                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
+                <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
+                  style={{ borderBottom: "1px solid #F3F4F6" }}>
+                  <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
                 </div>
-              )}
+                <MetricsTable
+                  items={items}
+                  scenarioGroups={scenarioGroups.length > 0 ? scenarioGroups : undefined}
+                  groupBy={effectiveGroupBy}
+                  showComparison={showComparison}
+                  getRowPhase={getRowPhase}
+                />
+              </div>
             </>
           )}
         </div>
