@@ -345,24 +345,6 @@ function MetricsTable({
           {sortedGroups ? (
             sortedGroups.map((group) => (
               <Fragment key={group.scenarioName}>
-                <TableRow
-                  className="hover:bg-[#FFF8E1] transition-colors"
-                  style={{ borderTop: "1px solid #FDE68A", borderBottom: "1px solid #FDE68A", background: YELLOW_LIGHT }}
-                >
-                  <TableCell colSpan={colSpan} className="px-4 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs font-bold truncate" style={{ color: YELLOW_DARK }}>
-                          シナリオ：{group.scenarioName}
-                        </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: YELLOW, color: "#fff" }}>
-                          配信数 {formatNumber(group.summary.deliveryCount)}
-                        </span>
-                      </div>
-                      <span className="text-[11px] shrink-0" style={{ color: "#9CA3AF" }}>{group.items.length} 件</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
                 {group.items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={colSpan} className="text-center py-6 text-sm" style={{ color: "#bbb" }}>
