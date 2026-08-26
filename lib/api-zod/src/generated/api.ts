@@ -7,6 +7,7 @@ export const GetNewsletterDataQueryParams = z.object({
   dateFrom: z.coerce.string().nullish(),
   dateTo: z.coerce.string().nullish(),
   scenarioName: z.coerce.string().nullish(),
+  templateName: z.coerce.string().nullish(),
   compareFrom: z.coerce.string().nullish(),
   compareTo: z.coerce.string().nullish(),
 });

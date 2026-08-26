@@ -135,6 +135,12 @@ export function computeMatrixData(
   metrics: MatrixMetric[],
 ): MatrixData {
   const allPeriods = new Set<string>();
+  const rowsForScenarios = templates.length > 0
+    ? rows.filter((row) => templates.includes(row.templateName))
+    : rows;
+  const rowsForTemplates = scenarios.length > 0
+    ? rows.filter((row) => scenarios.includes(row.scenarioName))
+    : rows;
 
   const buildRow = (filtered: NewsletterRow[], key: string, type: "scenario" | "template"): MatrixSeriesRow => {
     const agg = aggregateRows(filtered, timeGroupBy);
@@ -150,8 +156,8 @@ export function computeMatrixData(
   };
 
   const series: MatrixSeriesRow[] = [
-    ...scenarios.map((s) => buildRow(rows.filter((r) => r.scenarioName === s), s, "scenario")),
-    ...templates.map((t) => buildRow(rows.filter((r) => r.templateName === t), t, "template")),
+    ...scenarios.map((s) => buildRow(rowsForScenarios.filter((r) => r.scenarioName === s), s, "scenario")),
+    ...templates.map((t) => buildRow(rowsForTemplates.filter((r) => r.templateName === t), t, "template")),
   ];
 
   const timePeriods = Array.from(allPeriods).sort();

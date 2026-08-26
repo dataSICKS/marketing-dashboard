@@ -105,6 +105,7 @@ export type GetNewsletterDataParams = {
   dateFrom?: string | null;
   dateTo?: string | null;
   scenarioName?: string | null;
+  templateName?: string | null;
   compareFrom?: string | null;
   compareTo?: string | null;
 };

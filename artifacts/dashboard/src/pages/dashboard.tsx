@@ -655,6 +655,10 @@ function SearchableMultiSelect({
 function MatrixView({
   availableScenarios,
   availableTemplates,
+  selectedScenarios,
+  onScenariosChange,
+  selectedTemplates,
+  onTemplatesChange,
   dateRange,
   compareMode,
   selectedCampaign,
@@ -663,14 +667,16 @@ function MatrixView({
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
+  selectedScenarios: string[];
+  onScenariosChange: (values: string[]) => void;
+  selectedTemplates: string[];
+  onTemplatesChange: (values: string[]) => void;
   dateRange: DateRange | null;
   compareMode: "none" | "date" | "change";
   selectedCampaign: Campaign | null;
   chartHeight: number;
   onChartHeightChange: (h: number) => void;
 }) {
-  const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
-  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
   const [timeGroupBy, setTimeGroupBy] = useState<"day" | "week" | "month">("month");
 
@@ -726,13 +732,13 @@ function MatrixView({
           label="シナリオ"
           options={scenarioOpts}
           selected={selectedScenarios}
-          onChange={setSelectedScenarios}
+          onChange={onScenariosChange}
         />
         <SearchableMultiSelect
           label="テンプレ"
           options={templateOpts}
           selected={selectedTemplates}
-          onChange={setSelectedTemplates}
+          onChange={onTemplatesChange}
         />
         <SearchableMultiSelect
           label="指標"
@@ -1038,9 +1044,7 @@ export default function Dashboard() {
   const [compareEnabled, setCompareEnabled] = useState(false);
 
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
-  const [scenarioDropdownOpen, setScenarioDropdownOpen] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
-  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
@@ -1072,8 +1076,8 @@ export default function Dashboard() {
     groupBy: effectiveGroupBy,
     dateFrom: slashToHyphen(dateRange?.from),
     dateTo: slashToHyphen(dateRange?.to),
-    scenarioName: selectedScenarios.length > 0 ? selectedScenarios.join(",") : undefined,
-    templateName: selectedTemplates.length > 0 ? selectedTemplates.join(",") : undefined,
+    scenarioName: selectedScenarios.length > 0 ? selectedScenarios.join("|") : undefined,
+    templateName: selectedTemplates.length > 0 ? selectedTemplates.join("|") : undefined,
     compareFrom: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.from) : undefined,
     compareTo: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.to) : undefined,
   };
@@ -1098,6 +1102,7 @@ export default function Dashboard() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/templates"] });
       },
     },
   });
@@ -1107,16 +1112,26 @@ export default function Dashboard() {
   const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableScenarios = data?.availableScenarios ?? [];
+  const availableTemplates = templatesData?.templates ?? [];
   const showComparison = compareMode === "date" && compareEnabled && !!compareRange;
 
   // Old presets can contain values from the former segment-based filter.
   // Keep only scenario names that are valid for the current dataset.
   useEffect(() => {
+    if (!data) return;
     setSelectedScenarios((current) => {
       const valid = current.filter((scenario) => availableScenarios.includes(scenario));
       return valid.length === current.length ? current : valid;
     });
-  }, [availableScenarios]);
+  }, [data, availableScenarios]);
+
+  useEffect(() => {
+    if (!templatesData) return;
+    setSelectedTemplates((current) => {
+      const valid = current.filter((template) => availableTemplates.includes(template));
+      return valid.length === current.length ? current : valid;
+    });
+  }, [templatesData, availableTemplates]);
 
   // Resolve selected campaign for change compare mode
   const allCampaigns = campaignsData?.campaigns ?? [];
@@ -1155,12 +1170,6 @@ export default function Dashboard() {
     setCompareRange(cmp);
     setCompareEnabled(cmpEnabled);
     if (cmpEnabled) setCompareMode("date");
-  };
-
-  const toggleScenario = (scenario: string) => {
-    setSelectedScenarios((prev) =>
-      prev.includes(scenario) ? prev.filter((s) => s !== scenario) : [...prev, scenario]
-    );
   };
 
   // Preset operations
@@ -1296,72 +1305,23 @@ export default function Dashboard() {
               onApply={handleDateApply}
             />
 
-            {/* Segment dropdown — hidden in matrix mode */}
-            {groupBy !== "matrix" && <div className="relative">
-              <button
-                onClick={() => setScenarioDropdownOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={selectedScenarios.length > 0
-                  ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
-                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
-              >
-                {selectedScenarios.length > 0 ? `シナリオ (${selectedScenarios.length})` : "シナリオ"}
-                <ChevronDown size={13} />
-              </button>
-              {scenarioDropdownOpen && (
-                <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-hidden" style={{ border: "1px solid #EBEBEB", minWidth: 180 }}>
-                  {availableScenarios.length === 0 ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>シナリオなし</div>
-                  ) : availableScenarios.map((scenario) => (
-                    <label key={scenario} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
-                      <input type="checkbox" checked={selectedScenarios.includes(scenario)} onChange={() => toggleScenario(scenario)} style={{ accentColor: YELLOW }} />
-                      {scenario}
-                    </label>
-                  ))}
-                  {selectedScenarios.length > 0 && (
-                    <div style={{ borderTop: "1px solid #F3F4F6" }}>
-                      <button onClick={() => { setSelectedScenarios([]); setScenarioDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>}
+            {groupBy !== "matrix" && (
+              <SearchableMultiSelect
+                label="シナリオ"
+                options={availableScenarios.map((scenario) => ({ value: scenario, label: scenario }))}
+                selected={selectedScenarios}
+                onChange={setSelectedScenarios}
+              />
+            )}
 
-            {/* Template dropdown — hidden in matrix mode */}
-            {groupBy !== "matrix" && <div className="relative">
-              <button
-                onClick={() => setTemplateDropdownOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={selectedTemplates.length > 0
-                  ? { background: YELLOW_LIGHT, color: YELLOW_DARK, border: `1px solid ${YELLOW}` }
-                  : { background: "#fff", color: "#6B7280", border: "1px solid #EBEBEB", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
-              >
-                {selectedTemplates.length > 0 ? `テンプレ (${selectedTemplates.length})` : "テンプレ"}
-                <ChevronDown size={13} />
-              </button>
-              {templateDropdownOpen && (
-                <div className="absolute top-full mt-1 left-0 z-20 bg-white rounded-xl shadow-lg overflow-y-auto" style={{ border: "1px solid #EBEBEB", minWidth: 240, maxHeight: 320 }}>
-                  {(templatesData?.templates ?? []).length === 0 ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: "#9CA3AF" }}>テンプレートなし</div>
-                  ) : (templatesData?.templates ?? []).map((tmpl) => (
-                    <label key={tmpl} className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-[#FAFAFA] text-xs" style={{ color: "#374151" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedTemplates.includes(tmpl)}
-                        onChange={() => setSelectedTemplates((prev) => prev.includes(tmpl) ? prev.filter((t) => t !== tmpl) : [...prev, tmpl])}
-                        style={{ accentColor: YELLOW }}
-                      />
-                      <span className="truncate" style={{ maxWidth: 190 }}>{tmpl}</span>
-                    </label>
-                  ))}
-                  {selectedTemplates.length > 0 && (
-                    <div style={{ borderTop: "1px solid #F3F4F6" }}>
-                      <button onClick={() => { setSelectedTemplates([]); setTemplateDropdownOpen(false); }} className="w-full px-4 py-2.5 text-xs text-left" style={{ color: "#9CA3AF" }}>クリア</button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>}
+            {groupBy !== "matrix" && (
+              <SearchableMultiSelect
+                label="テンプレ"
+                options={availableTemplates.map((template) => ({ value: template, label: template }))}
+                selected={selectedTemplates}
+                onChange={setSelectedTemplates}
+              />
+            )}
 
             {/* Active filter chips */}
             {dateRange && (
@@ -1418,7 +1378,11 @@ export default function Dashboard() {
           {groupBy === "matrix" ? (
             <MatrixView
               availableScenarios={availableScenarios}
-              availableTemplates={templatesData?.templates ?? []}
+              availableTemplates={availableTemplates}
+              selectedScenarios={selectedScenarios}
+              onScenariosChange={setSelectedScenarios}
+              selectedTemplates={selectedTemplates}
+              onTemplatesChange={setSelectedTemplates}
               dateRange={dateRange}
               compareMode={compareMode}
               selectedCampaign={selectedCampaign}
@@ -1599,12 +1563,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {scenarioDropdownOpen && (
-        <div className="fixed inset-0 z-10" onClick={() => setScenarioDropdownOpen(false)} />
-      )}
-      {templateDropdownOpen && (
-        <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />
-      )}
     </>
   );
 }

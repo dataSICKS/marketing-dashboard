@@ -87,7 +87,13 @@ paths:
           required: false
           schema:
             type: ["string", "null"]
-          description: Filter by scenario name (comma-separated for multiple)
+          description: Filter by scenario name (pipe-separated for multiple)
+        - name: templateName
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter by template name (pipe-separated for multiple)
         - name: compareFrom
           in: query
           required: false

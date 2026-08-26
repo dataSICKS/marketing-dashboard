@@ -66,14 +66,14 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
     const availableScenarios = getUniqueScenarioNames(allRows);
 
-    // parse comma-separated scenario names
+    // Parse pipe-separated filters. Values within one filter are ORed;
+    // scenario and template filters are combined as AND conditions.
     const selectedScenarioNames = scenarioNameParam
-      ? scenarioNameParam.split(",").map((s) => s.trim()).filter(Boolean)
+      ? scenarioNameParam.split("|").map((s) => s.trim()).filter(Boolean)
       : [];
 
-    // parse comma-separated template names
     const selectedTemplates = templateNameParam
-      ? templateNameParam.split(",").map((s) => s.trim()).filter(Boolean)
+      ? templateNameParam.split("|").map((s) => s.trim()).filter(Boolean)
       : [];
 
     // filter current period
@@ -88,19 +88,20 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const hasComparison = !!(compareFrom || compareTo);
     if (hasComparison) {
       prevRows = allRows;
-      if (compareFrom) prevRows = prevRows.filter((r) => r.deliveryDate >= compareFrom);
-      if (compareTo) prevRows = prevRows.filter((r) => r.deliveryDate <= compareTo);
+      if (compareFrom) prevRows = prevRows.filter((r) => toIso(r.deliveryDate) >= compareFrom);
+      if (compareTo) prevRows = prevRows.filter((r) => toIso(r.deliveryDate) <= compareTo);
       if (selectedTemplates.length > 0) prevRows = prevRows.filter((r) => selectedTemplates.includes(r.templateName));
     }
 
     // no scenario filter → single flat aggregation
     if (selectedScenarioNames.length === 0) {
       let items = aggregateRows(rows, groupBy);
-      const summary = computeSummary(rows);
+      let summary = computeSummary(rows);
 
       if (hasComparison) {
         const prevItems = aggregateRows(prevRows, groupBy);
         items = mergeComparisonMetrics(items, prevItems);
+        summary = mergeComparisonMetrics([summary], [computeSummary(prevRows)])[0]!;
       }
 
       res.json({ groupBy, items, scenarioGroups: [], summary, lastSyncedAt: syncedAt, availableScenarios });
@@ -111,11 +112,12 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const scenarioGroups = selectedScenarioNames.map((scenarioName) => {
       const scenarioRows = rows.filter((r) => r.scenarioName === scenarioName);
       let items = aggregateRows(scenarioRows, groupBy);
-      const summary = computeSummary(scenarioRows);
+      let summary = computeSummary(scenarioRows);
       if (hasComparison) {
         const prevScenarioRows = prevRows.filter((r) => r.scenarioName === scenarioName);
         const prevItems = aggregateRows(prevScenarioRows, groupBy);
         items = mergeComparisonMetrics(items, prevItems);
+        summary = mergeComparisonMetrics([summary], [computeSummary(prevScenarioRows)])[0]!;
       }
       return { scenarioName, items, summary };
     });
@@ -125,10 +127,11 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       ? rows.filter((r) => selectedScenarioNames.includes(r.scenarioName))
       : rows;
     let items = aggregateRows(combinedRows, groupBy);
-    const summary = computeSummary(combinedRows);
+    let summary = computeSummary(combinedRows);
     if (hasComparison) {
       const prevCombined = prevRows.filter((r) => selectedScenarioNames.includes(r.scenarioName));
       items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy));
+      summary = mergeComparisonMetrics([summary], [computeSummary(prevCombined)])[0]!;
     }
 
     res.json({ groupBy, items, scenarioGroups, summary, lastSyncedAt: syncedAt, availableScenarios });
