@@ -71,7 +71,7 @@ export function aggregateRows(
   }
 
   return entries.map(([key, groupRows]) => {
-    const subject = groupBy === "template"
+    const subject = groupBy === "template" || groupBy === "scenario"
       ? (groupRows[0]?.subject ?? null)
       : groupBy === "day"
         ? (groupRows[0]?.subject ?? null)

@@ -276,7 +276,7 @@ function MetricsTable({
   getRowPhase?: (label: string) => "before" | "after" | null;
   scenarioGroups?: NewsletterScenarioGroup[];
 }) {
-  const showSubject = groupBy === "template" || groupBy === "day";
+  const showSubject = groupBy === "scenario" || groupBy === "template" || groupBy === "day";
   const [sortKey, setSortKey] = useState<SortKey>("label");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
