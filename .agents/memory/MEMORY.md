@@ -1,3 +1,4 @@
 - [Date format mismatch](date-format-mismatch.md) — Supabase returns ISO dates (YYYY-MM-DD), but chart X-axis labels use slash format (YYYY/MM/DD); always convert when comparing or passing to ReferenceLine.
 - [Supabase DDL](supabase-ddl.md) — PostgREST cannot run DDL; new tables must be created manually via Supabase Dashboard SQL Editor.
 - [Orval codegen safeguards](orval-codegen-manual.md) — keep generated files on failure and validate YAML syntax when Orval reports an input-resolution error.
+- [Clarity PV denominator completeness](clarity-pv-denominator.md) — omit a device's date-range PV total if any contributing export lacks PV, rather than show a biased reach rate.

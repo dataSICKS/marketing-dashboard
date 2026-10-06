@@ -634,33 +634,48 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
   };
 }
 
-// ─── ツールチップ（訪問者数 + 到達率） ────────────────────────────────
-function makeClarityTooltip(pageViews: Record<string, number>, device: DeviceTab) {
+type ChartRow = Record<string, string | number | null>;
+
+function getPageViewsForDevice(pageViews: Partial<Record<string, number>>, device: DeviceTab): number | undefined {
+  if (device === "Desktop") return pageViews.Desktop;
+  if (device === "Mobile") return pageViews.Mobile;
+  const desktop = pageViews.Desktop;
+  const mobile = pageViews.Mobile;
+  return desktop != null && mobile != null ? desktop + mobile : undefined;
+}
+
+function getReachRate(visitors: number | null | undefined, pageViews: number | undefined): number | null {
+  return visitors != null && pageViews != null && pageViews > 0
+    ? (visitors / pageViews) * 100
+    : null;
+}
+
+// ─── ツールチップ（到達率 + 訪問者数 + PV数） ─────────────────────────
+function makeClarityTooltip(pageViews: Partial<Record<string, number>>) {
   return function ClarityTooltip({ active, payload, label }: {
     active?: boolean;
-    payload?: { name: string; value: number | null; color: string }[];
+    payload?: { name: string; value: number | null; color: string; payload?: ChartRow }[];
     label?: string;
   }) {
     if (!active || !payload?.length) return null;
-    const totalPvFor = (name: string) => {
-      if (name === "Desktop" || name === "A-Desktop" || name === "B-Desktop") return pageViews.Desktop ?? 0;
-      if (name === "Mobile" || name === "A-Mobile" || name === "B-Mobile") return pageViews.Mobile ?? 0;
-      // "A" / "B" in overlay 合計 mode — caller passes combined PV via pageViews["A"] / pageViews["B"]
-      return pageViews[name] ?? 0;
-    };
     return (
       <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 12px", fontSize: 11, minWidth: 160 }}>
         <div style={{ fontWeight: 600, marginBottom: 6, color: "#374151" }}>スクロール深度: {label}</div>
         {payload.map((p) => {
-          const visitors = p.value ?? 0;
-          const pv = totalPvFor(p.name);
-          const rate = pv > 0 ? (visitors / pv * 100).toFixed(1) : "—";
+          const rawVisitors = p.payload?.[`${p.name}Visitors`];
+          const visitors = typeof rawVisitors === "number" ? rawVisitors : null;
+          const pv = pageViews[p.name];
+          const rate = typeof p.value === "number" && Number.isFinite(p.value) ? `${p.value.toFixed(1)}%` : "—";
           return (
-            <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-              <span style={{ color: "#6B7280", flex: 1 }}>{p.name}</span>
-              <span style={{ color: "#374151", fontWeight: 600 }}>{formatNumber(visitors)}</span>
-              <span style={{ color: "#9CA3AF" }}>({rate}%)</span>
+            <div key={p.name} style={{ marginBottom: 7 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                <span style={{ color: "#6B7280", flex: 1 }}>{p.name}</span>
+                <span style={{ color: "#374151", fontWeight: 600 }}>{rate}</span>
+              </div>
+              <div style={{ color: "#9CA3AF", marginLeft: 14 }}>
+                {label === "0%" ? "分子（0％起点はPV数）" : "訪問者数"}: {visitors != null ? formatNumber(visitors) : "—"} / PV数: {pv != null ? formatNumber(pv) : "—"}
+              </div>
             </div>
           );
         })}
@@ -670,20 +685,17 @@ function makeClarityTooltip(pageViews: Record<string, number>, device: DeviceTab
 }
 
 // ─── 共通スクロールグラフ（ドラッグリサイズ対応） ──────────────────────
-type ChartRow = Record<string, string | number | null>;
 const MIN_CHART_HEIGHT = 120;
 
 function ClarityScrollChart({
   chartData,
   lines,
   pageViews,
-  device,
   isLoading,
 }: {
   chartData: ChartRow[];
   lines: { key: string; color: string; label?: string; dashed?: boolean }[];
-  pageViews: Record<string, number>;
-  device: DeviceTab;
+  pageViews: Partial<Record<string, number>>;
   isLoading: boolean;
 }) {
   const autoHeight = 320;
@@ -710,7 +722,7 @@ function ClarityScrollChart({
     window.addEventListener("mouseup", onUp);
   };
 
-  const TooltipContent = useMemo(() => makeClarityTooltip(pageViews, device), [pageViews, device]);
+  const TooltipContent = useMemo(() => makeClarityTooltip(pageViews), [pageViews]);
 
   const inner = isLoading ? (
     <Skeleton className="w-full" style={{ height: chartHeight }} />
@@ -725,7 +737,7 @@ function ClarityScrollChart({
         <XAxis type="category" dataKey="depth" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false}
           interval={Math.max(0, Math.ceil(chartData.length / 20) - 1)} angle={-45} textAnchor="end" />
         <YAxis type="number" tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false} width={40}
-          tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)} />
+          tickFormatter={(v: number) => `${v}%`} />
         <Tooltip content={<TooltipContent />} />
         {lines.map(({ key, color, dashed }) => (
           <Line key={key} type="monotone" dataKey={key} stroke={color} strokeWidth={2.5}
@@ -793,11 +805,23 @@ function ClarityPanel({
   const { activeDate, adCodeOptions, filesLoading, effectiveAdCode, isLoading, pageViews, points } =
     useClarityData(state, () => setSelectedAdCode(""));
 
-  const chartData: ChartRow[] = points.map((p) => ({
-    depth: `${p.depth}%`,
-    Desktop: p.desktop ?? null,
-    Mobile: p.mobile ?? null,
-  }));
+  const depths = [...new Set(points.map((point) => point.depth))];
+  if ((pageViews.Desktop ?? 0) > 0 || (pageViews.Mobile ?? 0) > 0) depths.push(0);
+  const chartData: ChartRow[] = depths
+    .sort((a, b) => a - b)
+    .map((depth) => {
+      const point = points.find((item) => item.depth === depth);
+      const row: ChartRow = { depth: `${depth}%` };
+      for (const key of ["Desktop", "Mobile"] as const) {
+        const pv = pageViews[key];
+        const visitors = depth === 0
+          ? (pv != null && pv > 0 ? pv : null)
+          : point?.[key.toLowerCase() as "desktop" | "mobile"] ?? null;
+        row[key] = getReachRate(visitors, pv);
+        row[`${key}Visitors`] = visitors;
+      }
+      return row;
+    });
   const lines = [
     ...(device === "合計" || device === "Desktop" ? [{ key: "Desktop", color: CLARITY_DESKTOP }] : []),
     ...(device === "合計" || device === "Mobile" ? [{ key: "Mobile", color: CLARITY_MOBILE }] : []),
@@ -819,7 +843,7 @@ function ClarityPanel({
       </div>
       <PvSummaryBar pageViews={pageViews} device={device} />
       <div className="px-4 py-3" style={{ background: "#fff" }}>
-        <ClarityScrollChart chartData={chartData} lines={lines} pageViews={pageViews} device={device} isLoading={isLoading} />
+        <ClarityScrollChart chartData={chartData} lines={lines} pageViews={pageViews} isLoading={isLoading} />
       </div>
     </div>
   );
@@ -842,11 +866,16 @@ function ClarityOverlayView({
   const dataA = useClarityData(clarityA, () => {});
   const dataB = useClarityData(clarityB, () => {});
 
+  // 合計では両デバイスのPVが確認できる場合のみ、正確な母数として使う。
+  const pvA = getPageViewsForDevice(dataA.pageViews, device);
+  const pvB = getPageViewsForDevice(dataB.pageViews, device);
+
   // A と B の深度ポイントをマージして1行にまとめる
   const allDepths = useMemo(() => {
     const set = new Set([...dataA.points.map((p) => p.depth), ...dataB.points.map((p) => p.depth)]);
+    if ((pvA ?? 0) > 0 || (pvB ?? 0) > 0) set.add(0);
     return Array.from(set).sort((a, b) => a - b);
-  }, [dataA.points, dataB.points]);
+  }, [dataA.points, dataB.points, pvA, pvB]);
 
   const getVal = (points: typeof dataA.points, depth: number, dev: DeviceTab): number | null => {
     const p = points.find((x) => x.depth === depth);
@@ -858,20 +887,21 @@ function ClarityOverlayView({
     return d + m > 0 ? d + m : null;
   };
 
-  const chartData: ChartRow[] = allDepths.map((depth) => ({
-    depth: `${depth}%`,
-    A: getVal(dataA.points, depth, device),
-    B: getVal(dataB.points, depth, device),
-  }));
+  const chartData: ChartRow[] = allDepths.map((depth) => {
+    const visitorsA = depth === 0 ? (pvA != null && pvA > 0 ? pvA : null) : getVal(dataA.points, depth, device);
+    const visitorsB = depth === 0 ? (pvB != null && pvB > 0 ? pvB : null) : getVal(dataB.points, depth, device);
+    return {
+      depth: `${depth}%`,
+      A: getReachRate(visitorsA, pvA),
+      AVisitors: visitorsA,
+      B: getReachRate(visitorsB, pvB),
+      BVisitors: visitorsB,
+    };
+  });
 
-  // 到達率計算用の PV（合計モードは Desktop+Mobile を合算）
-  const pvA = device === "Desktop" ? (dataA.pageViews.Desktop ?? 0)
-            : device === "Mobile"  ? (dataA.pageViews.Mobile ?? 0)
-            : (dataA.pageViews.Desktop ?? 0) + (dataA.pageViews.Mobile ?? 0);
-  const pvB = device === "Desktop" ? (dataB.pageViews.Desktop ?? 0)
-            : device === "Mobile"  ? (dataB.pageViews.Mobile ?? 0)
-            : (dataB.pageViews.Desktop ?? 0) + (dataB.pageViews.Mobile ?? 0);
-  const overlayPageViews = { A: pvA, B: pvB };
+  const overlayPageViews: Partial<Record<string, number>> = {};
+  if (pvA != null) overlayPageViews.A = pvA;
+  if (pvB != null) overlayPageViews.B = pvB;
 
   const lines = [
     { key: "A", color: YELLOW, label: "A" },
@@ -893,14 +923,14 @@ function ClarityOverlayView({
             </button>
           ))}
         </div>
-        {pvA > 0 && (
+        {pvA != null && pvA > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: YELLOW }} />
             <span className="text-[10px]" style={{ color: "#6B7280" }}>A PV:</span>
             <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pvA)}</span>
           </div>
         )}
-        {pvB > 0 && (
+        {pvB != null && pvB > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: BLUE }} />
             <span className="text-[10px]" style={{ color: "#6B7280" }}>B PV:</span>
@@ -922,7 +952,7 @@ function ClarityOverlayView({
       </div>
 
       <div className="px-4 pb-4" style={{ background: "#fff" }}>
-        <ClarityScrollChart chartData={chartData} lines={lines} pageViews={overlayPageViews} device={device} isLoading={isLoading} />
+        <ClarityScrollChart chartData={chartData} lines={lines} pageViews={overlayPageViews} isLoading={isLoading} />
       </div>
     </div>
   );

@@ -16,9 +16,9 @@ function parseFilename(name: string): { adCode: string; device: string } | null 
   return { adCode: match[1], device: match[2] };
 }
 
-function parseCsv(text: string): { pageViews: number; points: { depth: number; visitors: number }[] } {
+function parseCsv(text: string): { pageViews: number | null; points: { depth: number; visitors: number }[] } {
   const lines = text.split("\n");
-  let pageViews = 0;
+  let pageViews: number | null = null;
   let dataStart = -1;
 
   for (let i = 0; i < lines.length; i++) {
@@ -92,7 +92,7 @@ async function fetchScrollForDate(
   supabase: ReturnType<typeof getSupabaseClient>,
   date: string,
   adCode: string,
-): Promise<{ device: string; pageViews: number; points: { depth: number; visitors: number }[] }[]> {
+): Promise<{ device: string; pageViews: number | null; points: { depth: number; visitors: number }[] }[]> {
   const { data: files, error } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
   if (error) throw error;
 
@@ -162,12 +162,17 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
 
     // Desktop / Mobile ごとに PV とスクロール訪問者数を合算
     const depthMap = new Map<number, { desktop: number; mobile: number }>();
-    const pageViews: Record<string, number> = {};
+    const pageViewTotals: Record<"Desktop" | "Mobile", number> = { Desktop: 0, Mobile: 0 };
+    const pageViewAvailable: Record<"Desktop" | "Mobile", boolean> = { Desktop: true, Mobile: true };
+    const hasDeviceData: Record<"Desktop" | "Mobile", boolean> = { Desktop: false, Mobile: false };
 
     for (const dayData of allDayData) {
       for (const { device, pageViews: pv, points } of dayData) {
-        if (device === "Desktop") pageViews.Desktop = (pageViews.Desktop ?? 0) + pv;
-        if (device === "Mobile") pageViews.Mobile = (pageViews.Mobile ?? 0) + pv;
+        if (device === "Desktop" || device === "Mobile") {
+          hasDeviceData[device] = true;
+          if (pv == null) pageViewAvailable[device] = false;
+          else pageViewTotals[device] += pv;
+        }
         for (const { depth, visitors } of points) {
           const existing = depthMap.get(depth) ?? { desktop: 0, mobile: 0 };
           if (device === "Desktop") existing.desktop += visitors;
@@ -184,6 +189,13 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
         desktop: desktop > 0 ? desktop : null,
         mobile: mobile > 0 ? mobile : null,
       }));
+
+    const pageViews: Record<string, number> = {};
+    for (const device of ["Desktop", "Mobile"] as const) {
+      if (hasDeviceData[device] && pageViewAvailable[device]) {
+        pageViews[device] = pageViewTotals[device];
+      }
+    }
 
     res.json({ adCode, date: date ?? dateFrom, points, pageViews });
   } catch (err) {
