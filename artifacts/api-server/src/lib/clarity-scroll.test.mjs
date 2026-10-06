@@ -38,7 +38,7 @@ test("omits a device PV total if any matching export has no PV count", () => {
     [{ device: "Mobile", pageViews: null, points: [{ depth: 50, visitors: 20 }] }],
   ]);
 
-  assert.deepEqual(pageViews, {});
+  assert.deepEqual(pageViews, { Desktop: 0 });
   assert.deepEqual(points, [{ depth: 50, desktop: null, mobile: 100 }]);
 });
 
@@ -47,5 +47,26 @@ test("keeps an available zero PV count instead of treating it as missing", () =>
     [{ device: "Desktop", pageViews: 0, points: [] }],
   ]);
 
-  assert.deepEqual(pageViews, { Desktop: 0 });
+  assert.deepEqual(pageViews, { Desktop: 0, Mobile: 0 });
+});
+
+test("distinguishes no Desktop exports from exports missing PV in a mobile-only range", () => {
+  const { pageViews, points } = aggregateClarityScrollDays([
+    [{ device: "Mobile", pageViews: 150, points: [{ depth: 50, visitors: 30 }] }],
+    [],
+  ]);
+  assert.deepEqual(pageViews, { Desktop: 0, Mobile: 150 });
+  assert.deepEqual(points, [{ depth: 50, desktop: null, mobile: 30 }]);
+
+  const incomplete = aggregateClarityScrollDays([
+    [
+      { device: "Desktop", pageViews: null, points: [{ depth: 50, visitors: 10 }] },
+      { device: "Mobile", pageViews: 150, points: [{ depth: 50, visitors: 30 }] },
+    ],
+  ]);
+  assert.deepEqual(incomplete.pageViews, { Mobile: 150 });
+});
+
+test("keeps an empty range empty instead of fabricating device PV", () => {
+  assert.deepEqual(aggregateClarityScrollDays([[], []]), { points: [], pageViews: {} });
 });

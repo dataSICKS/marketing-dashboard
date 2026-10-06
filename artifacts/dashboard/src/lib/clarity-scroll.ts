@@ -55,21 +55,16 @@ export function buildClarityChartData(
 export function buildClarityOverlayChartData(
   pointsA: readonly ClarityPoint[],
   pageViewsA: ClarityPageViews,
-  deviceA: ClarityDeviceTab,
   pointsB: readonly ClarityPoint[],
   pageViewsB: ClarityPageViews,
-  deviceB: ClarityDeviceTab,
+  device: ClarityDeviceTab,
 ): { chartData: ClarityChartRow[]; pageViews: Partial<Record<"A" | "B", number>> } {
-  const pvA = getPageViewsForDevice(pageViewsA, deviceA);
-  const pvB = getPageViewsForDevice(pageViewsB, deviceB);
+  const pvA = getPageViewsForDevice(pageViewsA, device);
+  const pvB = getPageViewsForDevice(pageViewsB, device);
   const depths = new Set([...pointsA.map((point) => point.depth), ...pointsB.map((point) => point.depth)]);
   if ((pvA ?? 0) > 0 || (pvB ?? 0) > 0) depths.add(0);
 
-  const getVisitors = (
-    points: readonly ClarityPoint[],
-    depth: number,
-    device: ClarityDeviceTab,
-  ): number | null => {
+  const getVisitors = (points: readonly ClarityPoint[], depth: number): number | null => {
     const point = points.find((item) => item.depth === depth);
     if (!point) return null;
     if (device === "Desktop") return point.desktop ?? null;
@@ -81,8 +76,8 @@ export function buildClarityOverlayChartData(
   const chartData = Array.from(depths)
     .sort((a, b) => a - b)
     .map((depth) => {
-      const visitorsA = depth === 0 ? (pvA != null && pvA > 0 ? pvA : null) : getVisitors(pointsA, depth, deviceA);
-      const visitorsB = depth === 0 ? (pvB != null && pvB > 0 ? pvB : null) : getVisitors(pointsB, depth, deviceB);
+      const visitorsA = depth === 0 ? (pvA != null && pvA > 0 ? pvA : null) : getVisitors(pointsA, depth);
+      const visitorsB = depth === 0 ? (pvB != null && pvB > 0 ? pvB : null) : getVisitors(pointsB, depth);
       return {
         depth: `${depth}%`,
         A: getReachRate(visitorsA, pvA),

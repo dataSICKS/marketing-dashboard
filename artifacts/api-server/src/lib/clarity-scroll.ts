@@ -86,6 +86,10 @@ export function aggregateClarityScrollDays(
   for (const device of ["Desktop", "Mobile"] as const) {
     if (hasDeviceData[device] && pageViewAvailable[device]) {
       pageViews[device] = pageViewTotals[device];
+    } else if (!hasDeviceData[device] && (hasDeviceData.Desktop || hasDeviceData.Mobile)) {
+      // No exports means zero contribution, not a missing PV denominator.
+      // Exports with unreadable PVs still omit the key to block incomplete rates.
+      pageViews[device] = 0;
     }
   }
 
