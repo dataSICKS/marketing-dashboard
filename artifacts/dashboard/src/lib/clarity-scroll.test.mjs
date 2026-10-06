@@ -46,7 +46,7 @@ test("returns no rate when PV is zero or unavailable", () => {
   assert.equal(chart[0].Desktop, null);
 });
 
-test("combines device PV and visitors for total A/B overlay without mixing denominators", () => {
+test("total overlay preserves the separate device rates from split view", () => {
   assert.equal(getPageViewsForDevice({ Desktop: 100, Mobile: 300 }, "合計"), 400);
 
   const { chartData, pageViews } = buildClarityOverlayChartData(
@@ -57,14 +57,15 @@ test("combines device PV and visitors for total A/B overlay without mixing denom
     "合計",
   );
 
-  assert.deepEqual(pageViews, { A: 400, B: 400 });
-  assert.deepEqual(chartData, [
-    { depth: "0%", A: 100, AVisitors: 400, B: 100, BVisitors: 400 },
-    { depth: "50%", A: 12.5, AVisitors: 50, B: 25, BVisitors: 100 },
-  ]);
+  assert.deepEqual(pageViews, { "A Desktop": 100, "A Mobile": 300, "B Desktop": 200, "B Mobile": 200 });
+  assert.equal(chartData[1]["A Desktop"], 20);
+  assert.equal(chartData[1]["A Mobile"], 10);
+  assert.equal(chartData[1]["B Desktop"], 5);
+  assert.equal(chartData[1]["B Mobile"], 45);
+  for (const key of Object.keys(pageViews)) assert.equal(chartData[0][key], 100);
 });
 
-test("does not draw a rate for an A/B series without a positive complete denominator", () => {
+test("one missing device denominator does not erase another device's valid line", () => {
   const { chartData, pageViews } = buildClarityOverlayChartData(
     [{ depth: 50, desktop: 10, mobile: 5 }],
     { Desktop: 100, Mobile: 0 },
@@ -73,11 +74,11 @@ test("does not draw a rate for an A/B series without a positive complete denomin
     "合計",
   );
 
-  assert.deepEqual(pageViews, { A: 100 });
-  assert.deepEqual(chartData, [
-    { depth: "0%", A: 100, AVisitors: 100, B: null, BVisitors: null },
-    { depth: "50%", A: 15, AVisitors: 15, B: null, BVisitors: 20 },
-  ]);
+  assert.deepEqual(pageViews, { "A Desktop": 100, "A Mobile": 0, "B Desktop": 200 });
+  assert.equal(chartData[1]["A Desktop"], 10);
+  assert.equal(chartData[1]["A Mobile"], null);
+  assert.equal(chartData[1]["B Desktop"], 10);
+  assert.equal(chartData[1]["B Mobile"], null);
 });
 
 test("keeps a mobile-only test-pattern line in total overlay when Desktop has no exports", () => {
@@ -89,9 +90,43 @@ test("keeps a mobile-only test-pattern line in total overlay when Desktop has no
     "合計",
   );
 
-  assert.deepEqual(pageViews, { A: 100, B: 150 });
-  assert.deepEqual(chartData, [
-    { depth: "0%", A: 100, AVisitors: 100, B: 100, BVisitors: 150 },
-    { depth: "50%", A: 20, AVisitors: 20, B: 20, BVisitors: 30 },
-  ]);
+  assert.deepEqual(pageViews, { "A Desktop": 100, "A Mobile": 0, "B Desktop": 0, "B Mobile": 150 });
+  assert.equal(chartData[1]["A Desktop"], 20);
+  assert.equal(chartData[1]["B Mobile"], 20);
+});
+
+test("screenshot regression: A Desktop PV 22 remains visible when A Mobile PV is missing", () => {
+  const pointsA = [{ depth: 50, desktop: 10, mobile: 2000 }];
+  const pointsB = [{ depth: 50, desktop: 18, mobile: 2369 }];
+  const pvA = { Desktop: 22 };
+  const pvB = { Desktop: 22, Mobile: 4738 };
+  const { chartData, pageViews } = buildClarityOverlayChartData(pointsA, pvA, pointsB, pvB, "合計");
+  const splitA = buildClarityChartData(pointsA, pvA);
+  const splitB = buildClarityChartData(pointsB, pvB);
+  for (let i = 0; i < chartData.length; i++) {
+    for (const device of ["Desktop", "Mobile"]) {
+      assert.equal(chartData[i][`A ${device}`], splitA[i][device]);
+      assert.equal(chartData[i][`B ${device}`], splitB[i][device]);
+      assert.equal(chartData[i][`A ${device}Visitors`], splitA[i][`${device}Visitors`]);
+      assert.equal(chartData[i][`B ${device}Visitors`], splitB[i][`${device}Visitors`]);
+    }
+  }
+  assert.equal(pageViews["A Desktop"], 22);
+  assert.equal(pageViews["A Mobile"], undefined);
+  assert.equal(pageViews["B Mobile"], 4738);
+});
+
+test("device tabs filter overlay series without changing their calculations", () => {
+  for (const device of ["Desktop", "Mobile"]) {
+    const { chartData, pageViews } = buildClarityOverlayChartData(
+      [{ depth: 50, desktop: 10, mobile: 50 }], { Desktop: 20, Mobile: 200 },
+      [{ depth: 75, desktop: 5, mobile: 20 }], { Desktop: 10, Mobile: 100 },
+      device,
+    );
+    assert.deepEqual(Object.keys(pageViews), [`A ${device}`, `B ${device}`]);
+    assert.equal(chartData[1][`A ${device}`], device === "Desktop" ? 50 : 25);
+    assert.equal(chartData[1][`B ${device}`], null);
+    assert.equal(chartData[2][`A ${device}`], null);
+    assert.equal(chartData[2][`B ${device}`], device === "Desktop" ? 50 : 20);
+  }
 });

@@ -58,37 +58,42 @@ export function buildClarityOverlayChartData(
   pointsB: readonly ClarityPoint[],
   pageViewsB: ClarityPageViews,
   device: ClarityDeviceTab,
-): { chartData: ClarityChartRow[]; pageViews: Partial<Record<"A" | "B", number>> } {
-  const pvA = getPageViewsForDevice(pageViewsA, device);
-  const pvB = getPageViewsForDevice(pageViewsB, device);
-  const depths = new Set([...pointsA.map((point) => point.depth), ...pointsB.map((point) => point.depth)]);
-  if ((pvA ?? 0) > 0 || (pvB ?? 0) > 0) depths.add(0);
+): { chartData: ClarityChartRow[]; pageViews: Partial<Record<string, number>> } {
+  // 「合計」は左右比較と同じく両デバイスを表示する。表示切替で
+  // 分母を合算したり、片方のPV欠損で正常なデバイスの線を消したりしない。
+  const rows = new Map<string, ClarityChartRow>();
+  const pageViews: Partial<Record<string, number>> = {};
+  const devices: ClarityDevice[] = device === "合計" ? ["Desktop", "Mobile"] : [device];
 
-  const getVisitors = (points: readonly ClarityPoint[], depth: number): number | null => {
-    const point = points.find((item) => item.depth === depth);
-    if (!point) return null;
-    if (device === "Desktop") return point.desktop ?? null;
-    if (device === "Mobile") return point.mobile ?? null;
-    const total = (point.desktop ?? 0) + (point.mobile ?? 0);
-    return total > 0 ? total : null;
-  };
-
-  const chartData = Array.from(depths)
-    .sort((a, b) => a - b)
-    .map((depth) => {
-      const visitorsA = depth === 0 ? (pvA != null && pvA > 0 ? pvA : null) : getVisitors(pointsA, depth);
-      const visitorsB = depth === 0 ? (pvB != null && pvB > 0 ? pvB : null) : getVisitors(pointsB, depth);
-      return {
-        depth: `${depth}%`,
-        A: getReachRate(visitorsA, pvA),
-        AVisitors: visitorsA,
-        B: getReachRate(visitorsB, pvB),
-        BVisitors: visitorsB,
-      };
+  for (const [segment, points, pv] of [
+    ["A", pointsA, pageViewsA],
+    ["B", pointsB, pageViewsB],
+  ] as const) {
+    for (const selectedDevice of devices) {
+      if (pv[selectedDevice] != null) pageViews[`${segment} ${selectedDevice}`] = pv[selectedDevice];
+    }
+    for (const row of buildClarityChartData(points, pv)) {
+      const depth = String(row.depth);
+      const merged = rows.get(depth) ?? { depth };
+      for (const selectedDevice of devices) {
+        const key = `${segment} ${selectedDevice}`;
+        merged[key] = row[selectedDevice];
+        merged[`${key}Visitors`] = row[`${selectedDevice}Visitors`];
+      }
+      rows.set(depth, merged);
+    }
+  }
+  const chartData = [...rows.values()]
+    .sort((a, b) => parseFloat(String(a.depth)) - parseFloat(String(b.depth)))
+    .map((row) => {
+      for (const segment of ["A", "B"]) {
+        for (const selectedDevice of devices) {
+          const key = `${segment} ${selectedDevice}`;
+          row[key] ??= null;
+          row[`${key}Visitors`] ??= null;
+        }
+      }
+      return row;
     });
-
-  const pageViews: Partial<Record<"A" | "B", number>> = {};
-  if (pvA != null) pageViews.A = pvA;
-  if (pvB != null) pageViews.B = pvB;
   return { chartData, pageViews };
 }

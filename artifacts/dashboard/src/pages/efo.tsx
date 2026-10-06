@@ -807,7 +807,7 @@ function ClarityOverlayView({
   const dataA = useClarityData(clarityA, () => {});
   const dataB = useClarityData(clarityB, () => {});
 
-  // 合計では両デバイスのPVが確認できる場合のみ、正確な母数として使う。
+  // 表示切替では計算方法を変えず、左右比較のデバイス別到達率を重ねる。
   const { chartData, pageViews: overlayPageViews } = buildClarityOverlayChartData(
     dataA.points,
     dataA.pageViews,
@@ -815,20 +815,27 @@ function ClarityOverlayView({
     dataB.pageViews,
     device,
   );
-  const pvA = overlayPageViews.A;
-  const pvB = overlayPageViews.B;
-
-  const lines = [
-    { key: "A", color: YELLOW, label: "A" },
-    { key: "B", color: BLUE,   label: "B", dashed: true },
-  ];
+  const devices = device === "合計" ? ["Desktop", "Mobile"] as const : [device];
+  const lines = (["A", "B"] as const).flatMap((seg) => devices.map((selectedDevice) => ({
+    key: `${seg} ${selectedDevice}`,
+    color: selectedDevice === "Desktop" ? CLARITY_DESKTOP : CLARITY_MOBILE,
+    label: `${SEG_LABELS[seg]} ${selectedDevice}`,
+    dashed: seg === "B",
+  }))).filter((line) => (overlayPageViews[line.key] ?? 0) > 0);
+  const missingPv = (["A", "B"] as const).flatMap((seg) => {
+    const data = seg === "A" ? dataA : dataB;
+    return devices.filter((selectedDevice) =>
+      data.pageViews[selectedDevice] == null &&
+      data.points.some((point) => point[selectedDevice === "Desktop" ? "desktop" : "mobile"] != null),
+    ).map((selectedDevice) => `${SEG_LABELS[seg]} ${selectedDevice}`);
+  });
 
   const isLoading = dataA.isLoading || dataB.isLoading;
 
   return (
     <div>
       {/* 共通デバイスタブ + PV */}
-      <div className="px-4 py-2 flex items-center gap-4" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+      <div className="px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
         <div className="flex gap-1">
           {DEVICE_TABS.map((tab) => (
             <button key={tab} onClick={() => setDevice(tab)}
@@ -838,33 +845,36 @@ function ClarityOverlayView({
             </button>
           ))}
         </div>
-        {pvA != null && pvA > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: YELLOW }} />
-            <span className="text-[10px]" style={{ color: "#6B7280" }}>A PV:</span>
-            <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pvA)}</span>
+        {lines.map((line) => (
+          <div key={line.key} className="flex items-center gap-1">
+            <span className="text-[10px]" style={{ color: "#6B7280" }}>{line.key} PV:</span>
+            <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(overlayPageViews[line.key]!)}</span>
           </div>
-        )}
-        {pvB != null && pvB > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: BLUE }} />
-            <span className="text-[10px]" style={{ color: "#6B7280" }}>B PV:</span>
-            <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pvB)}</span>
-          </div>
-        )}
+        ))}
       </div>
 
       {/* グラフ凡例 */}
-      <div className="px-4 pt-3 pb-1 flex gap-4">
-        <div className="flex items-center gap-1.5">
-          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke={YELLOW} strokeWidth="2.5" /></svg>
-          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.A} — {clarityA.selectedAdCode || dataA.effectiveAdCode || "—"}</span>
+      <div className="px-4 pt-3 pb-1 flex flex-wrap gap-x-4 gap-y-1">
+        <div className="min-w-0 break-all">
+          <span className="text-[11px]" style={{ color: "#374151" }}>A: {SEG_LABELS.A} — {clarityA.selectedAdCode || dataA.effectiveAdCode || "—"}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke={BLUE} strokeWidth="2.5" strokeDasharray="5 3" /></svg>
-          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.B} — {clarityB.selectedAdCode || dataB.effectiveAdCode || "—"}</span>
+        <div className="min-w-0 break-all">
+          <span className="text-[11px]" style={{ color: "#374151" }}>B: {SEG_LABELS.B} — {clarityB.selectedAdCode || dataB.effectiveAdCode || "—"}</span>
         </div>
       </div>
+      <div className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1">
+        {lines.map((line) => (
+          <div key={line.key} className="flex items-center gap-1.5 text-[11px]" style={{ color: "#374151" }}>
+            <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke={line.color} strokeWidth="2.5" strokeDasharray={line.dashed ? "5 3" : undefined} /></svg>
+            {line.label}
+          </div>
+        ))}
+      </div>
+      {!isLoading && missingPv.length > 0 && (
+        <div className="px-4 pb-2 text-[11px]" style={{ color: "#6B7280" }}>
+          {missingPv.join("、")}: PV未取得のため到達率を表示できません。
+        </div>
+      )}
 
       <div className="px-4 pb-4" style={{ background: "#fff" }}>
         <ClarityScrollChart chartData={chartData} lines={lines} pageViews={overlayPageViews} isLoading={isLoading} />
