@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
+import { aggregateClarityScrollDays, parseClarityCsv } from "../lib/clarity-scroll.js";
 
 const router: IRouter = Router();
 
@@ -14,39 +15,6 @@ function parseFilename(name: string): { adCode: string; device: string } | null 
   const match = name.match(/^(.+?)_(Desktop|Mobile)_scroll_/);
   if (!match) return null;
   return { adCode: match[1], device: match[2] };
-}
-
-function parseCsv(text: string): { pageViews: number | null; points: { depth: number; visitors: number }[] } {
-  const lines = text.split("\n");
-  let pageViews: number | null = null;
-  let dataStart = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.includes("ページ ビュー")) {
-      const match = line.match(/"ページ ビュー","(\d+)"/);
-      if (match) pageViews = parseInt(match[1], 10);
-    }
-    if (line.includes("スクロールの奥行き")) {
-      dataStart = i + 1;
-      break;
-    }
-  }
-
-  if (dataStart === -1) return { pageViews, points: [] };
-
-  const points: { depth: number; visitors: number }[] = [];
-  for (let i = dataStart; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    // データ行は "深度","訪問者数","ドロップオフ率(小数)" 形式。
-    // 3列目は小数(例 37.66)なので、深度・訪問者数の先頭2列だけを取る。
-    const match = line.match(/^"(\d+)","(\d+)"/);
-    if (!match) continue;
-    points.push({ depth: parseInt(match[1], 10), visitors: parseInt(match[2], 10) });
-  }
-
-  return { pageViews, points };
 }
 
 router.get("/clarity/files", async (req, res): Promise<void> => {
@@ -111,7 +79,7 @@ async function fetchScrollForDate(
         .download(`${date}/${filename}`);
       if (dlError) throw dlError;
       const text = await (data as Blob).text();
-      return { device, ...parseCsv(text) };
+      return { device, ...parseClarityCsv(text) };
     })
   );
 }
@@ -153,49 +121,13 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
       return;
     }
 
-    // 全日付のデータを並列取得（存在しない日は空配列になるのでエラー無視）
+    // 全日付のデータを並列取得。失敗時に一部だけ集計するとPV分母が不正確になるため、
+    // 日付単位の取得エラーも通常のAPIエラーとして扱う。
     const allDayData = await Promise.all(
-      targetDates.map((d) =>
-        fetchScrollForDate(supabase, d, adCode).catch(() => [] as Awaited<ReturnType<typeof fetchScrollForDate>>)
-      )
+      targetDates.map((d) => fetchScrollForDate(supabase, d, adCode))
     );
 
-    // Desktop / Mobile ごとに PV とスクロール訪問者数を合算
-    const depthMap = new Map<number, { desktop: number; mobile: number }>();
-    const pageViewTotals: Record<"Desktop" | "Mobile", number> = { Desktop: 0, Mobile: 0 };
-    const pageViewAvailable: Record<"Desktop" | "Mobile", boolean> = { Desktop: true, Mobile: true };
-    const hasDeviceData: Record<"Desktop" | "Mobile", boolean> = { Desktop: false, Mobile: false };
-
-    for (const dayData of allDayData) {
-      for (const { device, pageViews: pv, points } of dayData) {
-        if (device === "Desktop" || device === "Mobile") {
-          hasDeviceData[device] = true;
-          if (pv == null) pageViewAvailable[device] = false;
-          else pageViewTotals[device] += pv;
-        }
-        for (const { depth, visitors } of points) {
-          const existing = depthMap.get(depth) ?? { desktop: 0, mobile: 0 };
-          if (device === "Desktop") existing.desktop += visitors;
-          if (device === "Mobile") existing.mobile += visitors;
-          depthMap.set(depth, existing);
-        }
-      }
-    }
-
-    const points = Array.from(depthMap.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([depth, { desktop, mobile }]) => ({
-        depth,
-        desktop: desktop > 0 ? desktop : null,
-        mobile: mobile > 0 ? mobile : null,
-      }));
-
-    const pageViews: Record<string, number> = {};
-    for (const device of ["Desktop", "Mobile"] as const) {
-      if (hasDeviceData[device] && pageViewAvailable[device]) {
-        pageViews[device] = pageViewTotals[device];
-      }
-    }
+    const { points, pageViews } = aggregateClarityScrollDays(allDayData);
 
     res.json({ adCode, date: date ?? dateFrom, points, pageViews });
   } catch (err) {

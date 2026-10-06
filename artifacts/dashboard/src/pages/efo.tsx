@@ -36,6 +36,13 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/format";
+import {
+  buildClarityChartData,
+  buildClarityOverlayChartData,
+  type ClarityChartRow,
+  type ClarityDeviceTab,
+} from "@/lib/clarity-scroll";
+import { makeClarityTooltip } from "@/lib/clarity-tooltip";
 import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, ChevronDown, Trash2, X, Pencil, Check } from "lucide-react";
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
@@ -567,7 +574,7 @@ function SegmentPanel({
 }
 
 // ─── Clarity Panel (fully self-contained) ──────────────────────────
-type DeviceTab = "合計" | "Desktop" | "Mobile";
+type DeviceTab = ClarityDeviceTab;
 const DEVICE_TABS: DeviceTab[] = ["合計", "Desktop", "Mobile"];
 const CLARITY_SEG_COLORS = { A: YELLOW, B: BLUE } as const;
 const CLARITY_SEG_TEXT = { A: "#1A1A1A", B: "#ffffff" } as const;
@@ -634,56 +641,6 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
   };
 }
 
-type ChartRow = Record<string, string | number | null>;
-
-function getPageViewsForDevice(pageViews: Partial<Record<string, number>>, device: DeviceTab): number | undefined {
-  if (device === "Desktop") return pageViews.Desktop;
-  if (device === "Mobile") return pageViews.Mobile;
-  const desktop = pageViews.Desktop;
-  const mobile = pageViews.Mobile;
-  return desktop != null && mobile != null ? desktop + mobile : undefined;
-}
-
-function getReachRate(visitors: number | null | undefined, pageViews: number | undefined): number | null {
-  return visitors != null && pageViews != null && pageViews > 0
-    ? (visitors / pageViews) * 100
-    : null;
-}
-
-// ─── ツールチップ（到達率 + 訪問者数 + PV数） ─────────────────────────
-function makeClarityTooltip(pageViews: Partial<Record<string, number>>) {
-  return function ClarityTooltip({ active, payload, label }: {
-    active?: boolean;
-    payload?: { name: string; value: number | null; color: string; payload?: ChartRow }[];
-    label?: string;
-  }) {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 12px", fontSize: 11, minWidth: 160 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: "#374151" }}>スクロール深度: {label}</div>
-        {payload.map((p) => {
-          const rawVisitors = p.payload?.[`${p.name}Visitors`];
-          const visitors = typeof rawVisitors === "number" ? rawVisitors : null;
-          const pv = pageViews[p.name];
-          const rate = typeof p.value === "number" && Number.isFinite(p.value) ? `${p.value.toFixed(1)}%` : "—";
-          return (
-            <div key={p.name} style={{ marginBottom: 7 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                <span style={{ color: "#6B7280", flex: 1 }}>{p.name}</span>
-                <span style={{ color: "#374151", fontWeight: 600 }}>{rate}</span>
-              </div>
-              <div style={{ color: "#9CA3AF", marginLeft: 14 }}>
-                {label === "0%" ? "分子（0％起点はPV数）" : "訪問者数"}: {visitors != null ? formatNumber(visitors) : "—"} / PV数: {pv != null ? formatNumber(pv) : "—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-}
-
 // ─── 共通スクロールグラフ（ドラッグリサイズ対応） ──────────────────────
 const MIN_CHART_HEIGHT = 120;
 
@@ -693,7 +650,7 @@ function ClarityScrollChart({
   pageViews,
   isLoading,
 }: {
-  chartData: ChartRow[];
+  chartData: ClarityChartRow[];
   lines: { key: string; color: string; label?: string; dashed?: boolean }[];
   pageViews: Partial<Record<string, number>>;
   isLoading: boolean;
@@ -805,23 +762,7 @@ function ClarityPanel({
   const { activeDate, adCodeOptions, filesLoading, effectiveAdCode, isLoading, pageViews, points } =
     useClarityData(state, () => setSelectedAdCode(""));
 
-  const depths = [...new Set(points.map((point) => point.depth))];
-  if ((pageViews.Desktop ?? 0) > 0 || (pageViews.Mobile ?? 0) > 0) depths.push(0);
-  const chartData: ChartRow[] = depths
-    .sort((a, b) => a - b)
-    .map((depth) => {
-      const point = points.find((item) => item.depth === depth);
-      const row: ChartRow = { depth: `${depth}%` };
-      for (const key of ["Desktop", "Mobile"] as const) {
-        const pv = pageViews[key];
-        const visitors = depth === 0
-          ? (pv != null && pv > 0 ? pv : null)
-          : point?.[key.toLowerCase() as "desktop" | "mobile"] ?? null;
-        row[key] = getReachRate(visitors, pv);
-        row[`${key}Visitors`] = visitors;
-      }
-      return row;
-    });
+  const chartData = buildClarityChartData(points, pageViews);
   const lines = [
     ...(device === "合計" || device === "Desktop" ? [{ key: "Desktop", color: CLARITY_DESKTOP }] : []),
     ...(device === "合計" || device === "Mobile" ? [{ key: "Mobile", color: CLARITY_MOBILE }] : []),
@@ -867,41 +808,15 @@ function ClarityOverlayView({
   const dataB = useClarityData(clarityB, () => {});
 
   // 合計では両デバイスのPVが確認できる場合のみ、正確な母数として使う。
-  const pvA = getPageViewsForDevice(dataA.pageViews, device);
-  const pvB = getPageViewsForDevice(dataB.pageViews, device);
-
-  // A と B の深度ポイントをマージして1行にまとめる
-  const allDepths = useMemo(() => {
-    const set = new Set([...dataA.points.map((p) => p.depth), ...dataB.points.map((p) => p.depth)]);
-    if ((pvA ?? 0) > 0 || (pvB ?? 0) > 0) set.add(0);
-    return Array.from(set).sort((a, b) => a - b);
-  }, [dataA.points, dataB.points, pvA, pvB]);
-
-  const getVal = (points: typeof dataA.points, depth: number, dev: DeviceTab): number | null => {
-    const p = points.find((x) => x.depth === depth);
-    if (!p) return null;
-    if (dev === "Desktop") return p.desktop ?? null;
-    if (dev === "Mobile") return p.mobile ?? null;
-    // 合計 = Desktop + Mobile
-    const d = p.desktop ?? 0, m = p.mobile ?? 0;
-    return d + m > 0 ? d + m : null;
-  };
-
-  const chartData: ChartRow[] = allDepths.map((depth) => {
-    const visitorsA = depth === 0 ? (pvA != null && pvA > 0 ? pvA : null) : getVal(dataA.points, depth, device);
-    const visitorsB = depth === 0 ? (pvB != null && pvB > 0 ? pvB : null) : getVal(dataB.points, depth, device);
-    return {
-      depth: `${depth}%`,
-      A: getReachRate(visitorsA, pvA),
-      AVisitors: visitorsA,
-      B: getReachRate(visitorsB, pvB),
-      BVisitors: visitorsB,
-    };
-  });
-
-  const overlayPageViews: Partial<Record<string, number>> = {};
-  if (pvA != null) overlayPageViews.A = pvA;
-  if (pvB != null) overlayPageViews.B = pvB;
+  const { chartData, pageViews: overlayPageViews } = buildClarityOverlayChartData(
+    dataA.points,
+    dataA.pageViews,
+    dataB.points,
+    dataB.pageViews,
+    device,
+  );
+  const pvA = overlayPageViews.A;
+  const pvB = overlayPageViews.B;
 
   const lines = [
     { key: "A", color: YELLOW, label: "A" },
