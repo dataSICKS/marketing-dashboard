@@ -797,23 +797,22 @@ function ClarityOverlayView({
   clarityA: ClarityState; clarityB: ClarityState;
   onClarityAChange: (s: ClarityState) => void; onClarityBChange: (s: ClarityState) => void;
 }) {
-  // 重ね表示では A/B で共通のデバイスタブを使う（A の device を正とする）
-  const device = clarityA.device;
-  const setDevice = (d: DeviceTab) => {
-    onClarityAChange({ ...clarityA, device: d });
-    onClarityBChange({ ...clarityB, device: d });
+  const setDevice = (seg: "A" | "B", device: DeviceTab) => {
+    if (seg === "A") onClarityAChange({ ...clarityA, device });
+    else onClarityBChange({ ...clarityB, device });
   };
 
   const dataA = useClarityData(clarityA, () => {});
   const dataB = useClarityData(clarityB, () => {});
 
-  // 合計では両デバイスのPVが確認できる場合のみ、正確な母数として使う。
+  // A/Bごとに選択されたデバイスとPV母数を使って重ねる。
   const { chartData, pageViews: overlayPageViews } = buildClarityOverlayChartData(
     dataA.points,
     dataA.pageViews,
+    clarityA.device,
     dataB.points,
     dataB.pageViews,
-    device,
+    clarityB.device,
   );
   const pvA = overlayPageViews.A;
   const pvB = overlayPageViews.B;
@@ -827,42 +826,47 @@ function ClarityOverlayView({
 
   return (
     <div>
-      {/* 共通デバイスタブ + PV */}
-      <div className="px-4 py-2 flex items-center gap-4" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
-        <div className="flex gap-1">
-          {DEVICE_TABS.map((tab) => (
-            <button key={tab} onClick={() => setDevice(tab)}
-              className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              style={device === tab ? { background: "#1A1A1A", color: "#fff" } : { background: "#F3F4F6", color: "#6B7280" }}>
-              {tab}
-            </button>
-          ))}
-        </div>
-        {pvA != null && pvA > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: YELLOW }} />
-            <span className="text-[10px]" style={{ color: "#6B7280" }}>A PV:</span>
-            <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pvA)}</span>
-          </div>
-        )}
-        {pvB != null && pvB > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: BLUE }} />
-            <span className="text-[10px]" style={{ color: "#6B7280" }}>B PV:</span>
-            <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pvB)}</span>
-          </div>
-        )}
+      {/* A/Bそれぞれのデバイス選択とPV */}
+      <div className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-2" style={{ borderBottom: "1px solid #F0F0F0", background: "#fff" }}>
+        {(["A", "B"] as const).map((seg) => {
+          const state = seg === "A" ? clarityA : clarityB;
+          const color = seg === "A" ? YELLOW : BLUE;
+          const textColor = seg === "A" ? "#1A1A1A" : "#fff";
+          const pv = seg === "A" ? pvA : pvB;
+          return (
+            <div key={seg} className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold" style={{ color }}>
+                {SEG_LABELS[seg]}
+              </span>
+              <div className="flex gap-1">
+                {DEVICE_TABS.map((tab) => (
+                  <button key={tab} onClick={() => setDevice(seg, tab)}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-medium transition-all"
+                    style={state.device === tab ? { background: color, color: textColor } : { background: "#F3F4F6", color: "#6B7280" }}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              {pv != null && pv > 0 && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px]" style={{ color: "#6B7280" }}>PV:</span>
+                  <span className="text-[10px] font-semibold" style={{ color: "#374151" }}>{formatNumber(pv)}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* グラフ凡例 */}
       <div className="px-4 pt-3 pb-1 flex gap-4">
         <div className="flex items-center gap-1.5">
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke={YELLOW} strokeWidth="2.5" /></svg>
-          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.A} — {clarityA.selectedAdCode || dataA.effectiveAdCode || "—"}</span>
+          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.A}（{clarityA.device}）— {clarityA.selectedAdCode || dataA.effectiveAdCode || "—"}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke={BLUE} strokeWidth="2.5" strokeDasharray="5 3" /></svg>
-          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.B} — {clarityB.selectedAdCode || dataB.effectiveAdCode || "—"}</span>
+          <span className="text-[11px]" style={{ color: "#374151" }}>{SEG_LABELS.B}（{clarityB.device}）— {clarityB.selectedAdCode || dataB.effectiveAdCode || "—"}</span>
         </div>
       </div>
 

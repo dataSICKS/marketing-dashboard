@@ -52,6 +52,7 @@ test("combines device PV and visitors for total A/B overlay without mixing denom
   const { chartData, pageViews } = buildClarityOverlayChartData(
     [{ depth: 50, desktop: 20, mobile: 30 }],
     { Desktop: 100, Mobile: 300 },
+    "合計",
     [{ depth: 50, desktop: 10, mobile: 90 }],
     { Desktop: 200, Mobile: 200 },
     "合計",
@@ -68,6 +69,7 @@ test("does not draw a rate for an A/B series without a positive complete denomin
   const { chartData, pageViews } = buildClarityOverlayChartData(
     [{ depth: 50, desktop: 10, mobile: 5 }],
     { Desktop: 100, Mobile: 0 },
+    "合計",
     [{ depth: 50, desktop: 20, mobile: null }],
     { Desktop: 200 },
     "合計",
@@ -77,5 +79,22 @@ test("does not draw a rate for an A/B series without a positive complete denomin
   assert.deepEqual(chartData, [
     { depth: "0%", A: 100, AVisitors: 100, B: null, BVisitors: null },
     { depth: "50%", A: 15, AVisitors: 15, B: null, BVisitors: 20 },
+  ]);
+});
+
+test("keeps the test-pattern line when A and B use different devices", () => {
+  const { chartData, pageViews } = buildClarityOverlayChartData(
+    [{ depth: 50, desktop: 20, mobile: null }],
+    { Desktop: 100, Mobile: 0 },
+    "Desktop",
+    [{ depth: 50, desktop: null, mobile: 30 }],
+    { Mobile: 150 },
+    "Mobile",
+  );
+
+  assert.deepEqual(pageViews, { A: 100, B: 150 });
+  assert.deepEqual(chartData, [
+    { depth: "0%", A: 100, AVisitors: 100, B: 100, BVisitors: 150 },
+    { depth: "50%", A: 20, AVisitors: 20, B: 20, BVisitors: 30 },
   ]);
 });
