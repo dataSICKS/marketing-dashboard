@@ -14,6 +14,7 @@ import { getCache, setCache } from "../lib/newsletter-cache.js";
 import { upsertRows, fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
 import { GetNewsletterDataQueryParams } from "@workspace/api-zod";
 import type { NewsletterRow } from "../lib/newsletter-types.js";
+import { normalizeNewsletterDate } from "../lib/newsletter-date.js";
 
 const router: IRouter = Router();
 
@@ -34,7 +35,13 @@ async function getRows(req: { log: { info: (...a: unknown[]) => void; error: (..
       cached = { rows, syncedAt };
     }
   }
-  return cached;
+  return {
+    ...cached,
+    rows: cached.rows.map((row) => ({
+      ...row,
+      deliveryDate: normalizeNewsletterDate(row.deliveryDate),
+    })),
+  };
 }
 
 router.post("/newsletter/sync", async (req, res): Promise<void> => {

@@ -69,6 +69,7 @@ const MATRIX_METRICS = [
 
 const GROUP_TABS: { value: TabMode; label: string }[] = [
   { value: "matrix", label: "マトリクス" },
+  { value: "day", label: "日別配信数" },
   { value: "scenario", label: "シナリオ別" },
   { value: "template", label: "テンプレ別" },
 ];
@@ -1146,7 +1147,7 @@ export default function Dashboard() {
 
   // Force day grouping when in change compare mode; treat matrix as day for data queries
   const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" ? "day" : groupBy;
-  // Always follow groupBy for tab highlighting — never use "day" (which isn't a tab)
+  // Follow the selected tab even when comparison forces daily aggregation.
   const activeTabValue: TabMode = groupBy;
 
   const slashToHyphen = (s: string | undefined) => s?.replace(/\//g, "-");
@@ -1510,12 +1511,12 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
-                      {compareMode === "change" ? "前後トレンド" : "配信トレンド"}
+                      {groupBy === "day" ? "日別配信数の推移" : compareMode === "change" ? "前後トレンド" : "配信トレンド"}
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
                         ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後`
-                        : "棒：配信数　折れ線：開封率 / クリック率"}
+                        : groupBy === "day" ? "日ごとの配信数（通）・配信データのある日を表示" : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
                 </div>
@@ -1529,7 +1530,7 @@ export default function Dashboard() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                           <XAxis dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
                           <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatNumber} width={48} />
-                          <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatPercent} width={42} />
+                          {groupBy !== "day" && <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatPercent} width={42} />}
                           <Tooltip
                             contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: "10px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                             formatter={(value: number, name: string) =>
@@ -1564,13 +1565,13 @@ export default function Dashboard() {
                               <Cell key={index} fill={getBarFill(item.label)} />
                             ))}
                           </Bar>
-                          <Line
+                          {groupBy !== "day" && <Line
                             yAxisId="right" type="monotone" dataKey="openRate" name="開封率"
                             stroke={compareMode === "change" ? "#94A3B8" : "#60A5FA"}
                             strokeWidth={2} dot={false} activeDot={{ r: 4 }}
                             strokeDasharray={compareMode === "change" ? "4 2" : undefined}
-                          />
-                          <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                          />}
+                          {groupBy !== "day" && <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
@@ -1584,10 +1585,10 @@ export default function Dashboard() {
                           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                             <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 施策後・配信数
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                          {groupBy !== "day" && <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                             <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,2" /></svg>
                             開封率
-                          </div>
+                          </div>}
                           <div className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: CHANGE_COLOR }}>
                             <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={CHANGE_COLOR} strokeWidth="1.5" strokeDasharray="5,4" /></svg>
                             施策開始
@@ -1595,7 +1596,7 @@ export default function Dashboard() {
                         </>
                       ) : (
                         <>
-                          {[{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }].map((l) => (
+                          {(groupBy === "day" ? [{ color: YELLOW, label: "配信数" }] : [{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }]).map((l) => (
                             <div key={l.label} className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />{l.label}
                             </div>
