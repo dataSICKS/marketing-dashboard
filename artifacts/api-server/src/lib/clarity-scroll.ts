@@ -10,11 +10,17 @@ export interface ClarityScrollExport {
   device: string;
   pageViews: number | null;
   points: { depth: number; visitors: number }[];
+  emptyExport?: boolean;
+}
+
+export function isEmptyClarityExport(entry: ClarityScrollExport): boolean {
+  return entry.emptyExport === true && entry.pageViews == null && entry.points.length === 0;
 }
 
 export function parseClarityCsv(text: string): {
   pageViews: number | null;
   points: { depth: number; visitors: number }[];
+  emptyExport?: boolean;
 } {
   const lines = text.split("\n");
   let pageViews: number | null = null;
@@ -44,6 +50,13 @@ export function parseClarityCsv(text: string): {
     points.push({ depth: parseInt(match[1], 10), visitors: parseInt(match[2], 10) });
   }
 
+  // Only a recognized, explicitly blank PV header and an empty scroll body
+  // count as an empty export. Malformed/unreadable rows must not bypass safety.
+  if (pageViews == null &&
+      lines.some((line) => /^"ページ ビュー",""\s*$/.test(line.trim())) &&
+      lines.slice(dataStart).every((line) => !line.trim())) {
+    return { pageViews, points, emptyExport: true };
+  }
   return { pageViews, points };
 }
 
@@ -57,13 +70,20 @@ export function aggregateClarityScrollDays(
   const pageViewTotals: Record<ClarityDevice, number> = { Desktop: 0, Mobile: 0 };
   const pageViewAvailable: Record<ClarityDevice, boolean> = { Desktop: true, Mobile: true };
   const hasDeviceData: Record<ClarityDevice, boolean> = { Desktop: false, Mobile: false };
+  const hasReadablePV: Record<ClarityDevice, boolean> = { Desktop: false, Mobile: false };
 
   for (const dayData of allDayData) {
-    for (const { device, pageViews, points } of dayData) {
+    for (const entry of dayData) {
+      const { device, pageViews, points } = entry;
       if (device === "Desktop" || device === "Mobile") {
         hasDeviceData[device] = true;
-        if (pageViews == null) pageViewAvailable[device] = false;
-        else pageViewTotals[device] += pageViews;
+        // A header-only export contributes neither PV nor visitor counts.
+        // The API reports it as excluded; never treat it as an observed zero.
+        if (pageViews == null && !isEmptyClarityExport(entry)) pageViewAvailable[device] = false;
+        else if (pageViews != null) {
+          hasReadablePV[device] = true;
+          pageViewTotals[device] += pageViews;
+        }
       }
       for (const { depth, visitors } of points) {
         const existing = depthMap.get(depth) ?? { desktop: 0, mobile: 0 };
@@ -84,9 +104,9 @@ export function aggregateClarityScrollDays(
 
   const pageViews: Partial<Record<ClarityDevice, number>> = {};
   for (const device of ["Desktop", "Mobile"] as const) {
-    if (hasDeviceData[device] && pageViewAvailable[device]) {
+    if (hasReadablePV[device] && pageViewAvailable[device]) {
       pageViews[device] = pageViewTotals[device];
-    } else if (!hasDeviceData[device] && (hasDeviceData.Desktop || hasDeviceData.Mobile)) {
+    } else if (!hasDeviceData[device] && (hasReadablePV.Desktop || hasReadablePV.Mobile)) {
       // No exports means zero contribution, not a missing PV denominator.
       // Exports with unreadable PVs still omit the key to block incomplete rates.
       pageViews[device] = 0;

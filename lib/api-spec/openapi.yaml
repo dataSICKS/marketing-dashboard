@@ -1064,7 +1064,21 @@ components:
           type: object
           additionalProperties:
             type: number
-          description: "Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })"
+          description: "PV counts per device. Header-only empty exports are excluded and reported in excludedEmptyExports; a device with visitors but missing PV remains omitted."
+        excludedEmptyExports:
+          type: array
+          description: "Exports with no PV and no scroll rows. Rates for affected devices cover only the remaining readable data, not the entire requested period."
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              device:
+                type: string
+                enum: [Desktop, Mobile]
+            required:
+              - date
+              - device
       required:
         - adCode
         - date

@@ -7,6 +7,6 @@
  */
 
 /**
- * Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })
+ * PV counts per device. Header-only empty exports are excluded and reported in excludedEmptyExports; a device with visitors but missing PV remains omitted.
  */
 export type ClarityScrollResponsePageViews = { [key: string]: number };

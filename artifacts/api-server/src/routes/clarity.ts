@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
-import { aggregateClarityScrollDays, parseClarityCsv } from "../lib/clarity-scroll.js";
+import { aggregateClarityScrollDays, isEmptyClarityExport, parseClarityCsv } from "../lib/clarity-scroll.js";
 
 const router: IRouter = Router();
 
@@ -60,7 +60,7 @@ async function fetchScrollForDate(
   supabase: ReturnType<typeof getSupabaseClient>,
   date: string,
   adCode: string,
-): Promise<{ device: string; pageViews: number | null; points: { depth: number; visitors: number }[] }[]> {
+): Promise<{ device: string; pageViews: number | null; points: { depth: number; visitors: number }[]; emptyExport?: boolean }[]> {
   const { data: files, error } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
   if (error) throw error;
 
@@ -117,7 +117,7 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
     }
 
     if (targetDates.length === 0) {
-      res.json({ adCode, date: date ?? dateFrom, points: [], pageViews: {} });
+      res.json({ adCode, date: date ?? dateFrom, points: [], pageViews: {}, excludedEmptyExports: [] });
       return;
     }
 
@@ -128,8 +128,12 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
     );
 
     const { points, pageViews } = aggregateClarityScrollDays(allDayData);
+    const excludedEmptyExports = allDayData.flatMap((dayData, index) =>
+      dayData.filter(isEmptyClarityExport)
+        .map((entry) => ({ date: targetDates[index], device: entry.device })),
+    );
 
-    res.json({ adCode, date: date ?? dateFrom, points, pageViews });
+    res.json({ adCode, date: date ?? dateFrom, points, pageViews, excludedEmptyExports });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch clarity scroll data");
     res.status(500).json({ error: "Clarityスクロールデータの取得に失敗しました" });

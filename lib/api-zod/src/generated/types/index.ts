@@ -18,6 +18,8 @@ export * from "./clarityPresetState";
 export * from "./clarityPresetStateDateRange";
 export * from "./clarityScrollPoint";
 export * from "./clarityScrollResponse";
+export * from "./clarityScrollResponseExcludedEmptyExportsItem";
+export * from "./clarityScrollResponseExcludedEmptyExportsItemDevice";
 export * from "./clarityScrollResponsePageViews";
 export * from "./efoExitScenarioCount";
 export * from "./efoFilters";

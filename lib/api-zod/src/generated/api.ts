@@ -341,7 +341,20 @@ export const GetClarityScrollResponse = zod.object({
   ),
   pageViews: zod
     .record(zod.string(), zod.number())
-    .describe("Page view counts per device (e.g. { Desktop: 2, Mobile: 5 })"),
+    .describe(
+      "PV counts per device. Header-only empty exports are excluded and reported in excludedEmptyExports; a device with visitors but missing PV remains omitted.",
+    ),
+  excludedEmptyExports: zod
+    .array(
+      zod.object({
+        date: zod.string(),
+        device: zod.enum(["Desktop", "Mobile"]),
+      }),
+    )
+    .optional()
+    .describe(
+      "Exports with no PV and no scroll rows. Rates for affected devices cover only the remaining readable data, not the entire requested period.",
+    ),
 });
 
 /**

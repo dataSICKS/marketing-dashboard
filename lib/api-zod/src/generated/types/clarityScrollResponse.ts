@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ClarityScrollPoint } from "./clarityScrollPoint";
+import type { ClarityScrollResponseExcludedEmptyExportsItem } from "./clarityScrollResponseExcludedEmptyExportsItem";
 import type { ClarityScrollResponsePageViews } from "./clarityScrollResponsePageViews";
 
 export interface ClarityScrollResponse {
   adCode: string;
   date: string;
   points: ClarityScrollPoint[];
-  /** Page view counts per device (e.g. { Desktop: 2, Mobile: 5 }) */
+  /** PV counts per device. Header-only empty exports are excluded and reported in excludedEmptyExports; a device with visitors but missing PV remains omitted. */
   pageViews: ClarityScrollResponsePageViews;
+  /** Exports with no PV and no scroll rows. Rates for affected devices cover only the remaining readable data, not the entire requested period. */
+  excludedEmptyExports?: ClarityScrollResponseExcludedEmptyExportsItem[];
 }

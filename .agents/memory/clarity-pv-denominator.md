@@ -10,6 +10,13 @@ For a device's date-range scroll rate, use its aggregated PV total only when eve
 
 **How to apply:** Preserve denominator completeness when changing Clarity scroll aggregation or adding other visualizations based on the same exports; treat incomplete storage reads as errors, not empty dates.
 
+## Recognized empty exports and partial coverage
+A CSV with an explicitly blank PV header, a recognized scroll-table header, and no data rows is an empty export, not an export contributing visitors with an unknown denominator. It may be excluded from both numerator and denominator so remaining readable exports can display a rate. Clearly disclose the affected device and dates and label the result as valid-data-only, not the whole requested period. Never infer that excluded days had zero traffic.
+
+**Why:** A genuine header-only Clarity export was suppressing all original Mobile rates across a multi-day range, even though it contributed no visitor rows. Restoring the remaining data is useful only if the coverage limitation stays visible.
+
+**How to apply:** Distinguish recognized empty CSVs from corrupt/unreadable files or nonempty exports missing PV; the latter still block device rates. Keep exclusion notices in both split and overlay views and filter notices with device tabs.
+
 ## Absent device versus missing PV
 Distinguish a device with no matching exports from one whose matching exports lack readable PV counts. For an otherwise nonempty dataset, the former has zero contribution to the exported-data total; the latter has an unknown denominator and must still block a combined rate.
 

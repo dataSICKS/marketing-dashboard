@@ -46,6 +46,7 @@ import { makeClarityTooltip } from "@/lib/clarity-tooltip";
 import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, ChevronDown, Trash2, X, Pencil, Check } from "lucide-react";
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
+import ClarityDataNotice from "@/components/ClarityDataNotice";
 
 type GroupBy = GetEfoDataGroupBy;
 
@@ -759,7 +760,7 @@ function ClarityPanel({
   const setDateRange = (dateRange: EfoDateRange | null) => onChange({ ...state, dateRange });
   const setSelectedAdCode = (selectedAdCode: string) => onChange({ ...state, selectedAdCode });
   const setDevice = (device: DeviceTab) => onChange({ ...state, device });
-  const { activeDate, adCodeOptions, filesLoading, effectiveAdCode, isLoading, pageViews, points } =
+  const { activeDate, adCodeOptions, filesLoading, effectiveAdCode, isLoading, pageViews, points, scrollData } =
     useClarityData(state, () => setSelectedAdCode(""));
 
   const chartData = buildClarityChartData(points, pageViews);
@@ -783,6 +784,7 @@ function ClarityPanel({
         ))}
       </div>
       <PvSummaryBar pageViews={pageViews} device={device} />
+      <ClarityDataNotice data={scrollData} device={device} label={SEG_LABELS[seg]} />
       <div className="px-4 py-3" style={{ background: "#fff" }}>
         <ClarityScrollChart chartData={chartData} lines={lines} pageViews={pageViews} isLoading={isLoading} />
       </div>
@@ -822,13 +824,6 @@ function ClarityOverlayView({
     label: `${SEG_LABELS[seg]} ${selectedDevice}`,
     dashed: seg === "B",
   }))).filter((line) => (overlayPageViews[line.key] ?? 0) > 0);
-  const missingPv = (["A", "B"] as const).flatMap((seg) => {
-    const data = seg === "A" ? dataA : dataB;
-    return devices.filter((selectedDevice) =>
-      data.pageViews[selectedDevice] == null &&
-      data.points.some((point) => point[selectedDevice === "Desktop" ? "desktop" : "mobile"] != null),
-    ).map((selectedDevice) => `${SEG_LABELS[seg]} ${selectedDevice}`);
-  });
 
   const isLoading = dataA.isLoading || dataB.isLoading;
 
@@ -870,11 +865,8 @@ function ClarityOverlayView({
           </div>
         ))}
       </div>
-      {!isLoading && missingPv.length > 0 && (
-        <div className="px-4 pb-2 text-[11px]" style={{ color: "#6B7280" }}>
-          {missingPv.join("、")}: PV未取得のため到達率を表示できません。
-        </div>
-      )}
+      <ClarityDataNotice data={dataA.scrollData} device={device} label={SEG_LABELS.A} />
+      <ClarityDataNotice data={dataB.scrollData} device={device} label={SEG_LABELS.B} />
 
       <div className="px-4 pb-4" style={{ background: "#fff" }}>
         <ClarityScrollChart chartData={chartData} lines={lines} pageViews={overlayPageViews} isLoading={isLoading} />

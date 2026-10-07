@@ -70,3 +70,50 @@ test("distinguishes no Desktop exports from exports missing PV in a mobile-only 
 test("keeps an empty range empty instead of fabricating device PV", () => {
   assert.deepEqual(aggregateClarityScrollDays([[], []]), { points: [], pageViews: {} });
 });
+
+test("a header-only empty export does not hide rates from other readable exports", () => {
+  const empty = parseClarityCsv('"ページ ビュー",""\n"スクロールの奥行き","いいえ。訪問者数","% ドロップ オフ"\n');
+  assert.deepEqual(empty, { pageViews: null, points: [], emptyExport: true });
+  const result = aggregateClarityScrollDays([
+    [{ device: "Mobile", pageViews: 200, points: [{ depth: 50, visitors: 80 }] }],
+    [{ device: "Mobile", ...empty }],
+  ]);
+  assert.deepEqual(result.pageViews, { Desktop: 0, Mobile: 200 });
+  assert.deepEqual(result.points, [{ depth: 50, desktop: null, mobile: 80 }]);
+});
+
+test("an entirely empty device export is not presented as a zero PV observation", () => {
+  assert.deepEqual(aggregateClarityScrollDays([
+    [{ device: "Mobile", pageViews: null, points: [], emptyExport: true }],
+  ]), { points: [], pageViews: {} });
+  const mixed = aggregateClarityScrollDays([[
+    { device: "Desktop", pageViews: 22, points: [{ depth: 50, visitors: 10 }] },
+    { device: "Mobile", pageViews: null, points: [], emptyExport: true },
+  ]]);
+  assert.deepEqual(mixed.pageViews, { Desktop: 22 });
+});
+
+test("a missing PV export with visitor rows still blocks the device rate despite empty exports", () => {
+  const { pageViews } = aggregateClarityScrollDays([
+    [{ device: "Mobile", pageViews: 200, points: [{ depth: 50, visitors: 80 }] }],
+    [{ device: "Mobile", pageViews: null, points: [], emptyExport: true }],
+    [{ device: "Mobile", pageViews: null, points: [{ depth: 50, visitors: 10 }] }],
+  ]);
+  assert.equal(pageViews.Mobile, undefined);
+});
+
+test("malformed or unreadable CSVs are not mistaken for recognized empty exports", () => {
+  for (const csv of [
+    '"ページ ビュー","unknown"\n"スクロールの奥行き","訪問者数"\n',
+    '"ページ ビュー",""\n"スクロールの奥行き","訪問者数"\n"50","unreadable"\n',
+    'unreadable file',
+  ]) {
+    const parsed = parseClarityCsv(csv);
+    assert.notEqual(parsed.emptyExport, true);
+    const { pageViews } = aggregateClarityScrollDays([
+      [{ device: "Mobile", pageViews: 200, points: [{ depth: 50, visitors: 80 }] }],
+      [{ device: "Mobile", ...parsed }],
+    ]);
+    assert.equal(pageViews.Mobile, undefined);
+  }
+});
