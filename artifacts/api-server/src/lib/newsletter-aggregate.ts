@@ -71,11 +71,17 @@ export function aggregateRows(
   }
 
   return entries.map(([key, groupRows]) => {
-    const subject = groupBy === "template" || groupBy === "scenario"
-      ? (groupRows[0]?.subject ?? null)
-      : groupBy === "day"
-        ? (groupRows[0]?.subject ?? null)
-        : null;
+    // A scenario/template can have different subjects within the selected period.
+    // Do not present the first subject as if it describes every delivery.
+    const subjects = [...new Set(
+      [...groupRows].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate))
+        .map((row) => row.subject.trim() || "（件名未取得）"),
+    )];
+    const subject = ["template", "scenario", "day"].includes(groupBy)
+      ? subjects.length === 1
+        ? subjects[0] === "（件名未取得）" ? null : subjects[0]
+        : `複数の件名（${subjects.length}種類）\n${subjects.join("\n")}`
+      : null;
     return computeMetrics(key, groupRows, { subject });
   });
 }

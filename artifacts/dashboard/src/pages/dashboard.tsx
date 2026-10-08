@@ -370,7 +370,7 @@ function MetricsTable({
                         {item.label}
                       </TableCell>
                       {showSubject && (
-                        <TableCell className="text-xs min-w-[200px] break-words" style={{ color: "#374151" }}>
+                        <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
                           {item.subject ?? "—"}
                         </TableCell>
                       )}
@@ -428,7 +428,7 @@ function MetricsTable({
                   {item.label}
                 </TableCell>
                 {showSubject && (
-                  <TableCell className="text-xs min-w-[200px] break-words" style={{ color: "#374151" }}>
+                  <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
                     {item.subject ?? "—"}
                   </TableCell>
                 )}
@@ -1182,6 +1182,7 @@ export default function Dashboard() {
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/templates"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/matrix"] });
       },
     },
   });
