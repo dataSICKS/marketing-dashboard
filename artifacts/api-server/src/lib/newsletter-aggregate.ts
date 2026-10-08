@@ -45,10 +45,10 @@ export function aggregateRows(
         key = row.deliveryYearMonth;
         break;
       case "scenario":
-        key = row.scenarioName ?? "(未設定)";
+        key = JSON.stringify([row.scenarioName ?? "(未設定)", row.subject.trim()]);
         break;
       case "template":
-        key = row.templateName;
+        key = JSON.stringify([row.templateName, row.subject.trim()]);
         break;
       default:
         key = row.deliveryDate;
@@ -71,6 +71,10 @@ export function aggregateRows(
   }
 
   return entries.map(([key, groupRows]) => {
+    if (groupBy === "scenario" || groupBy === "template") {
+      const [label, subject] = JSON.parse(key) as [string, string];
+      return computeMetrics(label, groupRows, { subject: subject || null });
+    }
     // A scenario/template can have different subjects within the selected period.
     // Do not present the first subject as if it describes every delivery.
     const subjects = [...new Set(
@@ -92,11 +96,16 @@ export function computeSummary(rows: NewsletterRow[]): NewsletterMetrics {
 
 export function mergeComparisonMetrics(
   current: NewsletterMetrics[],
-  prev: NewsletterMetrics[]
+  prev: NewsletterMetrics[],
+  groupBy?: GroupBy,
 ): NewsletterMetrics[] {
-  const prevMap = new Map(prev.map((p) => [p.label, p]));
+  const identity = (item: NewsletterMetrics) =>
+    groupBy === "scenario" || groupBy === "template"
+      ? JSON.stringify([item.label, item.subject ?? ""])
+      : item.label;
+  const prevMap = new Map(prev.map((p) => [identity(p), p]));
   return current.map((item) => {
-    const p = prevMap.get(item.label);
+    const p = prevMap.get(identity(item));
     if (!p) return item;
     return {
       ...item,

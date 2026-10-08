@@ -107,7 +107,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
       if (hasComparison) {
         const prevItems = aggregateRows(prevRows, groupBy);
-        items = mergeComparisonMetrics(items, prevItems);
+        items = mergeComparisonMetrics(items, prevItems, groupBy);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevRows)])[0]!;
       }
 
@@ -123,7 +123,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       if (hasComparison) {
         const prevScenarioRows = prevRows.filter((r) => r.scenarioName === scenarioName);
         const prevItems = aggregateRows(prevScenarioRows, groupBy);
-        items = mergeComparisonMetrics(items, prevItems);
+        items = mergeComparisonMetrics(items, prevItems, groupBy);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevScenarioRows)])[0]!;
       }
       return { scenarioName, items, summary };
@@ -137,7 +137,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     let summary = computeSummary(combinedRows);
     if (hasComparison) {
       const prevCombined = prevRows.filter((r) => selectedScenarioNames.includes(r.scenarioName));
-      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy));
+      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy), groupBy);
       summary = mergeComparisonMetrics([summary], [computeSummary(prevCombined)])[0]!;
     }
 

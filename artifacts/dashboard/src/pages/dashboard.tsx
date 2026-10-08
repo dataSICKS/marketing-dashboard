@@ -371,7 +371,7 @@ function MetricsTable({
                       </TableCell>
                       {showSubject && (
                         <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
-                          {item.subject ?? "—"}
+                          {item.subject ?? "（件名未取得）"}
                         </TableCell>
                       )}
                       <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
@@ -429,7 +429,7 @@ function MetricsTable({
                 </TableCell>
                 {showSubject && (
                   <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
-                    {item.subject ?? "—"}
+                    {item.subject ?? "（件名未取得）"}
                   </TableCell>
                 )}
                 <TableCell className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
@@ -1189,6 +1189,11 @@ export default function Dashboard() {
 
   const summary = data?.summary;
   const items = data?.items ?? [];
+  const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
+  const chartItems = items.map((item) => ({
+    ...item,
+    chartKey: subjectChart ? JSON.stringify([item.label, item.subject ?? "（件名未取得）"]) : item.label,
+  }));
   const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableScenarios = data?.availableScenarios ?? [];
@@ -1512,11 +1517,12 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
-                      {groupBy === "day" ? "日別配信数の推移" : compareMode === "change" ? "前後トレンド" : "配信トレンド"}
+                      {subjectChart ? "件名別の実績" : groupBy === "day" ? "日別配信数の推移" : compareMode === "change" ? "前後トレンド" : "配信トレンド"}
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
                         ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後`
+                        : subjectChart ? "棒：件名別の配信数　点：開封率 / クリック率"
                         : groupBy === "day" ? "日ごとの配信数（通）・配信データのある日を表示" : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
@@ -1525,15 +1531,35 @@ export default function Dashboard() {
                   <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データがありません</div>
                 ) : (
                   <>
-                    <div style={{ height: chartHeight }}>
+                    <div className="overflow-x-auto">
+                    <div style={{ height: chartHeight, minWidth: subjectChart ? Math.min(chartItems.length, 6) * 230 : undefined }}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={items} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                        <ComposedChart data={chartItems} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                          <XAxis dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
+                          <XAxis dataKey="chartKey" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6}
+                            interval={subjectChart && chartItems.length <= 6 ? 0 : "preserveStartEnd"}
+                            tickFormatter={(value) => subjectChart
+                              ? (JSON.parse(String(value)) as [string, string])[1].slice(0, 26)
+                              : String(value)}
+                            height={subjectChart ? 52 : 30}
+                            tick={subjectChart ? ({ x, y, payload }) => {
+                              const [label, subject] = JSON.parse(String(payload.value)) as [string, string];
+                              const shorten = (text: string, max: number) => text.length > max ? `${text.slice(0, max)}…` : text;
+                              return (
+                                <text x={x} y={y} textAnchor="middle" fill="#6B7280" fontSize={10}>
+                                  <tspan x={x} dy={12}>{shorten(label, 22)}</tspan>
+                                  <tspan x={x} dy={15}>{shorten(subject, 26)}</tspan>
+                                </text>
+                              );
+                            } : undefined}
+                          />
                           <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatNumber} width={48} />
                           {groupBy !== "day" && <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatPercent} width={42} />}
                           <Tooltip
                             contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: "10px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                            labelFormatter={(label, payload) => subjectChart
+                              ? `${payload[0]?.payload?.label ?? ""} / 件名：${payload[0]?.payload?.subject ?? "（件名未取得）"}`
+                              : String(label)}
                             formatter={(value: number, name: string) =>
                               name === "配信数" ? [formatNumber(value), name] : [formatPercent(value), name]
                             }
@@ -1569,12 +1595,13 @@ export default function Dashboard() {
                           {groupBy !== "day" && <Line
                             yAxisId="right" type="monotone" dataKey="openRate" name="開封率"
                             stroke={compareMode === "change" ? "#94A3B8" : "#60A5FA"}
-                            strokeWidth={2} dot={false} activeDot={{ r: 4 }}
+                            strokeWidth={subjectChart ? 0 : 2} dot={subjectChart ? { r: 4, fill: "#60A5FA", stroke: "#60A5FA", strokeWidth: 1 } : false} activeDot={{ r: 4 }}
                             strokeDasharray={compareMode === "change" ? "4 2" : undefined}
                           />}
-                          {groupBy !== "day" && <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                          {groupBy !== "day" && <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={subjectChart ? 0 : 2} dot={subjectChart ? { r: 4, fill: "#34D399", stroke: "#34D399", strokeWidth: 1 } : false} activeDot={{ r: 4 }} />}
                         </ComposedChart>
                       </ResponsiveContainer>
+                    </div>
                     </div>
                     <ChartResizeHandle height={chartHeight} onHeightChange={setChartHeight} />
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
