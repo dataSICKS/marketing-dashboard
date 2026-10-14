@@ -4,3 +4,4 @@
 - [Clarity CSV completeness](clarity-pv-denominator.md) — block unknown PV for visitor rows; disclose dates excluded for recognized empty CSVs; preserve device curves across display modes.
 - [Newsletter subject changes](newsletter-subject-changes.md) — split scenario/template detail rows and metrics by subject; never list multiple subjects beside combined counts.
 - [Recharts category labels](recharts-category-labels.md) — custom ticks need compact measurement labels for compound identities, or valid categories can disappear.
+- [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
