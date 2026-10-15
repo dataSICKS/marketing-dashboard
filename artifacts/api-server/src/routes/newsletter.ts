@@ -17,6 +17,14 @@ import type { NewsletterRow } from "../lib/newsletter-types.js";
 import { normalizeNewsletterDate } from "../lib/newsletter-date.js";
 
 const router: IRouter = Router();
+function isValidAnchorDate(value: string): boolean {
+  try {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && normalizeNewsletterDate(value) === value.replace(/-/g, "/");
+  } catch {
+    return false;
+  }
+}
 
 async function getRows(req: { log: { info: (...a: unknown[]) => void; error: (...a: unknown[]) => void } }): Promise<{ rows: NewsletterRow[]; syncedAt: string }> {
   let cached = getCache();
@@ -61,6 +69,15 @@ router.post("/newsletter/sync", async (req, res): Promise<void> => {
 router.get("/newsletter/data", async (req, res): Promise<void> => {
   try {
     const parsed = GetNewsletterDataQueryParams.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "集計パラメータが不正です" });
+      return;
+    }
+    const anchorDate = parsed.data.anchorDate;
+    if (anchorDate && !isValidAnchorDate(anchorDate)) {
+      res.status(400).json({ error: "施策の基準日が不正です" });
+      return;
+    }
     const groupBy: GroupBy = ((parsed.success ? parsed.data.groupBy : "day") ?? "day") as GroupBy;
     const timeGroupBy = parsed.success ? parsed.data.timeGroupBy : undefined;
     const dateFrom = parsed.success ? (parsed.data.dateFrom ?? undefined) : undefined;
@@ -107,11 +124,11 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
     // no scenario filter → single flat aggregation
     if (selectedScenarioNames.length === 0) {
-      let items = aggregateRows(rows, groupBy, timeGroupBy);
+      let items = aggregateRows(rows, groupBy, timeGroupBy, anchorDate);
       let summary = computeSummary(rows);
 
       if (hasComparison) {
-        const prevItems = aggregateRows(prevRows, groupBy, timeGroupBy);
+        const prevItems = aggregateRows(prevRows, groupBy, timeGroupBy, anchorDate);
         items = mergeComparisonMetrics(items, prevItems, groupBy, comparisonPeriods);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevRows)])[0]!;
       }
@@ -123,11 +140,11 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     // scenario filter → build scenarioGroups
     const scenarioGroups = selectedScenarioNames.map((scenarioName) => {
       const scenarioRows = rows.filter((r) => r.scenarioName === scenarioName);
-      let items = aggregateRows(scenarioRows, groupBy, timeGroupBy);
+      let items = aggregateRows(scenarioRows, groupBy, timeGroupBy, anchorDate);
       let summary = computeSummary(scenarioRows);
       if (hasComparison) {
         const prevScenarioRows = prevRows.filter((r) => r.scenarioName === scenarioName);
-        const prevItems = aggregateRows(prevScenarioRows, groupBy, timeGroupBy);
+        const prevItems = aggregateRows(prevScenarioRows, groupBy, timeGroupBy, anchorDate);
         items = mergeComparisonMetrics(items, prevItems, groupBy, comparisonPeriods);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevScenarioRows)])[0]!;
       }
@@ -138,11 +155,11 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const combinedRows = selectedScenarioNames.length > 0
       ? rows.filter((r) => selectedScenarioNames.includes(r.scenarioName))
       : rows;
-    let items = aggregateRows(combinedRows, groupBy, timeGroupBy);
+    let items = aggregateRows(combinedRows, groupBy, timeGroupBy, anchorDate);
     let summary = computeSummary(combinedRows);
     if (hasComparison) {
       const prevCombined = prevRows.filter((r) => selectedScenarioNames.includes(r.scenarioName));
-      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy, timeGroupBy), groupBy, comparisonPeriods);
+      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy, timeGroupBy, anchorDate), groupBy, comparisonPeriods);
       summary = mergeComparisonMetrics([summary], [computeSummary(prevCombined)])[0]!;
     }
 
@@ -214,6 +231,10 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
   try {
     const { rows: allRows } = await getRows(req);
     const q = req.query as Record<string, string | undefined>;
+    if (q.anchorDate && !isValidAnchorDate(q.anchorDate)) {
+      res.status(400).json({ error: "施策の基準日が不正です" });
+      return;
+    }
 
     const validTime = ["day", "week", "month"];
     const validMetric = ["deliveryCount", "openRate", "clickRate", "cvr", "cvCount"];
@@ -229,7 +250,7 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
-    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics);
+    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics, q.anchorDate);
     res.json(data);
   } catch (err) {
     req.log.error({ err }, "Failed to compute matrix data");

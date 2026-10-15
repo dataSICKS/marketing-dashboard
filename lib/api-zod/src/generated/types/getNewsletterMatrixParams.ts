@@ -8,6 +8,11 @@
 import type { GetNewsletterMatrixTimeGroupBy } from "./getNewsletterMatrixTimeGroupBy";
 
 export type GetNewsletterMatrixParams = {
+  /**
+   * Campaign date used to align time buckets
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  anchorDate?: string;
   timeGroupBy?: GetNewsletterMatrixTimeGroupBy;
   /**
    * Comma-separated metrics

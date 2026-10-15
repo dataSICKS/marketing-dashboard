@@ -70,6 +70,13 @@ paths:
             enum: [day, week, month, template, scenario]
             default: day
           description: Aggregation dimension
+        - name: anchorDate
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Campaign date; align weeks to consecutive 7-day periods and months to this date instead of calendar boundaries
         - name: timeGroupBy
           in: query
           required: false
@@ -205,6 +212,13 @@ paths:
       tags: [newsletter]
       summary: Get newsletter comparison matrix
       parameters:
+        - name: anchorDate
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Campaign date used to align time buckets
         - name: timeGroupBy
           in: query
           required: false
@@ -816,6 +830,9 @@ components:
         period:
           type: string
           description: Time bucket (YYYY/MM/DD for day or Monday-start week, YYYY/MM for month)
+        periodEnd:
+          type: string
+          description: Inclusive end date of a campaign-aligned time bucket (YYYY/MM/DD)
         subject:
           type: ["string", "null"]
           description: 件名（テンプレ別・日別など行レベルで意味を持つ場合）

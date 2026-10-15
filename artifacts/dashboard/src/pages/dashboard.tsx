@@ -46,21 +46,12 @@ import {
   Check,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
+import { timePeriod, focusRange, formatChartRate, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
 type TabMode = GroupBy | "matrix";
 type TimeGroupBy = "day" | "week" | "month";
 const TIME_LABELS = { day: "日別", week: "週別", month: "月別" } as const;
-
-function timePeriod(date: string, granularity: TimeGroupBy): string {
-  const normalized = date.replace(/-/g, "/");
-  if (granularity === "month") return normalized.slice(0, 7);
-  if (granularity === "day") return normalized;
-  const [year, month, day] = normalized.split("/").map(Number);
-  const value = new Date(Date.UTC(year!, month! - 1, day!));
-  value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
-  return value.toISOString().slice(0, 10).replace(/-/g, "/");
-}
 
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
@@ -92,6 +83,8 @@ interface Preset {
   name: string;
   groupBy: TabMode;
   timeGroupBy?: TimeGroupBy;
+  chartMetric?: ChartMetric | "default";
+  focusPeriods?: number | "all";
   dateFrom?: string;
   dateTo?: string;
   /** Legacy field: old presets stored segment values here. */
@@ -382,7 +375,7 @@ function MetricsTable({
                         {phase && (
                           <span className="inline-block w-2 h-2 rounded-full mr-1.5 shrink-0 align-middle" style={{ background: phase === "before" ? BEFORE_COLOR : AFTER_COLOR }} />
                         )}
-                        {item.label}
+                        {item.label}{item.periodEnd && ` 〜 ${item.periodEnd}`}
                       </TableCell>
                       {showPeriod && <TableCell className="text-xs whitespace-nowrap">{item.period}</TableCell>}
                       {showSubject && (
@@ -441,7 +434,7 @@ function MetricsTable({
                   {phase && (
                     <span className="inline-block w-2 h-2 rounded-full mr-1.5 shrink-0 align-middle" style={{ background: phase === "before" ? BEFORE_COLOR : AFTER_COLOR }} />
                   )}
-                  {item.label}
+                  {item.label}{item.periodEnd && ` 〜 ${item.periodEnd}`}
                 </TableCell>
                 {showPeriod && <TableCell className="text-xs whitespace-nowrap">{item.period}</TableCell>}
                 {showSubject && (
@@ -775,6 +768,7 @@ function MatrixView({
 
   const baseParams = {
     timeGroupBy,
+    anchorDate: isCompare ? selectedCampaign?.startDate : undefined,
     metrics: selectedMetrics.join(","),
     scenarios: selectedScenarios.join("|"),
     templates: selectedTemplates.join("|"),
@@ -808,9 +802,18 @@ function MatrixView({
   });
 
   const series: MatrixResponse["series"] = isCompare
-    ? (beforeData?.series ?? afterData?.series ?? [])
+    ? (beforeData?.series ?? afterData?.series ?? []).map((series) => {
+        const after = afterData?.series.find((other) => other.key === series.key && other.type === series.type);
+        const metricValues = { ...series.metricValues };
+        for (const metric of MATRIX_METRICS) {
+          metricValues[metric.value] = { ...series.metricValues[metric.value], ...after?.metricValues[metric.value] };
+        }
+        return { ...series, metricValues };
+      })
     : (data?.series ?? []);
-  const timePeriods: string[] = isCompare ? [] : (data?.timePeriods ?? []);
+  const timePeriods: string[] = isCompare
+    ? [...new Set([...(beforeData?.timePeriods ?? []), ...(afterData?.timePeriods ?? []), ...(splitDate ? [timePeriod(splitDate, timeGroupBy, splitDate)] : [])])].sort()
+    : (data?.timePeriods ?? []);
   const beforePeriods: string[] = isCompare ? (beforeData?.timePeriods ?? []) : [];
   const afterPeriods:  string[] = isCompare ? (afterData?.timePeriods  ?? []) : [];
 
@@ -899,16 +902,16 @@ function MatrixView({
               (mk) => !MATRIX_METRICS.find((m) => m.value === mk)?.isRate
             );
             const isMixed = hasRate && hasCount;
-            const leftFmt = !isMixed && hasRate ? formatPercent : formatNumber;
+            const leftFmt = !isMixed && hasRate ? formatChartRate : formatNumber;
             const yAxisId = (mk: string) => {
               if (!isMixed) return "left";
               return MATRIX_METRICS.find((m) => m.value === mk)?.isRate ? "right" : "left";
             };
             const mergedChartData = timePeriods.map((period) => {
-              const pt: Record<string, string | number> = { period };
+              const pt: Record<string, string | number | null> = { period };
               for (const s of series) {
                 for (const mk of selectedMetrics) {
-                  pt[`${s.key}__${mk}`] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? 0;
+                  pt[`${s.key}__${mk}`] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? null;
                 }
               }
               return pt;
@@ -921,11 +924,15 @@ function MatrixView({
                     <ComposedChart data={mergedChartData} margin={{ top: 8, right: isMixed ? 52 : 8, left: -16, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                       <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
+                      {isCompare && splitDate && <ReferenceLine yAxisId="left" x={timePeriod(splitDate, timeGroupBy, splitDate)}
+                        stroke={CHANGE_COLOR} strokeDasharray="5 4" label={{ value: "施策開始", fill: CHANGE_COLOR, fontSize: 9 }} />}
                       <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                        domain={!isMixed && hasRate ? [0, (maximum: number) => maximum > 0 ? maximum * 1.15 : 0.01] : [0, "auto"]}
                         tickFormatter={(v) => leftFmt(v as number)} width={52} />
                       {isMixed && (
                         <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
-                          tickFormatter={(v) => formatPercent(v as number)} width={48} />
+                          domain={[0, (maximum: number) => maximum > 0 ? maximum * 1.15 : 0.01]}
+                          tickFormatter={(v) => formatChartRate(v as number)} width={58} />
                       )}
                       <Tooltip
                         contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
@@ -933,7 +940,7 @@ function MatrixView({
                           const [, mk] = name.split("__");
                           const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
                           const seriesKey = name.replace(`__${mk}`, "");
-                          return [mDef.isRate ? formatPercent(val) : formatNumber(val), `${seriesKey} / ${mDef.label}`];
+                          return [mDef.isRate ? formatChartRate(val) : formatNumber(val), `${seriesKey} / ${mDef.label}`];
                         }}
                       />
                       {series.flatMap((s, si) =>
@@ -1142,6 +1149,23 @@ export default function Dashboard() {
   // Compare mode: "none" | "date" | "change"
   const [compareMode, setCompareMode] = useState<"none" | "date" | "change">("none");
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [focusPeriods, setFocusPeriods] = useState<number | "all">(2);
+  const [chartMetric, setChartMetric] = useState<ChartMetric | "default">("default");
+  const { data: campaignsData } = useListCampaigns();
+  const { data: templatesData } = useGetNewsletterTemplates();
+  const allCampaigns = campaignsData?.campaigns ?? [];
+  const selectedCampaign = allCampaigns.find((c) => c.id === selectedChangeId) ?? null;
+  const splitDate = selectedCampaign ? selectedCampaign.startDate.replace(/-/g, "/") : null;
+  const anchorDate = compareMode === "change" ? selectedCampaign?.startDate : undefined;
+  const focusBounds = anchorDate && focusPeriods !== "all" ? focusRange(anchorDate, timeGroupBy, focusPeriods) : null;
+  const requestFrom = [dateRange?.from.replace(/\//g, "-"), focusBounds?.from].filter((s): s is string => !!s).sort().at(-1);
+  const requestTo = [dateRange?.to.replace(/\//g, "-"), focusBounds?.to].filter((s): s is string => !!s).sort()[0];
+  const effectiveDateRange = requestFrom && requestTo ? { from: requestFrom, to: requestTo } : dateRange;
+  const visibleMetrics = CHART_METRICS.filter((metric) => chartMetric === "default"
+    ? (groupBy === "day" ? metric.value === "deliveryCount" : ["deliveryCount", "openRate", "clickRate"].includes(metric.value))
+    : metric.value === chartMetric);
+  const hasCountMetric = visibleMetrics.some((metric) => !metric.isRate);
+  const hasRateMetric = visibleMetrics.some((metric) => metric.isRate);
 
   // Chart height
   const [chartHeight, setChartHeight] = useState(260);
@@ -1159,7 +1183,7 @@ export default function Dashboard() {
     }
   }, [compareMode]);
 
-  // Force day grouping when in change compare mode; treat matrix as day for data queries
+  // Campaign mode is a timeline aligned to its start date, independent of category tabs.
   const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" || ["day", "week", "month"].includes(groupBy) ? timeGroupBy : groupBy;
   // Follow the selected tab even when comparison forces daily aggregation.
   const activeTabValue: TabMode = groupBy;
@@ -1167,9 +1191,10 @@ export default function Dashboard() {
   const slashToHyphen = (s: string | undefined) => s?.replace(/\//g, "-");
   const params = {
     groupBy: effectiveGroupBy,
+    anchorDate,
     timeGroupBy: effectiveGroupBy === "scenario" || effectiveGroupBy === "template" ? timeGroupBy : undefined,
-    dateFrom: slashToHyphen(dateRange?.from),
-    dateTo: slashToHyphen(dateRange?.to),
+    dateFrom: requestFrom,
+    dateTo: requestTo,
     scenarioName: selectedScenarios.length > 0 ? selectedScenarios.join("|") : undefined,
     templateName: selectedTemplates.length > 0 ? selectedTemplates.join("|") : undefined,
     compareFrom: compareMode === "date" && compareEnabled && compareRange ? slashToHyphen(compareRange.from) : undefined,
@@ -1180,13 +1205,11 @@ export default function Dashboard() {
     query: { queryKey: getGetNewsletterDataQueryKey(params) },
   });
   // Keep campaign before/after KPI boundaries exact even when the chart uses weeks/months.
-  const phaseParams = { ...params, groupBy: "day" as const, timeGroupBy: undefined };
+  const phaseParams = { ...params, groupBy: "day" as const, timeGroupBy: undefined, anchorDate: undefined };
   const { data: phaseData, isLoading: phaseLoading, isError: phaseError } = useGetNewsletterData(phaseParams, {
     query: { queryKey: getGetNewsletterDataQueryKey(phaseParams), enabled: compareMode === "change" },
   });
 
-  const { data: campaignsData } = useListCampaigns();
-  const { data: templatesData } = useGetNewsletterTemplates();
 
   // Auto-select first campaign when entering change mode
   useEffect(() => {
@@ -1210,10 +1233,16 @@ export default function Dashboard() {
   const summary = data?.summary;
   const items = data?.items ?? [];
   const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
-  const chartItems = items.map((item) => ({
+  const baseChartItems = items.map((item) => ({
     ...item,
     chartKey: subjectChart ? JSON.stringify([`${item.period ?? ""} / ${item.label}`, item.subject ?? "（件名未取得）"]) : item.label,
   }));
+  // Keep the campaign marker visible even if its first bucket has no exports.
+  const anchorKey = anchorDate ? timePeriod(anchorDate, timeGroupBy, anchorDate) : undefined;
+  const chartItems = anchorKey && !baseChartItems.some((item) => item.chartKey === anchorKey)
+    ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null }]
+      .sort((a, b) => a.chartKey.localeCompare(b.chartKey))
+    : baseChartItems;
   const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableScenarios = data?.availableScenarios ?? [];
@@ -1238,10 +1267,6 @@ export default function Dashboard() {
     });
   }, [templatesData, availableTemplates]);
 
-  // Resolve selected campaign for change compare mode
-  const allCampaigns = campaignsData?.campaigns ?? [];
-  const selectedCampaign = allCampaigns.find((c) => c.id === selectedChangeId) ?? null;
-  const splitDate = selectedCampaign ? selectedCampaign.startDate.replace(/-/g, "/") : null;
 
   // Before/after splits for change compare mode
   const beforeItems = compareMode === "change" && splitDate
@@ -1256,14 +1281,13 @@ export default function Dashboard() {
   // Campaigns that overlap with current item labels
   const campaignLines = useMemo<Campaign[]>(() => {
     const camps = campaignsData?.campaigns ?? [];
-    if (subjectChart) return [];
+    if (subjectChart || compareMode === "change") return [];
     return camps.filter((c) => items.some((item) => item.label === timePeriod(c.startDate, timeGroupBy)));
-  }, [campaignsData, items, subjectChart, timeGroupBy]);
+  }, [campaignsData, items, subjectChart, timeGroupBy, compareMode]);
 
   // Row phase for table coloring
   const getRowPhase = useCallback((label: string): "before" | "after" | null => {
     if (compareMode !== "change" || !splitDate) return null;
-    if (timeGroupBy !== "day" && label === timePeriod(splitDate, timeGroupBy)) return null;
     return label < splitDate ? "before" : "after";
   }, [compareMode, splitDate, timeGroupBy]);
 
@@ -1278,6 +1302,8 @@ export default function Dashboard() {
   const applyPreset = (p: Preset) => {
     setGroupBy(p.groupBy);
     setTabGranularities((current) => ({ ...current, [p.groupBy]: p.timeGroupBy ?? (p.groupBy === "matrix" ? "month" : p.groupBy === "week" ? "week" : p.groupBy === "month" ? "month" : "day") }));
+    setChartMetric(p.chartMetric ?? "default");
+    setFocusPeriods(p.focusPeriods ?? 2);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
     setSelectedScenarios(p.scenarios ?? p.segments ?? []);
     setSelectedTemplates(p.templates ?? []);
@@ -1292,6 +1318,8 @@ export default function Dashboard() {
       name,
       groupBy,
       timeGroupBy,
+      chartMetric,
+      focusPeriods,
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
       scenarios: selectedScenarios,
@@ -1384,7 +1412,7 @@ export default function Dashboard() {
               {GROUP_TABS.map((tab) => (
                 <button
                   key={tab.value}
-                  onClick={() => { setGroupBy(tab.value); if (compareMode === "change" && tab.value === "matrix") setCompareMode("none"); }}
+                  onClick={() => setGroupBy(tab.value)}
                   className="px-4 py-2.5 text-sm font-medium transition-all relative whitespace-nowrap"
                   style={{ color: activeTabValue === tab.value ? YELLOW_DARK : "#9CA3AF" }}
                   data-testid={`tab-${tab.value}`}
@@ -1496,9 +1524,19 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+            {compareMode === "change" && (
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                表示範囲
+                <select aria-label="施策前後の表示範囲" className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
+                  value={focusPeriods} onChange={(event) => setFocusPeriods(event.target.value === "all" ? "all" : Number(event.target.value))}>
+                  <option value={2}>前後2期間</option><option value={4}>前後4期間</option><option value={8}>前後8期間</option><option value="all">選択した全期間</option>
+                </select>
+              </label>
+            )}
             <span className="text-[11px] text-gray-400">
-              {timeGroupBy === "week" ? "月曜〜日曜で集計（月曜の日付を表示）" : timeGroupBy === "month" ? "暦月ごとに集計" : "配信日ごとに集計"}
+              {anchorDate ? `施策日 ${anchorDate} 基準 · ${timeGroupBy === "week" ? "7日間ごと" : timeGroupBy === "month" ? "1か月ごと（末日調整）" : "1日ごと"}` : timeGroupBy === "week" ? "月曜〜日曜で集計（月曜の日付を表示）" : timeGroupBy === "month" ? "暦月ごとに集計" : "配信日ごとに集計"}
               {" · 選択した日付範囲内のデータのみ"}
+              {focusBounds && ` · ${requestFrom} 〜 ${requestTo}`}
             </span>
           </div>
           {groupBy === "matrix" ? (
@@ -1509,7 +1547,7 @@ export default function Dashboard() {
               onScenariosChange={setSelectedScenarios}
               selectedTemplates={selectedTemplates}
               onTemplatesChange={setSelectedTemplates}
-              dateRange={dateRange}
+              dateRange={effectiveDateRange}
               compareMode={compareMode}
               selectedCampaign={selectedCampaign}
               chartHeight={chartHeight}
@@ -1559,15 +1597,23 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
-                      {subjectChart ? `${TIME_LABELS[timeGroupBy]}・件名別の実績` : `${TIME_LABELS[timeGroupBy]}配信数の推移`}
+                      {subjectChart ? `${TIME_LABELS[timeGroupBy]}・件名別の実績` : `${TIME_LABELS[timeGroupBy]}・${chartMetric === "default" ? "配信トレンド" : visibleMetrics[0]?.label}の推移`}
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
-                        ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後${timeGroupBy !== "day" ? "　開始日を含む期間は前後が混在" : ""}`
+                        ? `施策日（${selectedCampaign?.startDate ?? ""}）を境に集計${hasCountMetric ? " · 青 = 施策前 / ピンク = 施策後" : " · 破線 = 施策開始"}`
                         : subjectChart ? "棒：件名別の配信数　点：開封率 / クリック率"
-                        : groupBy === "day" ? `${TIME_LABELS[timeGroupBy]}の配信数（通）・配信データのある期間を表示` : "棒：配信数　折れ線：開封率 / クリック率"}
+                        : "棒：件数　折れ線：率 · 表示指標を選ぶと縦軸も切り替わります"}
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 text-xs text-gray-500">
+                    表示指標
+                    <select aria-label="グラフの表示指標" data-testid="chart-metric" className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
+                      value={chartMetric} onChange={(event) => { setChartMetric(event.target.value as ChartMetric | "default"); setActivePresetId(null); }}>
+                      <option value="default">{groupBy === "day" ? "標準（配信数）" : "標準（配信数・開封率・クリック率）"}</option>
+                      {CHART_METRICS.map((metric) => <option key={metric.value} value={metric.value}>{metric.label}のみ</option>)}
+                    </select>
+                  </label>
                 </div>
                 {items.length === 0 ? (
                   <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データがありません</div>
@@ -1595,22 +1641,28 @@ export default function Dashboard() {
                               );
                             } : undefined}
                           />
-                          <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatNumber} width={48} />
-                          {groupBy !== "day" && <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatPercent} width={42} />}
+                          <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                            tickFormatter={hasCountMetric ? formatNumber : formatChartRate}
+                            domain={hasCountMetric ? [0, "auto"] : [0, (maximum: number) => maximum > 0 ? maximum * 1.15 : 0.01]} width={58} />
+                          {hasCountMetric && hasRateMetric && <YAxis yAxisId="right" orientation="right" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
+                            tickFormatter={formatChartRate}
+                            domain={[0, (maximum: number) => maximum > 0 ? maximum * 1.15 : 0.01]} width={58} />}
                           <Tooltip
                             contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: "10px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                             labelFormatter={(label, payload) => subjectChart
                               ? `${payload[0]?.payload?.period ?? ""} / ${payload[0]?.payload?.label ?? ""} / 件名：${payload[0]?.payload?.subject ?? "（件名未取得）"}`
-                              : String(label)}
+                              : payload[0]?.payload?.periodEnd ? `${label} 〜 ${payload[0].payload.periodEnd}` : String(label)}
                             formatter={(value: number, name: string) =>
-                              name === "配信数" ? [formatNumber(value), name] : [formatPercent(value), name]
+                              CHART_METRICS.find((metric) => metric.label === name)?.isRate
+                                ? [formatChartRate(value), name]
+                                : [formatNumber(value), name]
                             }
                           />
                           {/* Campaign split reference line */}
                           {compareMode === "change" && splitDate && (
                             <ReferenceLine
                               yAxisId="left"
-                              x={timePeriod(splitDate, timeGroupBy)}
+                              x={timePeriod(splitDate, timeGroupBy, anchorDate)}
                               stroke={CHANGE_COLOR}
                               strokeDasharray="5 4"
                               strokeWidth={2}
@@ -1629,18 +1681,16 @@ export default function Dashboard() {
                               label={{ value: c.title.slice(0, 8), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
                             />
                           ))}
-                          <Bar yAxisId="left" dataKey="deliveryCount" name="配信数" radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
-                            {items.map((item, index) => (
-                              <Cell key={index} fill={getBarFill(item.label)} />
-                            ))}
-                          </Bar>
-                          {groupBy !== "day" && <Line
-                            yAxisId="right" type="monotone" dataKey="openRate" name="開封率"
-                            stroke={compareMode === "change" ? "#94A3B8" : "#60A5FA"}
-                            strokeWidth={subjectChart ? 0 : 2} dot={subjectChart ? { r: 4, fill: "#60A5FA", stroke: "#60A5FA", strokeWidth: 1 } : false} activeDot={{ r: 4 }}
-                            strokeDasharray={compareMode === "change" ? "4 2" : undefined}
-                          />}
-                          {groupBy !== "day" && <Line yAxisId="right" type="monotone" dataKey="clickRate" name="クリック率" stroke="#34D399" strokeWidth={subjectChart ? 0 : 2} dot={subjectChart ? { r: 4, fill: "#34D399", stroke: "#34D399", strokeWidth: 1 } : false} activeDot={{ r: 4 }} />}
+                          {visibleMetrics.map((metric) => metric.isRate ? (
+                            <Line key={metric.value} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={metric.value} name={metric.label}
+                              stroke={metric.color} strokeWidth={subjectChart ? 0 : 2}
+                              dot={subjectChart ? { r: 4, fill: metric.color, stroke: metric.color, strokeWidth: 1 } : { r: 3 }}
+                              activeDot={{ r: 5 }} connectNulls={false} />
+                          ) : (
+                            <Bar key={metric.value} yAxisId="left" dataKey={metric.value} name={metric.label} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
+                              {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" ? getBarFill(item.label) : metric.color} />)}
+                            </Bar>
+                          ))}
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
@@ -1649,16 +1699,19 @@ export default function Dashboard() {
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
                       {compareMode === "change" ? (
                         <>
-                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: BEFORE_COLOR }} /> 施策前・配信数
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 施策後・配信数
-                          </div>
-                          {groupBy !== "day" && <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-                            <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,2" /></svg>
-                            開封率
-                          </div>}
+                          {hasCountMetric && <>
+                            <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: BEFORE_COLOR }} /> 施策前・{visibleMetrics.find((metric) => !metric.isRate)?.label}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
+                              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: AFTER_COLOR }} /> 施策後・{visibleMetrics.find((metric) => !metric.isRate)?.label}
+                            </div>
+                          </>}
+                          {visibleMetrics.filter((metric) => metric.isRate).map((metric) => (
+                            <div key={metric.value} className="flex items-center gap-1.5 text-xs text-gray-400">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ background: metric.color }} />{metric.label}
+                            </div>
+                          ))}
                           <div className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: CHANGE_COLOR }}>
                             <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={CHANGE_COLOR} strokeWidth="1.5" strokeDasharray="5,4" /></svg>
                             施策開始
@@ -1666,7 +1719,7 @@ export default function Dashboard() {
                         </>
                       ) : (
                         <>
-                          {(groupBy === "day" ? [{ color: YELLOW, label: "配信数" }] : [{ color: YELLOW, label: "配信数" }, { color: "#60A5FA", label: "開封率" }, { color: "#34D399", label: "クリック率" }]).map((l) => (
+                          {visibleMetrics.map((l) => (
                             <div key={l.label} className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />{l.label}
                             </div>

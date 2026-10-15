@@ -52,6 +52,8 @@ export interface NewsletterMetrics {
   label: string;
   /** Time bucket (YYYY/MM/DD for day or Monday-start week, YYYY/MM for month) */
   period?: string;
+  /** Inclusive end date of a campaign-aligned time bucket (YYYY/MM/DD) */
+  periodEnd?: string;
   /**
    * 件名（テンプレ別・日別など行レベルで意味を持つ場合）
    * @nullable
@@ -381,6 +383,11 @@ export type GetNewsletterDataParams = {
    */
   groupBy?: GetNewsletterDataGroupBy;
   /**
+   * Campaign date; align weeks to consecutive 7-day periods and months to this date instead of calendar boundaries
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  anchorDate?: string;
+  /**
    * Time granularity within scenario/template groups; weeks start on Monday
    */
   timeGroupBy?: GetNewsletterDataTimeGroupBy;
@@ -450,6 +457,11 @@ export type GetNewsletterChangeEventsParams = {
 };
 
 export type GetNewsletterMatrixParams = {
+  /**
+   * Campaign date used to align time buckets
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  anchorDate?: string;
   timeGroupBy?: GetNewsletterMatrixTimeGroupBy;
   /**
    * Comma-separated metrics

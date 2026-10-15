@@ -29,12 +29,22 @@ export const SyncNewsletterResponse = zod.object({
  * @summary Get newsletter report data
  */
 export const getNewsletterDataQueryGroupByDefault = `day`;
+export const getNewsletterDataQueryAnchorDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
 
 export const GetNewsletterDataQueryParams = zod.object({
   groupBy: zod
     .enum(["day", "week", "month", "template", "scenario"])
     .default(getNewsletterDataQueryGroupByDefault)
     .describe("Aggregation dimension"),
+  anchorDate: zod.coerce
+    .string()
+    .regex(getNewsletterDataQueryAnchorDateRegExp)
+    .optional()
+    .describe(
+      "Campaign date; align weeks to consecutive 7-day periods and months to this date instead of calendar boundaries",
+    ),
   timeGroupBy: zod
     .enum(["day", "week", "month"])
     .optional()
@@ -80,6 +90,12 @@ export const GetNewsletterDataResponse = zod.object({
         .describe(
           "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
         ),
+      periodEnd: zod
+        .string()
+        .optional()
+        .describe(
+          "Inclusive end date of a campaign-aligned time bucket (YYYY\/MM\/DD)",
+        ),
       subject: zod
         .string()
         .nullish()
@@ -117,6 +133,12 @@ export const GetNewsletterDataResponse = zod.object({
               .optional()
               .describe(
                 "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+              ),
+            periodEnd: zod
+              .string()
+              .optional()
+              .describe(
+                "Inclusive end date of a campaign-aligned time bucket (YYYY\/MM\/DD)",
               ),
             subject: zod
               .string()
@@ -161,6 +183,12 @@ export const GetNewsletterDataResponse = zod.object({
             .describe(
               "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
             ),
+          periodEnd: zod
+            .string()
+            .optional()
+            .describe(
+              "Inclusive end date of a campaign-aligned time bucket (YYYY\/MM\/DD)",
+            ),
           subject: zod
             .string()
             .nullish()
@@ -200,6 +228,12 @@ export const GetNewsletterDataResponse = zod.object({
       .optional()
       .describe(
         "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+      ),
+    periodEnd: zod
+      .string()
+      .optional()
+      .describe(
+        "Inclusive end date of a campaign-aligned time bucket (YYYY\/MM\/DD)",
       ),
     subject: zod
       .string()
@@ -273,9 +307,17 @@ export const GetNewsletterTemplatesResponse = zod.object({
 /**
  * @summary Get newsletter comparison matrix
  */
+export const getNewsletterMatrixQueryAnchorDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
 export const getNewsletterMatrixQueryTimeGroupByDefault = `month`;
 
 export const GetNewsletterMatrixQueryParams = zod.object({
+  anchorDate: zod.coerce
+    .string()
+    .regex(getNewsletterMatrixQueryAnchorDateRegExp)
+    .optional()
+    .describe("Campaign date used to align time buckets"),
   timeGroupBy: zod
     .enum(["day", "week", "month"])
     .default(getNewsletterMatrixQueryTimeGroupByDefault),

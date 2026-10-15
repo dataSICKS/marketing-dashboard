@@ -11,6 +11,8 @@ export interface NewsletterMetrics {
   label: string;
   /** Time bucket (YYYY/MM/DD for day or Monday-start week, YYYY/MM for month) */
   period?: string;
+  /** Inclusive end date of a campaign-aligned time bucket (YYYY/MM/DD) */
+  periodEnd?: string;
   /**
    * 件名（テンプレ別・日別など行レベルで意味を持つ場合）
    * @nullable

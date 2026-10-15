@@ -14,6 +14,11 @@ export type GetNewsletterDataParams = {
    */
   groupBy?: GetNewsletterDataGroupBy;
   /**
+   * Campaign date; align weeks to consecutive 7-day periods and months to this date instead of calendar boundaries
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  anchorDate?: string;
+  /**
    * Time granularity within scenario/template groups; weeks start on Monday
    */
   timeGroupBy?: GetNewsletterDataTimeGroupBy;
