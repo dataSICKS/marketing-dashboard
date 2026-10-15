@@ -1,6 +1,6 @@
 import type { NewsletterRow, NewsletterMetrics } from "./newsletter-types.js";
 
-function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?: string | null; segment?: string | null }): NewsletterMetrics {
+function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?: string | null; segment?: string | null; period?: string }): NewsletterMetrics {
   const deliveryCount = rows.reduce((s, r) => s + r.deliveryCount, 0);
   const openCount = rows.reduce((s, r) => s + r.openCount, 0);
   const clickCount = rows.reduce((s, r) => s + r.clickCount, 0);
@@ -8,6 +8,7 @@ function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?
 
   return {
     label,
+    ...(extra?.period ? { period: extra.period } : {}),
     subject: extra?.subject ?? null,
     segment: extra?.segment ?? null,
     deliveryCount,
@@ -25,10 +26,23 @@ function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?
 }
 
 export type GroupBy = "day" | "week" | "month" | "scenario" | "template";
+export type TimeGroupBy = "day" | "week" | "month";
+
+/** Derive calendar buckets from the delivery date, not ambiguous sheet week labels. */
+export function newsletterPeriod(deliveryDate: string, granularity: TimeGroupBy): string {
+  const normalized = deliveryDate.replace(/-/g, "/");
+  if (granularity === "month") return normalized.slice(0, 7);
+  if (granularity === "day") return normalized;
+  const [year, month, day] = normalized.split("/").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day!));
+  date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+  return date.toISOString().slice(0, 10).replace(/-/g, "/");
+}
 
 export function aggregateRows(
   rows: NewsletterRow[],
-  groupBy: GroupBy
+  groupBy: GroupBy,
+  timeGroupBy?: TimeGroupBy,
 ): NewsletterMetrics[] {
   const map = new Map<string, NewsletterRow[]>();
 
@@ -36,19 +50,19 @@ export function aggregateRows(
     let key: string;
     switch (groupBy) {
       case "day":
-        key = row.deliveryDate;
+        key = newsletterPeriod(row.deliveryDate, "day");
         break;
       case "week":
-        key = row.deliveryWeek || row.deliveryYearMonth;
+        key = newsletterPeriod(row.deliveryDate, "week");
         break;
       case "month":
-        key = row.deliveryYearMonth;
+        key = newsletterPeriod(row.deliveryDate, "month");
         break;
       case "scenario":
-        key = JSON.stringify([row.scenarioName ?? "(未設定)", row.subject.trim()]);
+        key = JSON.stringify([row.scenarioName ?? "(未設定)", row.subject.trim(), timeGroupBy ? newsletterPeriod(row.deliveryDate, timeGroupBy) : undefined]);
         break;
       case "template":
-        key = JSON.stringify([row.templateName, row.subject.trim()]);
+        key = JSON.stringify([row.templateName, row.subject.trim(), timeGroupBy ? newsletterPeriod(row.deliveryDate, timeGroupBy) : undefined]);
         break;
       default:
         key = row.deliveryDate;
@@ -62,6 +76,10 @@ export function aggregateRows(
 
   if (groupBy === "template" || groupBy === "scenario") {
     entries.sort(([, a], [, b]) => {
+      if (timeGroupBy) {
+        const order = newsletterPeriod(a[0]!.deliveryDate, timeGroupBy).localeCompare(newsletterPeriod(b[0]!.deliveryDate, timeGroupBy));
+        if (order) return order;
+      }
       const totalA = a.reduce((s, r) => s + r.deliveryCount, 0);
       const totalB = b.reduce((s, r) => s + r.deliveryCount, 0);
       return totalB - totalA;
@@ -72,8 +90,8 @@ export function aggregateRows(
 
   return entries.map(([key, groupRows]) => {
     if (groupBy === "scenario" || groupBy === "template") {
-      const [label, subject] = JSON.parse(key) as [string, string];
-      return computeMetrics(label, groupRows, { subject: subject || null });
+      const [label, subject, period] = JSON.parse(key) as [string, string, string | undefined];
+      return computeMetrics(label, groupRows, { subject: subject || null, period });
     }
     // A scenario/template can have different subjects within the selected period.
     // Do not present the first subject as if it describes every delivery.
@@ -98,14 +116,35 @@ export function mergeComparisonMetrics(
   current: NewsletterMetrics[],
   prev: NewsletterMetrics[],
   groupBy?: GroupBy,
+  periods?: { granularity: TimeGroupBy; currentStart?: string; previousStart?: string },
 ): NewsletterMetrics[] {
-  const identity = (item: NewsletterMetrics) =>
-    groupBy === "scenario" || groupBy === "template"
-      ? JSON.stringify([item.label, item.subject ?? ""])
-      : item.label;
-  const prevMap = new Map(prev.map((p) => [identity(p), p]));
+  const temporal = groupBy === "day" || groupBy === "week" || groupBy === "month";
+  const bucket = (item: NewsletterMetrics) => item.period ?? (temporal ? item.label : undefined);
+  const origin = (items: NewsletterMetrics[], start?: string) => {
+    if (start && periods) return newsletterPeriod(start, periods.granularity);
+    return items.map(bucket).filter((s): s is string => !!s).sort()[0];
+  };
+  const currentOrigin = origin(current, periods?.currentStart);
+  const previousOrigin = origin(prev, periods?.previousStart);
+  const offset = (period: string, start: string) => {
+    if (periods?.granularity === "month") {
+      const index = (value: string) => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7));
+      return index(period) - index(start);
+    }
+    const utc = (value: string) => Date.parse(`${value.replace(/\//g, "-")}T00:00:00Z`);
+    return (utc(period) - utc(start)) / (86_400_000 * (periods?.granularity === "week" ? 7 : 1));
+  };
+  const identity = (item: NewsletterMetrics, start?: string) => {
+    const period = bucket(item);
+    const periodKey = periods && period && start ? offset(period, start) : period ?? "";
+    return temporal ? JSON.stringify([periodKey])
+      : groupBy === "scenario" || groupBy === "template"
+        ? JSON.stringify([item.label, item.subject ?? "", periodKey])
+        : item.label;
+  };
+  const prevMap = new Map(prev.map((p) => [identity(p, previousOrigin), p]));
   return current.map((item) => {
-    const p = prevMap.get(identity(item));
+    const p = prevMap.get(identity(item, currentOrigin));
     if (!p) return item;
     return {
       ...item,

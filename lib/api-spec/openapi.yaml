@@ -70,6 +70,13 @@ paths:
             enum: [day, week, month, template, scenario]
             default: day
           description: Aggregation dimension
+        - name: timeGroupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+          description: Time granularity within scenario/template groups; weeks start on Monday
         - name: dateFrom
           in: query
           required: false
@@ -806,6 +813,9 @@ components:
         label:
           type: string
           description: Group label (date, week, month, or template name)
+        period:
+          type: string
+          description: Time bucket (YYYY/MM/DD for day or Monday-start week, YYYY/MM for month)
         subject:
           type: ["string", "null"]
           description: 件名（テンプレ別・日別など行レベルで意味を持つ場合）

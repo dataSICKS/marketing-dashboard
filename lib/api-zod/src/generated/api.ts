@@ -35,6 +35,12 @@ export const GetNewsletterDataQueryParams = zod.object({
     .enum(["day", "week", "month", "template", "scenario"])
     .default(getNewsletterDataQueryGroupByDefault)
     .describe("Aggregation dimension"),
+  timeGroupBy: zod
+    .enum(["day", "week", "month"])
+    .optional()
+    .describe(
+      "Time granularity within scenario\/template groups; weeks start on Monday",
+    ),
   dateFrom: zod.coerce
     .string()
     .nullish()
@@ -68,6 +74,12 @@ export const GetNewsletterDataResponse = zod.object({
       label: zod
         .string()
         .describe("Group label (date, week, month, or template name)"),
+      period: zod
+        .string()
+        .optional()
+        .describe(
+          "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+        ),
       subject: zod
         .string()
         .nullish()
@@ -100,6 +112,12 @@ export const GetNewsletterDataResponse = zod.object({
             label: zod
               .string()
               .describe("Group label (date, week, month, or template name)"),
+            period: zod
+              .string()
+              .optional()
+              .describe(
+                "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+              ),
             subject: zod
               .string()
               .nullish()
@@ -137,6 +155,12 @@ export const GetNewsletterDataResponse = zod.object({
           label: zod
             .string()
             .describe("Group label (date, week, month, or template name)"),
+          period: zod
+            .string()
+            .optional()
+            .describe(
+              "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+            ),
           subject: zod
             .string()
             .nullish()
@@ -171,6 +195,12 @@ export const GetNewsletterDataResponse = zod.object({
     label: zod
       .string()
       .describe("Group label (date, week, month, or template name)"),
+    period: zod
+      .string()
+      .optional()
+      .describe(
+        "Time bucket (YYYY\/MM\/DD for day or Monday-start week, YYYY\/MM for month)",
+      ),
     subject: zod
       .string()
       .nullish()

@@ -5,3 +5,4 @@
 - [Newsletter subject changes](newsletter-subject-changes.md) — split scenario/template detail rows and metrics by subject; never list multiple subjects beside combined counts.
 - [Recharts category labels](recharts-category-labels.md) — custom ticks need compact measurement labels for compound identities, or valid categories can disappear.
 - [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
+- [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.

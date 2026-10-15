@@ -49,6 +49,18 @@ import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 
 type GroupBy = GetNewsletterDataGroupBy;
 type TabMode = GroupBy | "matrix";
+type TimeGroupBy = "day" | "week" | "month";
+const TIME_LABELS = { day: "日別", week: "週別", month: "月別" } as const;
+
+function timePeriod(date: string, granularity: TimeGroupBy): string {
+  const normalized = date.replace(/-/g, "/");
+  if (granularity === "month") return normalized.slice(0, 7);
+  if (granularity === "day") return normalized;
+  const [year, month, day] = normalized.split("/").map(Number);
+  const value = new Date(Date.UTC(year!, month! - 1, day!));
+  value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
+  return value.toISOString().slice(0, 10).replace(/-/g, "/");
+}
 
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
@@ -69,7 +81,7 @@ const MATRIX_METRICS = [
 
 const GROUP_TABS: { value: TabMode; label: string }[] = [
   { value: "matrix", label: "マトリクス" },
-  { value: "day", label: "日別配信数" },
+  { value: "day", label: "配信数推移" },
   { value: "scenario", label: "シナリオ別" },
   { value: "template", label: "テンプレ別" },
 ];
@@ -79,6 +91,7 @@ interface Preset {
   id: string;
   name: string;
   groupBy: TabMode;
+  timeGroupBy?: TimeGroupBy;
   dateFrom?: string;
   dateTo?: string;
   /** Legacy field: old presets stored segment values here. */
@@ -278,6 +291,7 @@ function MetricsTable({
   scenarioGroups?: NewsletterScenarioGroup[];
 }) {
   const showSubject = groupBy === "scenario" || groupBy === "template" || groupBy === "day";
+  const showPeriod = items.some((item) => item.period);
   const [sortKey, setSortKey] = useState<SortKey>("label");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -309,7 +323,7 @@ function MetricsTable({
     [scenarioGroups, sortItems],
   );
 
-  const colSpan = showSubject ? 9 : 8;
+  const colSpan = (showSubject ? 9 : 8) + (showPeriod ? 1 : 0);
 
   const Th = ({ label, k }: { label: string; k: SortKey }) => (
     <TableHead
@@ -332,6 +346,7 @@ function MetricsTable({
             <TableHead className="text-xs font-semibold cursor-pointer select-none min-w-[140px]" onClick={() => handleSort("label")} style={{ color: "#9CA3AF" }}>
               ラベル{sortKey === "label" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
             </TableHead>
+            {showPeriod && <TableHead className="text-xs font-semibold whitespace-nowrap" style={{ color: "#9CA3AF" }}>期間</TableHead>}
             {showSubject && <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[200px]" style={{ color: "#9CA3AF" }}>件名</TableHead>}
             <Th label="配信数" k="deliveryCount" />
             <Th label="開封数" k="openCount" />
@@ -369,6 +384,7 @@ function MetricsTable({
                         )}
                         {item.label}
                       </TableCell>
+                      {showPeriod && <TableCell className="text-xs whitespace-nowrap">{item.period}</TableCell>}
                       {showSubject && (
                         <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
                           {item.subject ?? "（件名未取得）"}
@@ -427,6 +443,7 @@ function MetricsTable({
                   )}
                   {item.label}
                 </TableCell>
+                {showPeriod && <TableCell className="text-xs whitespace-nowrap">{item.period}</TableCell>}
                 {showSubject && (
                   <TableCell className="text-xs min-w-[200px] break-words whitespace-pre-line" style={{ color: "#374151" }}>
                     {item.subject ?? "（件名未取得）"}
@@ -734,6 +751,7 @@ function MatrixView({
   selectedCampaign,
   chartHeight,
   onChartHeightChange,
+  timeGroupBy,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
@@ -746,9 +764,9 @@ function MatrixView({
   selectedCampaign: Campaign | null;
   chartHeight: number;
   onChartHeightChange: (h: number) => void;
+  timeGroupBy: TimeGroupBy;
 }) {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
-  const [timeGroupBy, setTimeGroupBy] = useState<"day" | "week" | "month">("month");
 
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
@@ -763,8 +781,11 @@ function MatrixView({
   };
 
   const toIso = (s: string | undefined) => s?.replace(/\//g, "-");
+  const dayBeforeSplit = splitDate
+    ? new Date(Date.parse(`${toIso(splitDate)}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+    : undefined;
   const matrixParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: toIso(dateRange?.to) };
-  const beforeParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: toIso(splitDate ?? undefined) };
+  const beforeParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: dayBeforeSplit };
   const afterParams  = { ...baseParams, dateFrom: toIso(splitDate ?? undefined), dateTo: toIso(dateRange?.to) };
 
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
@@ -825,17 +846,6 @@ function MatrixView({
           selected={selectedMetrics}
           onChange={setSelectedMetrics}
         />
-        <div className="flex items-center gap-1 ml-auto">
-          {(["day", "week", "month"] as const).map((tg) => (
-            <button key={tg} onClick={() => setTimeGroupBy(tg)}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-              style={timeGroupBy === tg
-                ? { background: "#1A1A1A", color: "#fff" }
-                : { background: "#F3F4F6", color: "#6B7280" }}>
-              {tg === "day" ? "日別" : tg === "week" ? "週別" : "月別"}
-            </button>
-          ))}
-        </div>
       </div>
 
       {!hasSelections ? (
@@ -1117,6 +1127,10 @@ function MatrixView({
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<TabMode>("matrix");
+  const [tabGranularities, setTabGranularities] = useState<Record<TabMode, TimeGroupBy>>({
+    matrix: "month", day: "day", week: "week", month: "month", scenario: "day", template: "day",
+  });
+  const timeGroupBy = tabGranularities[groupBy];
 
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [compareRange, setCompareRange] = useState<DateRange | null>(null);
@@ -1146,13 +1160,14 @@ export default function Dashboard() {
   }, [compareMode]);
 
   // Force day grouping when in change compare mode; treat matrix as day for data queries
-  const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" ? "day" : groupBy;
+  const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" || ["day", "week", "month"].includes(groupBy) ? timeGroupBy : groupBy;
   // Follow the selected tab even when comparison forces daily aggregation.
   const activeTabValue: TabMode = groupBy;
 
   const slashToHyphen = (s: string | undefined) => s?.replace(/\//g, "-");
   const params = {
     groupBy: effectiveGroupBy,
+    timeGroupBy: effectiveGroupBy === "scenario" || effectiveGroupBy === "template" ? timeGroupBy : undefined,
     dateFrom: slashToHyphen(dateRange?.from),
     dateTo: slashToHyphen(dateRange?.to),
     scenarioName: selectedScenarios.length > 0 ? selectedScenarios.join("|") : undefined,
@@ -1163,6 +1178,11 @@ export default function Dashboard() {
 
   const { data, isLoading, isError } = useGetNewsletterData(params, {
     query: { queryKey: getGetNewsletterDataQueryKey(params) },
+  });
+  // Keep campaign before/after KPI boundaries exact even when the chart uses weeks/months.
+  const phaseParams = { ...params, groupBy: "day" as const, timeGroupBy: undefined };
+  const { data: phaseData, isLoading: phaseLoading, isError: phaseError } = useGetNewsletterData(phaseParams, {
+    query: { queryKey: getGetNewsletterDataQueryKey(phaseParams), enabled: compareMode === "change" },
   });
 
   const { data: campaignsData } = useListCampaigns();
@@ -1192,7 +1212,7 @@ export default function Dashboard() {
   const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
   const chartItems = items.map((item) => ({
     ...item,
-    chartKey: subjectChart ? JSON.stringify([item.label, item.subject ?? "（件名未取得）"]) : item.label,
+    chartKey: subjectChart ? JSON.stringify([`${item.period ?? ""} / ${item.label}`, item.subject ?? "（件名未取得）"]) : item.label,
   }));
   const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
@@ -1225,10 +1245,10 @@ export default function Dashboard() {
 
   // Before/after splits for change compare mode
   const beforeItems = compareMode === "change" && splitDate
-    ? items.filter((item) => item.label < splitDate)
+    ? (phaseData?.items ?? []).filter((item) => item.label < splitDate)
     : [];
   const afterItems = compareMode === "change" && splitDate
-    ? items.filter((item) => item.label >= splitDate)
+    ? (phaseData?.items ?? []).filter((item) => item.label >= splitDate)
     : [];
   const beforeSummary = sumItems(beforeItems);
   const afterSummary = sumItems(afterItems);
@@ -1236,19 +1256,16 @@ export default function Dashboard() {
   // Campaigns that overlap with current item labels
   const campaignLines = useMemo<Campaign[]>(() => {
     const camps = campaignsData?.campaigns ?? [];
-    if (camps.length === 0 || items.length === 0) return [];
-    // labels are "YYYY/MM/DD", convert to "YYYY-MM-DD" for ISO comparison
-    const toIso = (s: string) => s.replace(/\//g, "-");
-    const minIso = toIso(items[0].label);
-    const maxIso = toIso(items[items.length - 1].label);
-    return camps.filter((c) => c.startDate <= maxIso && c.endDate >= minIso);
-  }, [campaignsData, items]);
+    if (subjectChart) return [];
+    return camps.filter((c) => items.some((item) => item.label === timePeriod(c.startDate, timeGroupBy)));
+  }, [campaignsData, items, subjectChart, timeGroupBy]);
 
   // Row phase for table coloring
   const getRowPhase = useCallback((label: string): "before" | "after" | null => {
     if (compareMode !== "change" || !splitDate) return null;
+    if (timeGroupBy !== "day" && label === timePeriod(splitDate, timeGroupBy)) return null;
     return label < splitDate ? "before" : "after";
-  }, [compareMode, splitDate]);
+  }, [compareMode, splitDate, timeGroupBy]);
 
   const handleDateApply = (range: DateRange | null, cmp: DateRange | null, cmpEnabled: boolean) => {
     setDateRange(range);
@@ -1260,6 +1277,7 @@ export default function Dashboard() {
   // Preset operations
   const applyPreset = (p: Preset) => {
     setGroupBy(p.groupBy);
+    setTabGranularities((current) => ({ ...current, [p.groupBy]: p.timeGroupBy ?? (p.groupBy === "matrix" ? "month" : p.groupBy === "week" ? "week" : p.groupBy === "month" ? "month" : "day") }));
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
     setSelectedScenarios(p.scenarios ?? p.segments ?? []);
     setSelectedTemplates(p.templates ?? []);
@@ -1273,6 +1291,7 @@ export default function Dashboard() {
       id: Date.now().toString(),
       name,
       groupBy,
+      timeGroupBy,
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
       scenarios: selectedScenarios,
@@ -1304,8 +1323,8 @@ export default function Dashboard() {
 
   // Chart bar fill by phase
   const getBarFill = (label: string) => {
-    if (compareMode !== "change" || !splitDate) return YELLOW;
-    return label < splitDate ? BEFORE_COLOR : AFTER_COLOR;
+    const phase = getRowPhase(label);
+    return phase === "before" ? BEFORE_COLOR : phase === "after" ? AFTER_COLOR : YELLOW;
   };
 
   return (
@@ -1460,6 +1479,28 @@ export default function Dashboard() {
           )}
 
           {/* ── Matrix view ── */}
+          <div className="bg-white rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-3"
+            style={{ border: "1px solid #EBEBEB" }}>
+            <span className="text-xs font-semibold text-gray-500">期間の粒度</span>
+            <div className="flex items-center gap-1" role="group" aria-label="期間の粒度">
+              {(["day", "week", "month"] as const).map((value) => (
+                <button key={value} type="button" aria-pressed={timeGroupBy === value}
+                  data-testid={`granularity-${value}`}
+                  onClick={() => {
+                    setTabGranularities((current) => ({ ...current, [groupBy]: value }));
+                    setActivePresetId(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={timeGroupBy === value ? { background: "#1A1A1A", color: "#fff" } : { background: "#F3F4F6", color: "#6B7280" }}>
+                  {TIME_LABELS[value]}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-gray-400">
+              {timeGroupBy === "week" ? "月曜〜日曜で集計（月曜の日付を表示）" : timeGroupBy === "month" ? "暦月ごとに集計" : "配信日ごとに集計"}
+              {" · 選択した日付範囲内のデータのみ"}
+            </span>
+          </div>
           {groupBy === "matrix" ? (
             <MatrixView
               availableScenarios={availableScenarios}
@@ -1473,10 +1514,11 @@ export default function Dashboard() {
               selectedCampaign={selectedCampaign}
               chartHeight={chartHeight}
               onChartHeightChange={setChartHeight}
+              timeGroupBy={timeGroupBy}
             />
-          ) : isLoading ? (
+          ) : isLoading || (compareMode === "change" && phaseLoading) ? (
             <LoadingSkeleton />
-          ) : isError ? (
+          ) : isError || (compareMode === "change" && phaseError) ? (
             <ErrorState onRetry={() => queryClient.invalidateQueries()} />
           ) : (
             <>
@@ -1517,13 +1559,13 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
-                      {subjectChart ? "件名別の実績" : groupBy === "day" ? "日別配信数の推移" : compareMode === "change" ? "前後トレンド" : "配信トレンド"}
+                      {subjectChart ? `${TIME_LABELS[timeGroupBy]}・件名別の実績` : `${TIME_LABELS[timeGroupBy]}配信数の推移`}
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
-                        ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後`
+                        ? `破線 = 施策開始（${selectedCampaign?.startDate ?? ""}）　青 = 施策前 / ピンク = 施策後${timeGroupBy !== "day" ? "　開始日を含む期間は前後が混在" : ""}`
                         : subjectChart ? "棒：件名別の配信数　点：開封率 / クリック率"
-                        : groupBy === "day" ? "日ごとの配信数（通）・配信データのある日を表示" : "棒：配信数　折れ線：開封率 / クリック率"}
+                        : groupBy === "day" ? `${TIME_LABELS[timeGroupBy]}の配信数（通）・配信データのある期間を表示` : "棒：配信数　折れ線：開封率 / クリック率"}
                     </div>
                   </div>
                 </div>
@@ -1558,7 +1600,7 @@ export default function Dashboard() {
                           <Tooltip
                             contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: "10px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                             labelFormatter={(label, payload) => subjectChart
-                              ? `${payload[0]?.payload?.label ?? ""} / 件名：${payload[0]?.payload?.subject ?? "（件名未取得）"}`
+                              ? `${payload[0]?.payload?.period ?? ""} / ${payload[0]?.payload?.label ?? ""} / 件名：${payload[0]?.payload?.subject ?? "（件名未取得）"}`
                               : String(label)}
                             formatter={(value: number, name: string) =>
                               name === "配信数" ? [formatNumber(value), name] : [formatPercent(value), name]
@@ -1568,7 +1610,7 @@ export default function Dashboard() {
                           {compareMode === "change" && splitDate && (
                             <ReferenceLine
                               yAxisId="left"
-                              x={splitDate}
+                              x={timePeriod(splitDate, timeGroupBy)}
                               stroke={CHANGE_COLOR}
                               strokeDasharray="5 4"
                               strokeWidth={2}
@@ -1580,7 +1622,7 @@ export default function Dashboard() {
                             <ReferenceLine
                               key={c.id}
                               yAxisId="left"
-                              x={c.startDate.replace(/-/g, "/")}
+                              x={timePeriod(c.startDate, timeGroupBy)}
                               stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
                               strokeDasharray="4 3"
                               strokeWidth={1.5}

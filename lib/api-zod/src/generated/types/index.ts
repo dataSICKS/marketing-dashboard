@@ -41,6 +41,7 @@ export * from "./getEfoFiltersParams";
 export * from "./getNewsletterChangeEventsParams";
 export * from "./getNewsletterDataGroupBy";
 export * from "./getNewsletterDataParams";
+export * from "./getNewsletterDataTimeGroupBy";
 export * from "./getNewsletterMatrixParams";
 export * from "./getNewsletterMatrixTimeGroupBy";
 export * from "./healthStatus";

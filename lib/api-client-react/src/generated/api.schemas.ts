@@ -50,6 +50,8 @@ export interface NewsletterSyncResult {
 export interface NewsletterMetrics {
   /** Group label (date, week, month, or template name) */
   label: string;
+  /** Time bucket (YYYY/MM/DD for day or Monday-start week, YYYY/MM for month) */
+  period?: string;
   /**
    * 件名（テンプレ別・日別など行レベルで意味を持つ場合）
    * @nullable
@@ -379,6 +381,10 @@ export type GetNewsletterDataParams = {
    */
   groupBy?: GetNewsletterDataGroupBy;
   /**
+   * Time granularity within scenario/template groups; weeks start on Monday
+   */
+  timeGroupBy?: GetNewsletterDataTimeGroupBy;
+  /**
    * Filter start date (YYYY/MM/DD)
    * @nullable
    */
@@ -419,6 +425,15 @@ export const GetNewsletterDataGroupBy = {
   month: "month",
   template: "template",
   scenario: "scenario",
+} as const;
+
+export type GetNewsletterDataTimeGroupBy =
+  (typeof GetNewsletterDataTimeGroupBy)[keyof typeof GetNewsletterDataTimeGroupBy];
+
+export const GetNewsletterDataTimeGroupBy = {
+  day: "day",
+  week: "week",
+  month: "month",
 } as const;
 
 export type GetNewsletterChangeEventsParams = {

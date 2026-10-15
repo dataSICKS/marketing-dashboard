@@ -62,12 +62,17 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
   try {
     const parsed = GetNewsletterDataQueryParams.safeParse(req.query);
     const groupBy: GroupBy = ((parsed.success ? parsed.data.groupBy : "day") ?? "day") as GroupBy;
+    const timeGroupBy = parsed.success ? parsed.data.timeGroupBy : undefined;
     const dateFrom = parsed.success ? (parsed.data.dateFrom ?? undefined) : undefined;
     const dateTo = parsed.success ? (parsed.data.dateTo ?? undefined) : undefined;
     const scenarioNameParam = parsed.success ? ((parsed.data as Record<string, unknown>).scenarioName as string | undefined) : undefined;
     const templateNameParam = parsed.success ? ((parsed.data as Record<string, unknown>).templateName as string | undefined) : undefined;
     const compareFrom = parsed.success ? ((parsed.data as Record<string, unknown>).compareFrom as string | undefined) : undefined;
     const compareTo = parsed.success ? ((parsed.data as Record<string, unknown>).compareTo as string | undefined) : undefined;
+    const comparisonGranularity = timeGroupBy ?? (groupBy === "day" || groupBy === "week" || groupBy === "month" ? groupBy : undefined);
+    const comparisonPeriods = comparisonGranularity ? {
+      granularity: comparisonGranularity, currentStart: dateFrom, previousStart: compareFrom,
+    } : undefined;
 
     const { rows: allRows, syncedAt } = await getRows(req);
 
@@ -102,12 +107,12 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
     // no scenario filter → single flat aggregation
     if (selectedScenarioNames.length === 0) {
-      let items = aggregateRows(rows, groupBy);
+      let items = aggregateRows(rows, groupBy, timeGroupBy);
       let summary = computeSummary(rows);
 
       if (hasComparison) {
-        const prevItems = aggregateRows(prevRows, groupBy);
-        items = mergeComparisonMetrics(items, prevItems, groupBy);
+        const prevItems = aggregateRows(prevRows, groupBy, timeGroupBy);
+        items = mergeComparisonMetrics(items, prevItems, groupBy, comparisonPeriods);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevRows)])[0]!;
       }
 
@@ -118,12 +123,12 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     // scenario filter → build scenarioGroups
     const scenarioGroups = selectedScenarioNames.map((scenarioName) => {
       const scenarioRows = rows.filter((r) => r.scenarioName === scenarioName);
-      let items = aggregateRows(scenarioRows, groupBy);
+      let items = aggregateRows(scenarioRows, groupBy, timeGroupBy);
       let summary = computeSummary(scenarioRows);
       if (hasComparison) {
         const prevScenarioRows = prevRows.filter((r) => r.scenarioName === scenarioName);
-        const prevItems = aggregateRows(prevScenarioRows, groupBy);
-        items = mergeComparisonMetrics(items, prevItems, groupBy);
+        const prevItems = aggregateRows(prevScenarioRows, groupBy, timeGroupBy);
+        items = mergeComparisonMetrics(items, prevItems, groupBy, comparisonPeriods);
         summary = mergeComparisonMetrics([summary], [computeSummary(prevScenarioRows)])[0]!;
       }
       return { scenarioName, items, summary };
@@ -133,11 +138,11 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
     const combinedRows = selectedScenarioNames.length > 0
       ? rows.filter((r) => selectedScenarioNames.includes(r.scenarioName))
       : rows;
-    let items = aggregateRows(combinedRows, groupBy);
+    let items = aggregateRows(combinedRows, groupBy, timeGroupBy);
     let summary = computeSummary(combinedRows);
     if (hasComparison) {
       const prevCombined = prevRows.filter((r) => selectedScenarioNames.includes(r.scenarioName));
-      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy), groupBy);
+      items = mergeComparisonMetrics(items, aggregateRows(prevCombined, groupBy, timeGroupBy), groupBy, comparisonPeriods);
       summary = mergeComparisonMetrics([summary], [computeSummary(prevCombined)])[0]!;
     }
 

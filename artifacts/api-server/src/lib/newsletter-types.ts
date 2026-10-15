@@ -15,6 +15,7 @@ export interface NewsletterRow {
 
 export interface NewsletterMetrics {
   label: string;
+  period?: string;
   subject: string | null;
   segment: string | null;
   deliveryCount: number;

@@ -6,12 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GetNewsletterDataGroupBy } from "./getNewsletterDataGroupBy";
+import type { GetNewsletterDataTimeGroupBy } from "./getNewsletterDataTimeGroupBy";
 
 export type GetNewsletterDataParams = {
   /**
    * Aggregation dimension
    */
   groupBy?: GetNewsletterDataGroupBy;
+  /**
+   * Time granularity within scenario/template groups; weeks start on Monday
+   */
+  timeGroupBy?: GetNewsletterDataTimeGroupBy;
   /**
    * Filter start date (YYYY/MM/DD)
    * @nullable
