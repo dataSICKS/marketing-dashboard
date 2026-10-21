@@ -9,6 +9,9 @@ export const CHART_METRICS = [
 export type ChartMetric = typeof CHART_METRICS[number]["value"];
 export const formatChartRate = (value: number) =>
   `${(value * 100).toLocaleString("ja-JP", { maximumFractionDigits: 3 })}%`;
+export const formatChartValueLabel = (value: unknown, isRate: boolean) =>
+  typeof value !== "number" || !Number.isFinite(value) ? ""
+    : isRate ? formatChartRate(value) : value.toLocaleString("ja-JP");
 
 const utc = (date: string) => new Date(`${date.replace(/\//g, "-")}T00:00:00Z`);
 const iso = (date: Date) => date.toISOString().slice(0, 10);

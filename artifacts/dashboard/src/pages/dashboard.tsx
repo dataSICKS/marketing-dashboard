@@ -29,6 +29,7 @@ import {
   CartesianGrid,
   ReferenceLine,
   Cell,
+  LabelList,
 } from "recharts";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import {
@@ -46,7 +47,7 @@ import {
   Check,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
-import { timePeriod, focusRange, formatChartRate, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
+import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
 type TabMode = GroupBy | "matrix";
@@ -921,7 +922,7 @@ function MatrixView({
                 <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>トレンド</div>
                 <div style={{ height: chartHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={mergedChartData} margin={{ top: 8, right: isMixed ? 52 : 8, left: -16, bottom: 8 }}>
+                    <ComposedChart data={mergedChartData} margin={{ top: 28, right: isMixed ? 52 : 28, left: 8, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                       <XAxis dataKey="period" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6} interval="preserveStartEnd" />
                       {isCompare && splitDate && <ReferenceLine yAxisId="left" x={timePeriod(splitDate, timeGroupBy, splitDate)}
@@ -955,7 +956,12 @@ function MatrixView({
                             strokeDasharray={LINE_DASHES[mi % LINE_DASHES.length]}
                             dot={false}
                             connectNulls
-                          />
+                          >
+                            <LabelList dataKey={`${s.key}__${mk}`} position={(si + mi) % 2 === 0 ? "top" : "bottom"} offset={9}
+                              formatter={(value: unknown) => formatChartValueLabel(value, MATRIX_METRICS.find((m) => m.value === mk)?.isRate ?? false)}
+                              fill={SERIES_COLORS[si % SERIES_COLORS.length]} fontSize={10} fontWeight={600}
+                              stroke="#fff" strokeWidth={3} paintOrder="stroke" />
+                          </Line>
                         ))
                       )}
                     </ComposedChart>
@@ -1622,7 +1628,7 @@ export default function Dashboard() {
                     <div className="overflow-x-auto">
                     <div style={{ height: chartHeight, minWidth: subjectChart ? Math.min(chartItems.length, 6) * 230 : undefined }}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={chartItems} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                        <ComposedChart data={chartItems} margin={{ top: 28, right: 28, left: 8, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                           <XAxis dataKey="chartKey" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6}
                             interval={subjectChart && chartItems.length <= 6 ? 0 : "preserveStartEnd"}
@@ -1685,10 +1691,19 @@ export default function Dashboard() {
                             <Line key={metric.value} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={metric.value} name={metric.label}
                               stroke={metric.color} strokeWidth={subjectChart ? 0 : 2}
                               dot={subjectChart ? { r: 4, fill: metric.color, stroke: metric.color, strokeWidth: 1 } : { r: 3 }}
-                              activeDot={{ r: 5 }} connectNulls={false} />
+                              activeDot={{ r: 5 }} connectNulls={false}>
+                              <LabelList dataKey={metric.value} position={metric.value === "clickRate" && visibleMetrics.length > 1 ? "bottom" : "top"} offset={9}
+                                formatter={(value: unknown) => formatChartValueLabel(value, true)}
+                                fill={metric.color} fontSize={10} fontWeight={600}
+                                stroke="#fff" strokeWidth={3} paintOrder="stroke" />
+                            </Line>
                           ) : (
                             <Bar key={metric.value} yAxisId="left" dataKey={metric.value} name={metric.label} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
                               {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" ? getBarFill(item.label) : metric.color} />)}
+                              <LabelList dataKey={metric.value} position="top" offset={9}
+                                formatter={(value: unknown) => formatChartValueLabel(value, false)}
+                                fill="#374151" fontSize={10} fontWeight={600}
+                                stroke="#fff" strokeWidth={3} paintOrder="stroke" />
                             </Bar>
                           ))}
                         </ComposedChart>

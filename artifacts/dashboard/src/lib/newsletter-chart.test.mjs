@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { focusRange, timePeriod, CHART_METRICS, formatChartRate } from "./newsletter-chart.ts";
+import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel } from "./newsletter-chart.ts";
+
+test("value labels format counts and small rates without inventing missing values", () => {
+  assert.equal(formatChartValueLabel(12345, false), "12,345");
+  assert.equal(formatChartValueLabel(0.000123, true), "0.012%");
+  assert.equal(formatChartValueLabel(0, false), "0");
+  assert.equal(formatChartValueLabel(0, true), "0%");
+  for (const value of [null, undefined, NaN, Infinity]) {
+    assert.equal(formatChartValueLabel(value, true), "");
+  }
+});
 
 test("focus range contains equal numbers of campaign-relative periods on both sides", () => {
   assert.deepEqual(focusRange("2026-10-07", "week", 2), { from: "2026-09-23", to: "2026-10-20" });
