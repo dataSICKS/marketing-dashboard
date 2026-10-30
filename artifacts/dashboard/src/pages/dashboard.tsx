@@ -81,6 +81,9 @@ interface Preset {
   groupBy: TabMode;
   timeGroupBy?: TimeGroupBy;
   chartMetric?: ChartMetric | "default";
+  matrixMetrics?: string[];
+  matrixMetricLayout?: "rows" | "columns";
+  matrixShowChart?: boolean;
   focusPeriods?: number | "all";
   dateFrom?: string;
   dateTo?: string;
@@ -742,6 +745,12 @@ function MatrixView({
   chartHeight,
   onChartHeightChange,
   timeGroupBy,
+  selectedMetrics,
+  setSelectedMetrics,
+  metricLayout,
+  setMetricLayout,
+  showChart,
+  setShowChart,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
@@ -755,11 +764,13 @@ function MatrixView({
   chartHeight: number;
   onChartHeightChange: (h: number) => void;
   timeGroupBy: TimeGroupBy;
+  selectedMetrics: string[];
+  setSelectedMetrics: (metrics: string[]) => void;
+  metricLayout: "rows" | "columns";
+  setMetricLayout: (layout: "rows" | "columns") => void;
+  showChart: boolean;
+  setShowChart: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
-  const [metricLayout, setMetricLayout] = useState<"rows" | "columns">("rows");
-  const [showChart, setShowChart] = useState(true);
-
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
   const isCompare = compareMode === "change" && !!selectedCampaign;
@@ -1182,6 +1193,9 @@ export default function Dashboard() {
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
   const [focusPeriods, setFocusPeriods] = useState<number | "all">(2);
   const [chartMetric, setChartMetric] = useState<ChartMetric | "default">("default");
+  const [matrixMetrics, setMatrixMetrics] = useState<string[]>(["deliveryCount"]);
+  const [matrixMetricLayout, setMatrixMetricLayout] = useState<"rows" | "columns">("rows");
+  const [matrixShowChart, setMatrixShowChart] = useState(true);
   const { data: campaignsData } = useListCampaigns();
   const { data: templatesData } = useGetNewsletterTemplates();
   const allCampaigns = campaignsData?.campaigns ?? [];
@@ -1334,6 +1348,9 @@ export default function Dashboard() {
     setGroupBy(p.groupBy);
     setTabGranularities((current) => ({ ...current, [p.groupBy]: p.timeGroupBy ?? (p.groupBy === "matrix" ? "month" : p.groupBy === "week" ? "week" : p.groupBy === "month" ? "month" : "day") }));
     setChartMetric(p.chartMetric ?? "default");
+    setMatrixMetrics(p.matrixMetrics?.filter((key) => CHART_METRICS.some((metric) => metric.value === key)) ?? ["deliveryCount"]);
+    setMatrixMetricLayout(p.matrixMetricLayout ?? "rows");
+    setMatrixShowChart(p.matrixShowChart ?? true);
     setFocusPeriods(p.focusPeriods ?? 2);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
     setSelectedScenarios(p.scenarios ?? p.segments ?? []);
@@ -1350,6 +1367,9 @@ export default function Dashboard() {
       groupBy,
       timeGroupBy,
       chartMetric,
+      matrixMetrics,
+      matrixMetricLayout,
+      matrixShowChart,
       focusPeriods,
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
@@ -1357,13 +1377,14 @@ export default function Dashboard() {
       templates: selectedTemplates,
     };
     const updated = [...presets, newPreset];
-    setPresets(updated);
     try {
-      localStorage.setItem("nl_presets", JSON.stringify(updated));
-      console.log("[Dashboard] preset saved to localStorage, count=", updated.length);
+      savePresetsToStorage(updated);
     } catch (e) {
       console.error("[Dashboard] localStorage save failed:", e);
+      window.alert("ビューを保存できませんでした。ブラウザーの保存領域や設定をご確認ください。");
+      return;
     }
+    setPresets(updated);
     setActivePresetId(newPreset.id);
   };
 
@@ -1584,6 +1605,12 @@ export default function Dashboard() {
               chartHeight={chartHeight}
               onChartHeightChange={setChartHeight}
               timeGroupBy={timeGroupBy}
+              selectedMetrics={matrixMetrics}
+              setSelectedMetrics={(metrics) => { setMatrixMetrics(metrics); setActivePresetId(null); }}
+              metricLayout={matrixMetricLayout}
+              setMetricLayout={(layout) => { setMatrixMetricLayout(layout); setActivePresetId(null); }}
+              showChart={matrixShowChart}
+              setShowChart={(visible) => { setMatrixShowChart(visible); setActivePresetId(null); }}
             />
           ) : isLoading || (compareMode === "change" && phaseLoading) ? (
             <LoadingSkeleton />
