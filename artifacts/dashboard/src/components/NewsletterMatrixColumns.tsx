@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import type { MatrixResponse } from "@workspace/api-client-react";
 import { CHART_METRICS, formatChartValueLabel } from "@/lib/newsletter-chart";
 
@@ -20,29 +19,32 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
     <table aria-label="マトリクス表・指標を列に表示" className="text-xs border-collapse min-w-full">
       <thead>
         <tr className="bg-gray-50 border-b border-gray-100">
-          <th scope="col" className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500 min-w-[220px]">
+          <th scope="col" rowSpan={2} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500 min-w-[220px]">
             シナリオ / テンプレ
           </th>
-          <th scope="col" className="px-3 py-3 text-left font-medium text-gray-500 whitespace-nowrap">期間</th>
-          {splitPeriod && <th scope="col" className="px-3 py-3 text-left font-medium text-gray-500 whitespace-nowrap">施策前後</th>}
-          {selected.map((metric) => (
-            <th scope="col" key={metric.value} className="px-4 py-3 text-right font-medium text-gray-500 whitespace-nowrap">
-              {metric.label}
+          {periods.map((period) => (
+            <th scope="colgroup" colSpan={selected.length} key={period}
+              className="border-l border-gray-200 px-4 py-3 text-center font-medium whitespace-nowrap"
+              style={{ color: splitPeriod ? period < splitPeriod ? "#64748B" : "#059669" : "#6B7280",
+                background: splitPeriod ? period < splitPeriod ? "#F8FAFC" : "#F0FDF4" : undefined }}>
+              {period}
+              {splitPeriod && <span className="ml-2 text-[10px]">{period < splitPeriod ? "施策前" : "施策後"}</span>}
             </th>
           ))}
+        </tr>
+        <tr className="bg-gray-50 border-b border-gray-100">
+          {periods.flatMap((period) => selected.map((metric, metricIndex) => (
+            <th scope="col" key={`${period}-${metric.value}`}
+              className={`px-4 py-2 text-right font-medium text-gray-500 whitespace-nowrap ${metricIndex === 0 ? "border-l border-gray-200" : ""}`}>
+              {metric.label}
+            </th>
+          )))}
         </tr>
       </thead>
       <tbody>
         {series.map((entry, index) => (
-          <Fragment key={`${entry.type}-${entry.key}`}>
-            {periods.map((period, periodIndex) => {
-              const before = splitPeriod ? period < splitPeriod : undefined;
-              const background = splitPeriod ? before ? "#F8FAFC" : "#F0FDF4"
-                : index % 2 === 0 ? "#fff" : "#FAFAFA";
-              return (
-                <tr key={period} style={{ background, borderTop: periodIndex === 0 ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
-                  {periodIndex === 0 && (
-                    <th scope="rowgroup" rowSpan={periods.length}
+                <tr key={`${entry.type}-${entry.key}`} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
+                    <th scope="row"
                       className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium min-w-[220px] max-w-[320px]"
                       style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
                       <div className="flex items-start gap-2">
@@ -53,25 +55,17 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                         <span className="break-all">{entry.key}</span>
                       </div>
                     </th>
-                  )}
-                  <th scope="row" className="px-3 py-2 text-left font-normal whitespace-nowrap text-gray-600">{period}</th>
-                  {splitPeriod && (
-                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: before ? "#64748B" : "#059669" }}>
-                      {before ? "施策前" : "施策後"}
-                    </td>
-                  )}
-                  {selected.map((metric) => {
+                  {periods.flatMap((period) => selected.map((metric, metricIndex) => {
                     const value = entry.metricValues[metric.value]?.[period];
                     return (
-                      <td key={metric.value} className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
+                      <td key={`${period}-${metric.value}`}
+                        className={`px-4 py-2 text-right tabular-nums whitespace-nowrap ${metricIndex === 0 ? "border-l border-gray-200" : ""}`}
+                        style={{ background: splitPeriod ? period < splitPeriod ? "#F8FAFC" : "#F0FDF4" : undefined }}>
                         {value == null ? <span className="text-gray-300">—</span> : formatChartValueLabel(value, metric.isRate)}
                       </td>
                     );
-                  })}
+                  }))}
                 </tr>
-              );
-            })}
-          </Fragment>
         ))}
       </tbody>
     </table>

@@ -6,3 +6,4 @@
 - [Recharts category labels](recharts-category-labels.md) — custom ticks need compact measurement labels for compound identities, or valid categories can disappear.
 - [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
 - [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.
+- [Newsletter matrix layout](newsletter-matrix-layout.md) — periods remain columns in both layouts; metric columns are grouped underneath each period.
