@@ -345,6 +345,19 @@ export const GetNewsletterMatrixResponse = zod.object({
         .describe(
           "Distinct spreadsheet segment values contributing to this series",
         ),
+      periodSegments: zod
+        .record(
+          zod.string(),
+          zod.array(
+            zod.object({
+              scenarioName: zod.string(),
+              segment: zod.string(),
+            }),
+          ),
+        )
+        .describe(
+          "Scenario and segment pairs from contributing rows in each filtered time bucket",
+        ),
       metricValues: zod.record(
         zod.string(),
         zod.record(zod.string(), zod.number()),

@@ -956,6 +956,17 @@ components:
         additionalProperties:
           type: number
 
+    MatrixSegment:
+      type: object
+      properties:
+        scenarioName:
+          type: string
+        segment:
+          type: string
+      required:
+        - scenarioName
+        - segment
+
     MatrixSeriesRow:
       type: object
       properties:
@@ -969,12 +980,20 @@ components:
           description: Distinct spreadsheet segment values contributing to this series
           items:
             type: string
+        periodSegments:
+          type: object
+          description: Scenario and segment pairs from contributing rows in each filtered time bucket
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/MatrixSegment"
         metricValues:
           $ref: "#/components/schemas/MatrixMetricValues"
       required:
         - key
         - type
         - segments
+        - periodSegments
         - metricValues
 
     MatrixResponse:

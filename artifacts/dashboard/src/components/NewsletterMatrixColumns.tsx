@@ -1,5 +1,7 @@
+import { Fragment } from "react";
 import type { MatrixResponse } from "@workspace/api-client-react";
 import { CHART_METRICS, formatChartValueLabel } from "@/lib/newsletter-chart";
+import NewsletterPeriodSegments from "@/components/NewsletterPeriodSegments";
 
 interface Props {
   series: MatrixResponse["series"];
@@ -43,8 +45,9 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
       </thead>
       <tbody>
         {series.map((entry, index) => (
-                <tr key={`${entry.type}-${entry.key}`} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
-                    <th scope="row"
+          <Fragment key={`${entry.type}-${entry.key}`}>
+                <tr style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
+                    <th scope="rowgroup" rowSpan={2}
                       className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium min-w-[220px] max-w-[320px]"
                       style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
                       <div className="flex items-start gap-2">
@@ -54,9 +57,6 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                         </span>
                         <div className="min-w-0">
                           <span className="break-all">{entry.key}</span>
-                          <div className="mt-1 text-[10px] font-normal text-gray-500 break-words">
-                            セグメント：{entry.segments?.length ? entry.segments.join(" / ") : "未設定"}
-                          </div>
                         </div>
                       </div>
                     </th>
@@ -71,6 +71,16 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                     );
                   }))}
                 </tr>
+                <tr style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                  {periods.map((period) => (
+                    <td key={period} colSpan={selected.length} className="border-l border-gray-200 px-4 pb-3 align-top"
+                      style={{ background: splitPeriod ? period < splitPeriod ? "#F8FAFC" : "#F0FDF4" : undefined }}>
+                      <div className="mb-1 text-[10px] text-gray-400">セグメント</div>
+                      <NewsletterPeriodSegments series={entry} period={period} />
+                    </td>
+                  ))}
+                </tr>
+          </Fragment>
         ))}
       </tbody>
     </table>

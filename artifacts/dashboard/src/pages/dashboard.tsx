@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
+import { NewsletterSegmentRow } from "@/components/NewsletterPeriodSegments";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -777,8 +778,11 @@ function MatrixView({
     ? new Date(Date.parse(`${toIso(splitDate)}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
     : undefined;
   const matrixParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: toIso(dateRange?.to) };
-  const beforeParams = { ...baseParams, dateFrom: toIso(dateRange?.from), dateTo: dayBeforeSplit };
-  const afterParams  = { ...baseParams, dateFrom: toIso(splitDate ?? undefined), dateTo: toIso(dateRange?.to) };
+  const beforeParams = { ...baseParams, dateFrom: toIso(dateRange?.from),
+    dateTo: [dayBeforeSplit, toIso(dateRange?.to)].filter((date): date is string => !!date).sort()[0] };
+  const afterParams  = { ...baseParams,
+    dateFrom: [toIso(splitDate ?? undefined), toIso(dateRange?.from)].filter((date): date is string => !!date).sort().at(-1),
+    dateTo: toIso(dateRange?.to) };
 
   const { data, isLoading } = useGetNewsletterMatrix(matrixParams, {
     query: {
@@ -806,7 +810,7 @@ function MatrixView({
         for (const metric of MATRIX_METRICS) {
           metricValues[metric.value] = { ...series.metricValues[metric.value], ...after?.metricValues[metric.value] };
         }
-        return { ...series, segments: [...new Set([...(series.segments ?? []), ...(after?.segments ?? [])])], metricValues };
+        return { ...series, periodSegments: { ...series.periodSegments, ...after?.periodSegments }, metricValues };
       })
     : (data?.series ?? []);
   const timePeriods: string[] = isCompare
@@ -1063,11 +1067,11 @@ function MatrixView({
                   </tr>
                 </thead>
                 <tbody>
-                  {series.flatMap((s, si) =>
-                    selectedMetrics.map((metricKey, mi) => {
+                  {series.flatMap((s, si) => [
+                    ...selectedMetrics.map((metricKey, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
                       const afterSeries = afterData?.series ?? [];
-                      const afterS = afterSeries.find((a) => a.key === s.key);
+                      const afterS = afterSeries.find((a) => a.key === s.key && a.type === s.type);
                       const vals      = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
                       const afterVals = (afterS?.metricValues[metricKey as keyof typeof afterS.metricValues] ?? {}) as Record<string, number>;
                       const allVals = series.flatMap((sr) =>
@@ -1087,7 +1091,7 @@ function MatrixView({
                       return (
                         <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
                           {isFirstMetric ? (
-                            <td rowSpan={selectedMetrics.length}
+                            <td rowSpan={selectedMetrics.length + 1}
                               className="px-4 py-2 font-medium"
                               style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 220 }}>
                               <div className="flex items-start gap-1.5">
@@ -1099,9 +1103,6 @@ function MatrixView({
                                 </span>
                                 <div className="min-w-0">
                                   <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
-                                  <div className="mt-1 text-[10px] font-normal text-gray-500 break-words">
-                                    セグメント：{s.segments?.length ? s.segments.join(" / ") : "未設定"}
-                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1144,8 +1145,12 @@ function MatrixView({
                           )}
                         </tr>
                       );
-                    })
-                  )}
+                    }),
+                    <NewsletterSegmentRow key={`${s.type}-${s.key}-segments`} series={s}
+                      periods={isCompare ? [...beforePeriods, ...afterPeriods] : timePeriods}
+                      background={si % 2 === 0 ? "#fff" : "#FAFAFA"}
+                      splitPeriod={isCompare ? afterPeriods[0] : undefined} />,
+                  ])}
                 </tbody>
               </table>
               )}

@@ -139,6 +139,11 @@ export interface MatrixMetricValues {
   [key: string]: { [key: string]: number };
 }
 
+export interface MatrixSegment {
+  scenarioName: string;
+  segment: string;
+}
+
 export type MatrixSeriesRowType =
   (typeof MatrixSeriesRowType)[keyof typeof MatrixSeriesRowType];
 
@@ -147,11 +152,18 @@ export const MatrixSeriesRowType = {
   template: "template",
 } as const;
 
+/**
+ * Scenario and segment pairs from contributing rows in each filtered time bucket
+ */
+export type MatrixSeriesRowPeriodSegments = { [key: string]: MatrixSegment[] };
+
 export interface MatrixSeriesRow {
   key: string;
   type: MatrixSeriesRowType;
   /** Distinct spreadsheet segment values contributing to this series */
   segments: string[];
+  /** Scenario and segment pairs from contributing rows in each filtered time bucket */
+  periodSegments: MatrixSeriesRowPeriodSegments;
   metricValues: MatrixMetricValues;
 }
 

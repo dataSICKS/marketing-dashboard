@@ -41,6 +41,38 @@ test("matrix exposes distinct spreadsheet segments without changing aggregated c
   assert.deepEqual(empty.series[0].segments, []);
 });
 
+test("period segments follow bucket, scenario and template filters rather than a series-wide history", () => {
+  const rows = [
+    { ...row("2026/08/11"), segment: "変更前" },
+    { ...row("2026/08/12"), segment: "変更後" },
+    { ...row("2026/08/12"), segment: "別シナリオ", scenarioName: "シナリオB" },
+    { ...row("2026/08/12"), segment: "別テンプレ", templateName: "テンプレB" },
+  ];
+  const matrix = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], "day", ["deliveryCount"]);
+  for (const series of matrix.series) {
+    assert.deepEqual(series.periodSegments, {
+      "2026/08/11": [{ scenarioName: "シナリオA", segment: "変更前" }],
+      "2026/08/12": [{ scenarioName: "シナリオA", segment: "変更後" }],
+    });
+  }
+  const filtered = computeMatrixData(rows.filter((r) => r.deliveryDate >= "2026/08/12"), ["シナリオA"], ["テンプレA"], "day", ["deliveryCount"]);
+  assert.equal(filtered.series[0].periodSegments["2026/08/11"], undefined);
+  const shared = computeMatrixData(rows, [], ["テンプレA"], "day", ["deliveryCount"]);
+  assert.deepEqual(shared.series[0].periodSegments["2026/08/12"], [
+    { scenarioName: "シナリオA", segment: "変更後" },
+    { scenarioName: "シナリオB", segment: "別シナリオ" },
+  ]);
+  for (const grain of ["week", "month"]) {
+    const grouped = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], grain, ["deliveryCount"], "2026-08-12");
+    assert.deepEqual(grouped.series[0].periodSegments[newsletterPeriod("2026/08/11", grain, "2026-08-12")],
+      [{ scenarioName: "シナリオA", segment: "変更前" }]);
+    assert.deepEqual(grouped.series[0].periodSegments["2026/08/12"],
+      [{ scenarioName: "シナリオA", segment: "変更後" }]);
+  }
+  const blank = computeMatrixData([{ ...row("2026/08/12"), segment: "" }], ["シナリオA"], [], "day", ["deliveryCount"]);
+  assert.deepEqual(blank.series[0].periodSegments["2026/08/12"], [{ scenarioName: "シナリオA", segment: "" }]);
+});
+
 test("week buckets start on Monday and span months and years consistently", () => {
   assert.equal(newsletterPeriod("2026/10/04", "week"), "2026/09/28");
   assert.equal(newsletterPeriod("2026-10-05", "week"), "2026/10/05");

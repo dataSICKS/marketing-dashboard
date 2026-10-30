@@ -200,6 +200,7 @@ export interface MatrixSeriesRow {
   key: string;
   type: "scenario" | "template";
   segments: string[];
+  periodSegments: Record<string, { scenarioName: string; segment: string }[]>;
   metricValues: Partial<Record<MatrixMetric, Record<string, number>>>;
 }
 
@@ -248,7 +249,17 @@ export function computeMatrixData(
       }
     }
     const segments = [...new Set(filtered.map((row) => row.segment?.trim()).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, "ja"));
-    return { key, type, segments, metricValues };
+    const periodSegments: MatrixSeriesRow["periodSegments"] = {};
+    for (const row of filtered) {
+      const period = newsletterPeriod(row.deliveryDate, timeGroupBy, anchorDate);
+      const entry = { scenarioName: row.scenarioName, segment: row.segment?.trim() ?? "" };
+      const entries = periodSegments[period] ??= [];
+      if (!entries.some((other) => other.scenarioName === entry.scenarioName && other.segment === entry.segment)) entries.push(entry);
+    }
+    for (const entries of Object.values(periodSegments)) {
+      entries.sort((a, b) => a.scenarioName.localeCompare(b.scenarioName, "ja") || a.segment.localeCompare(b.segment, "ja"));
+    }
+    return { key, type, segments, periodSegments, metricValues };
   };
 
   const series: MatrixSeriesRow[] = [
