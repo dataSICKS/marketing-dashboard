@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
-import { NewsletterSegmentRow } from "@/components/NewsletterPeriodSegments";
+import NewsletterRowSegment from "@/components/NewsletterRowSegment";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -810,7 +810,9 @@ function MatrixView({
         for (const metric of MATRIX_METRICS) {
           metricValues[metric.value] = { ...series.metricValues[metric.value], ...after?.metricValues[metric.value] };
         }
-        return { ...series, periodSegments: { ...series.periodSegments, ...after?.periodSegments }, metricValues };
+        const latestSegment = after?.latestSegment && (!series.latestSegment || after.latestSegment.date >= series.latestSegment.date)
+          ? after.latestSegment : series.latestSegment;
+        return { ...series, latestSegment, metricValues };
       })
     : (data?.series ?? []);
   const timePeriods: string[] = isCompare
@@ -1067,8 +1069,8 @@ function MatrixView({
                   </tr>
                 </thead>
                 <tbody>
-                  {series.flatMap((s, si) => [
-                    ...selectedMetrics.map((metricKey, mi) => {
+                  {series.flatMap((s, si) =>
+                    selectedMetrics.map((metricKey, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
                       const afterSeries = afterData?.series ?? [];
                       const afterS = afterSeries.find((a) => a.key === s.key && a.type === s.type);
@@ -1091,7 +1093,7 @@ function MatrixView({
                       return (
                         <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
                           {isFirstMetric ? (
-                            <td rowSpan={selectedMetrics.length + 1}
+                            <td rowSpan={selectedMetrics.length}
                               className="px-4 py-2 font-medium"
                               style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 220 }}>
                               <div className="flex items-start gap-1.5">
@@ -1103,6 +1105,7 @@ function MatrixView({
                                 </span>
                                 <div className="min-w-0">
                                   <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
+                                  <NewsletterRowSegment series={s} />
                                 </div>
                               </div>
                             </td>
@@ -1145,12 +1148,8 @@ function MatrixView({
                           )}
                         </tr>
                       );
-                    }),
-                    <NewsletterSegmentRow key={`${s.type}-${s.key}-segments`} series={s}
-                      periods={isCompare ? [...beforePeriods, ...afterPeriods] : timePeriods}
-                      background={si % 2 === 0 ? "#fff" : "#FAFAFA"}
-                      splitPeriod={isCompare ? afterPeriods[0] : undefined} />,
-                  ])}
+                    })
+                  )}
                 </tbody>
               </table>
               )}

@@ -144,6 +144,12 @@ export interface MatrixSegment {
   segment: string;
 }
 
+export interface MatrixLatestSegment {
+  scenarioName: string;
+  segment: string;
+  date: string;
+}
+
 export type MatrixSeriesRowType =
   (typeof MatrixSeriesRowType)[keyof typeof MatrixSeriesRowType];
 
@@ -162,6 +168,7 @@ export interface MatrixSeriesRow {
   type: MatrixSeriesRowType;
   /** Distinct spreadsheet segment values contributing to this series */
   segments: string[];
+  latestSegment: MatrixLatestSegment | null;
   /** Scenario and segment pairs from contributing rows in each filtered time bucket */
   periodSegments: MatrixSeriesRowPeriodSegments;
   metricValues: MatrixMetricValues;

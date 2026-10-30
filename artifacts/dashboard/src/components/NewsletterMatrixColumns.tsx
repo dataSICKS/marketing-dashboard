@@ -1,7 +1,6 @@
-import { Fragment } from "react";
 import type { MatrixResponse } from "@workspace/api-client-react";
 import { CHART_METRICS, formatChartValueLabel } from "@/lib/newsletter-chart";
-import NewsletterPeriodSegments from "@/components/NewsletterPeriodSegments";
+import NewsletterRowSegment from "@/components/NewsletterRowSegment";
 
 interface Props {
   series: MatrixResponse["series"];
@@ -21,7 +20,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
     <table aria-label="マトリクス表・指標を列に表示" className="text-xs border-collapse min-w-full">
       <thead>
         <tr className="bg-gray-50 border-b border-gray-100">
-          <th scope="col" rowSpan={2} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500 min-w-[220px]">
+          <th scope="col" rowSpan={2} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500 min-w-[360px]">
             シナリオ / テンプレ
           </th>
           {periods.map((period) => (
@@ -45,10 +44,9 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
       </thead>
       <tbody>
         {series.map((entry, index) => (
-          <Fragment key={`${entry.type}-${entry.key}`}>
-                <tr style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
-                    <th scope="rowgroup" rowSpan={2}
-                      className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium min-w-[220px] max-w-[320px]"
+                <tr key={`${entry.type}-${entry.key}`} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
+                    <th scope="row"
+                      className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium min-w-[360px] max-w-[420px]"
                       style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
                       <div className="flex items-start gap-2">
                         <span className="rounded px-1.5 py-0.5 text-[10px] shrink-0"
@@ -57,6 +55,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                         </span>
                         <div className="min-w-0">
                           <span className="break-all">{entry.key}</span>
+                          <NewsletterRowSegment series={entry} />
                         </div>
                       </div>
                     </th>
@@ -71,16 +70,6 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                     );
                   }))}
                 </tr>
-                <tr style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                  {periods.map((period) => (
-                    <td key={period} colSpan={selected.length} className="border-l border-gray-200 px-4 pb-3 align-top"
-                      style={{ background: splitPeriod ? period < splitPeriod ? "#F8FAFC" : "#F0FDF4" : undefined }}>
-                      <div className="mb-1 text-[10px] text-gray-400">セグメント</div>
-                      <NewsletterPeriodSegments series={entry} period={period} />
-                    </td>
-                  ))}
-                </tr>
-          </Fragment>
         ))}
       </tbody>
     </table>

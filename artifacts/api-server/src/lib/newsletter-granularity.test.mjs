@@ -73,6 +73,27 @@ test("period segments follow bucket, scenario and template filters rather than a
   assert.deepEqual(blank.series[0].periodSegments["2026/08/12"], [{ scenarioName: "シナリオA", segment: "" }]);
 });
 
+test("matrix row segment is selected by the latest matching delivery date, not alphabetical or bucket order", () => {
+  const rows = [
+    { ...row("2026/10/20"), segment: "A-現在" },
+    { ...row("2026/10/01"), segment: "Z-過去" },
+    { ...row("2026/10/25"), scenarioName: "シナリオB", segment: "別シナリオ" },
+    { ...row("2026/10/26"), templateName: "テンプレB", segment: "別テンプレ" },
+  ];
+  for (const grain of ["day", "week", "month"]) {
+    const result = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], grain, ["deliveryCount"]);
+    for (const series of result.series) {
+      assert.deepEqual(series.latestSegment, { scenarioName: "シナリオA", segment: "A-現在", date: "2026-10-20" });
+    }
+  }
+  const historical = computeMatrixData(rows.filter((r) => r.deliveryDate <= "2026/10/01"), ["シナリオA"], [], "month", ["deliveryCount"]);
+  assert.equal(historical.series[0].latestSegment.segment, "Z-過去");
+  const blank = computeMatrixData([...rows, { ...row("2026/10/30"), segment: "" }], ["シナリオA"], ["テンプレA"], "month", ["deliveryCount"]);
+  assert.equal(blank.series[0].latestSegment.segment, "");
+  const empty = computeMatrixData([], ["シナリオA"], [], "month", ["deliveryCount"]);
+  assert.equal(empty.series[0].latestSegment, null);
+});
+
 test("week buckets start on Monday and span months and years consistently", () => {
   assert.equal(newsletterPeriod("2026/10/04", "week"), "2026/09/28");
   assert.equal(newsletterPeriod("2026-10-05", "week"), "2026/10/05");

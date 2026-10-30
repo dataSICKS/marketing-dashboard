@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MatrixLatestSegment } from "./matrixLatestSegment";
 import type { MatrixMetricValues } from "./matrixMetricValues";
 import type { MatrixSeriesRowPeriodSegments } from "./matrixSeriesRowPeriodSegments";
 import type { MatrixSeriesRowType } from "./matrixSeriesRowType";
@@ -14,6 +15,7 @@ export interface MatrixSeriesRow {
   type: MatrixSeriesRowType;
   /** Distinct spreadsheet segment values contributing to this series */
   segments: string[];
+  latestSegment: MatrixLatestSegment | null;
   /** Scenario and segment pairs from contributing rows in each filtered time bucket */
   periodSegments: MatrixSeriesRowPeriodSegments;
   metricValues: MatrixMetricValues;

@@ -967,6 +967,20 @@ components:
         - scenarioName
         - segment
 
+    MatrixLatestSegment:
+      type: object
+      properties:
+        scenarioName:
+          type: string
+        segment:
+          type: string
+        date:
+          type: string
+      required:
+        - scenarioName
+        - segment
+        - date
+
     MatrixSeriesRow:
       type: object
       properties:
@@ -980,6 +994,10 @@ components:
           description: Distinct spreadsheet segment values contributing to this series
           items:
             type: string
+        latestSegment:
+          oneOf:
+            - $ref: "#/components/schemas/MatrixLatestSegment"
+            - type: "null"
         periodSegments:
           type: object
           description: Scenario and segment pairs from contributing rows in each filtered time bucket
@@ -993,6 +1011,7 @@ components:
         - key
         - type
         - segments
+        - latestSegment
         - periodSegments
         - metricValues
 
