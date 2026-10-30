@@ -47,6 +47,7 @@ import {
   Check,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
+import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -755,6 +756,7 @@ function MatrixView({
   timeGroupBy: TimeGroupBy;
 }) {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
+  const [metricLayout, setMetricLayout] = useState<"rows" | "columns">("rows");
 
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
@@ -844,6 +846,15 @@ function MatrixView({
           selected={selectedMetrics}
           onChange={setSelectedMetrics}
         />
+        <div role="group" aria-label="指標の配置" className="ml-auto flex items-center gap-1 rounded-lg bg-gray-100 p-1 text-xs">
+          {([{ value: "rows", label: "指標を行に表示" }, { value: "columns", label: "指標を列に表示" }] as const).map((layout) => (
+            <button key={layout.value} type="button" aria-pressed={metricLayout === layout.value}
+              onClick={() => setMetricLayout(layout.value)}
+              className={`rounded-md px-3 py-2 transition-colors ${metricLayout === layout.value ? "bg-white text-gray-900 shadow-sm font-semibold" : "text-gray-500 hover:text-gray-900"}`}>
+              {layout.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {!hasSelections ? (
@@ -997,6 +1008,10 @@ function MatrixView({
               )}
             </div>
             <div className="overflow-x-auto">
+              {metricLayout === "columns" ? (
+                <NewsletterMatrixColumns series={series} periods={timePeriods} metrics={selectedMetrics}
+                  splitPeriod={isCompare && splitDate ? timePeriod(splitDate, timeGroupBy, splitDate) : undefined} />
+              ) : (
               <table className="text-xs border-collapse" style={{ width: "max-content", minWidth: "100%" }}>
                 <thead>
                   {/* ── Group header row (compare mode only) ── */}
@@ -1122,6 +1137,7 @@ function MatrixView({
                   )}
                 </tbody>
               </table>
+              )}
             </div>
           </div>
         </>
