@@ -194,7 +194,7 @@ export function mergeComparisonMetrics(
 }
 
 // ─── Matrix ────────────────────────────────────────────────────────
-export type MatrixMetric = "deliveryCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
+export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
 
 export interface MatrixSeriesRow {
   key: string;
@@ -210,6 +210,8 @@ export interface MatrixData {
 
 function extractMetric(m: NewsletterMetrics, metric: MatrixMetric): number {
   switch (metric) {
+    case "openCount": return m.openCount;
+    case "clickCount": return m.clickCount;
     case "openRate": return m.openRate;
     case "clickRate": return m.clickRate;
     case "cvr": return m.cvr;

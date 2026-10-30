@@ -347,7 +347,15 @@ export const GetNewsletterMatrixResponse = zod.object({
     }),
   ),
   metrics: zod.array(
-    zod.enum(["deliveryCount", "openRate", "clickRate", "cvr", "cvCount"]),
+    zod.enum([
+      "deliveryCount",
+      "openCount",
+      "clickCount",
+      "openRate",
+      "clickRate",
+      "cvr",
+      "cvCount",
+    ]),
   ),
 });
 

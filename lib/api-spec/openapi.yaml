@@ -947,7 +947,7 @@ components:
 
     MatrixMetric:
       type: string
-      enum: [deliveryCount, openRate, clickRate, cvr, cvCount]
+      enum: [deliveryCount, openCount, clickCount, openRate, clickRate, cvr, cvCount]
 
     MatrixMetricValues:
       type: object

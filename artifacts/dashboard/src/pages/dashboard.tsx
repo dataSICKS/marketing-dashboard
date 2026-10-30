@@ -63,13 +63,7 @@ const CHANGE_COLOR = "#A855F7";
 const CAMPAIGN_COLORS = ["#F97316", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#14B8A6"];
 const SERIES_COLORS = ["#6366F1", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#EF4444", "#84CC16"];
 
-const MATRIX_METRICS = [
-  { value: "deliveryCount", label: "配信数", isRate: false },
-  { value: "openRate", label: "開封率", isRate: true },
-  { value: "clickRate", label: "クリック率", isRate: true },
-  { value: "cvr", label: "CVR", isRate: true },
-  { value: "cvCount", label: "CV数", isRate: false },
-] as const;
+const MATRIX_METRICS = CHART_METRICS;
 
 const GROUP_TABS: { value: TabMode; label: string }[] = [
   { value: "matrix", label: "マトリクス" },
@@ -1246,7 +1240,7 @@ export default function Dashboard() {
   // Keep the campaign marker visible even if its first bucket has no exports.
   const anchorKey = anchorDate ? timePeriod(anchorDate, timeGroupBy, anchorDate) : undefined;
   const chartItems = anchorKey && !baseChartItems.some((item) => item.chartKey === anchorKey)
-    ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null }]
+    ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openCount: null, clickCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null }]
       .sort((a, b) => a.chartKey.localeCompare(b.chartKey))
     : baseChartItems;
   const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];

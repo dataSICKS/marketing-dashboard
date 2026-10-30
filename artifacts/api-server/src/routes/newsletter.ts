@@ -237,7 +237,7 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     }
 
     const validTime = ["day", "week", "month"];
-    const validMetric = ["deliveryCount", "openRate", "clickRate", "cvr", "cvCount"];
+    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount"];
 
     const timeGroupBy = (validTime.includes(q.timeGroupBy ?? "") ? q.timeGroupBy : "month") as "day" | "week" | "month";
     const rawMetrics = q.metrics ? q.metrics.split(",").map((s) => s.trim()).filter((s) => validMetric.includes(s)) as MatrixMetric[] : [];

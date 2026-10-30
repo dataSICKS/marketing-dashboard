@@ -8,6 +8,23 @@ const row = (deliveryDate, subject = "件名A", deliveryCount = 10, openCount = 
   scenarioName: "シナリオA", templateName: "テンプレA", segment: "", deliveryMethod: "",
 });
 
+test("matrix returns summed open and click counts for each grain and campaign anchor", () => {
+  const rows = [row("2026/10/07", "件名A", 100, 30), row("2026/10/08", "件名A", 50, 20)];
+  for (const grain of ["day", "week", "month"]) {
+    for (const anchor of [undefined, "2026-10-07"]) {
+      const matrix = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], grain, ["openCount", "clickCount"], anchor);
+      for (const series of matrix.series) {
+        assert.equal(Object.values(series.metricValues.openCount).reduce((a, b) => a + b, 0), 50);
+        assert.equal(Object.values(series.metricValues.clickCount).reduce((a, b) => a + b, 0), 2);
+      }
+      if (grain !== "day") {
+        assert.equal(matrix.series[0].metricValues.openCount[matrix.timePeriods[0]], 50);
+        assert.equal(matrix.series[0].metricValues.clickCount[matrix.timePeriods[0]], 2);
+      }
+    }
+  }
+});
+
 test("week buckets start on Monday and span months and years consistently", () => {
   assert.equal(newsletterPeriod("2026/10/04", "week"), "2026/09/28");
   assert.equal(newsletterPeriod("2026-10-05", "week"), "2026/10/05");

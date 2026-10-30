@@ -127,6 +127,8 @@ export type MatrixMetric = (typeof MatrixMetric)[keyof typeof MatrixMetric];
 
 export const MatrixMetric = {
   deliveryCount: "deliveryCount",
+  openCount: "openCount",
+  clickCount: "clickCount",
   openRate: "openRate",
   clickRate: "clickRate",
   cvr: "cvr",

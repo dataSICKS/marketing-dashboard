@@ -1,6 +1,8 @@
 export type TimeGranularity = "day" | "week" | "month";
 export const CHART_METRICS = [
   { value: "deliveryCount", label: "配信数", isRate: false, color: "#FBBF24" },
+  { value: "openCount", label: "開封数", isRate: false, color: "#60A5FA" },
+  { value: "clickCount", label: "クリック数", isRate: false, color: "#34D399" },
   { value: "openRate", label: "開封率", isRate: true, color: "#60A5FA" },
   { value: "clickRate", label: "クリック率", isRate: true, color: "#34D399" },
   { value: "cvr", label: "CVR", isRate: true, color: "#A855F7" },

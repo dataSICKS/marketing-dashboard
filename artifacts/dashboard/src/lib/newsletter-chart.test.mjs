@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel } from "./newsletter-chart.ts";
 
+test("open and click counts are selectable count metrics", () => {
+  for (const [value, label] of [["openCount", "開封数"], ["clickCount", "クリック数"]]) {
+    const metric = CHART_METRICS.find((entry) => entry.value === value);
+    assert.equal(metric?.label, label);
+    assert.equal(metric?.isRate, false);
+  }
+});
+
 test("value labels format counts and small rates without inventing missing values", () => {
   assert.equal(formatChartValueLabel(12345, false), "12,345");
   assert.equal(formatChartValueLabel(0.000123, true), "0.012%");
