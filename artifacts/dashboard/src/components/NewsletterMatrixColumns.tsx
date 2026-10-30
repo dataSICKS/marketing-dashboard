@@ -52,7 +52,12 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                           style={{ background: entry.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: entry.type === "scenario" ? "#7C3AED" : "#D97706" }}>
                           {entry.type === "scenario" ? "SC" : "TP"}
                         </span>
-                        <span className="break-all">{entry.key}</span>
+                        <div className="min-w-0">
+                          <span className="break-all">{entry.key}</span>
+                          <div className="mt-1 text-[10px] font-normal text-gray-500 break-words">
+                            セグメント：{entry.segments?.length ? entry.segments.join(" / ") : "未設定"}
+                          </div>
+                        </div>
                       </div>
                     </th>
                   {periods.flatMap((period) => selected.map((metric, metricIndex) => {

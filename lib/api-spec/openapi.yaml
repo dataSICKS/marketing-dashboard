@@ -964,11 +964,17 @@ components:
         type:
           type: string
           enum: [scenario, template]
+        segments:
+          type: array
+          description: Distinct spreadsheet segment values contributing to this series
+          items:
+            type: string
         metricValues:
           $ref: "#/components/schemas/MatrixMetricValues"
       required:
         - key
         - type
+        - segments
         - metricValues
 
     MatrixResponse:

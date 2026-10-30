@@ -25,6 +25,22 @@ test("matrix returns summed open and click counts for each grain and campaign an
   }
 });
 
+test("matrix exposes distinct spreadsheet segments without changing aggregated counts", () => {
+  const rows = [
+    { ...row("2026/10/07"), segment: "既存顧客" },
+    { ...row("2026/10/08"), segment: "新規顧客" },
+    { ...row("2026/10/09"), segment: " 既存顧客 " },
+    { ...row("2026/10/10"), segment: "" },
+  ];
+  const matrix = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], "month", ["deliveryCount"]);
+  for (const series of matrix.series) {
+    assert.deepEqual(new Set(series.segments), new Set(["既存顧客", "新規顧客"]));
+    assert.equal(series.metricValues.deliveryCount["2026/10"], 40);
+  }
+  const empty = computeMatrixData([], ["シナリオA"], [], "month", ["deliveryCount"]);
+  assert.deepEqual(empty.series[0].segments, []);
+});
+
 test("week buckets start on Monday and span months and years consistently", () => {
   assert.equal(newsletterPeriod("2026/10/04", "week"), "2026/09/28");
   assert.equal(newsletterPeriod("2026-10-05", "week"), "2026/10/05");

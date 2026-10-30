@@ -340,6 +340,11 @@ export const GetNewsletterMatrixResponse = zod.object({
     zod.object({
       key: zod.string(),
       type: zod.enum(["scenario", "template"]),
+      segments: zod
+        .array(zod.string())
+        .describe(
+          "Distinct spreadsheet segment values contributing to this series",
+        ),
       metricValues: zod.record(
         zod.string(),
         zod.record(zod.string(), zod.number()),

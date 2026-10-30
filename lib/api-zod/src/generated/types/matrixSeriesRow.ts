@@ -11,5 +11,7 @@ import type { MatrixSeriesRowType } from "./matrixSeriesRowType";
 export interface MatrixSeriesRow {
   key: string;
   type: MatrixSeriesRowType;
+  /** Distinct spreadsheet segment values contributing to this series */
+  segments: string[];
   metricValues: MatrixMetricValues;
 }

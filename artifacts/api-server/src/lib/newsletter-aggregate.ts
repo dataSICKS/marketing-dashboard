@@ -199,6 +199,7 @@ export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openR
 export interface MatrixSeriesRow {
   key: string;
   type: "scenario" | "template";
+  segments: string[];
   metricValues: Partial<Record<MatrixMetric, Record<string, number>>>;
 }
 
@@ -246,7 +247,8 @@ export function computeMatrixData(
         metricValues[m]![item.label] = extractMetric(item, m);
       }
     }
-    return { key, type, metricValues };
+    const segments = [...new Set(filtered.map((row) => row.segment?.trim()).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, "ja"));
+    return { key, type, segments, metricValues };
   };
 
   const series: MatrixSeriesRow[] = [

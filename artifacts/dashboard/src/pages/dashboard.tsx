@@ -757,6 +757,7 @@ function MatrixView({
 }) {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["deliveryCount"]);
   const [metricLayout, setMetricLayout] = useState<"rows" | "columns">("rows");
+  const [showChart, setShowChart] = useState(true);
 
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
@@ -805,7 +806,7 @@ function MatrixView({
         for (const metric of MATRIX_METRICS) {
           metricValues[metric.value] = { ...series.metricValues[metric.value], ...after?.metricValues[metric.value] };
         }
-        return { ...series, metricValues };
+        return { ...series, segments: [...new Set([...(series.segments ?? []), ...(after?.segments ?? [])])], metricValues };
       })
     : (data?.series ?? []);
   const timePeriods: string[] = isCompare
@@ -846,6 +847,11 @@ function MatrixView({
           selected={selectedMetrics}
           onChange={setSelectedMetrics}
         />
+        <button type="button" aria-expanded={showChart} aria-controls="matrix-trend-chart"
+          onClick={() => setShowChart((visible) => !visible)}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+          {showChart ? "グラフを非表示" : "グラフを表示"}
+        </button>
         <div role="group" aria-label="指標の配置" className="ml-auto flex items-center gap-1 rounded-lg bg-gray-100 p-1 text-xs">
           {([{ value: "rows", label: "指標を行に表示" }, { value: "columns", label: "指標を列に表示" }] as const).map((layout) => (
             <button key={layout.value} type="button" aria-pressed={metricLayout === layout.value}
@@ -883,7 +889,7 @@ function MatrixView({
       ) : (
         <>
           {/* ── Shared legend ── */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 px-1">
+          {showChart && <div className="flex flex-wrap gap-x-4 gap-y-2 px-1">
             {seriesLegend.map((s) => (
               <div key={s.key} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
                 <svg width="14" height="2" viewBox="0 0 14 2">
@@ -896,10 +902,10 @@ function MatrixView({
                 <span>{s.key}</span>
               </div>
             ))}
-          </div>
+          </div>}
 
           {/* ── Merged chart (all series × metrics) ── */}
-          {(() => {
+          {showChart && (() => {
             const LINE_DASHES = ["", "5 5", "2 4", "8 3 2 3", "1 3"];
             const hasRate = selectedMetrics.some(
               (mk) => MATRIX_METRICS.find((m) => m.value === mk)?.isRate
@@ -923,7 +929,7 @@ function MatrixView({
               return pt;
             });
             return (
-              <div className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
+              <div id="matrix-trend-chart" className="bg-white rounded-xl p-4 md:p-6" style={{ border: "1px solid #EBEBEB" }}>
                 <div className="text-sm font-bold mb-4" style={{ color: "#1A1A1A" }}>トレンド</div>
                 <div style={{ height: chartHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1091,7 +1097,12 @@ function MatrixView({
                                   style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
                                   {s.type === "scenario" ? "SC" : "TP"}
                                 </span>
-                                <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
+                                <div className="min-w-0">
+                                  <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
+                                  <div className="mt-1 text-[10px] font-normal text-gray-500 break-words">
+                                    セグメント：{s.segments?.length ? s.segments.join(" / ") : "未設定"}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           ) : null}
