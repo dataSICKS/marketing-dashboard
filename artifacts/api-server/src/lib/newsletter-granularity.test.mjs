@@ -120,6 +120,40 @@ test("all granularities preserve counts and use summed numerators for rates", ()
   assert.equal(aggregateRows(rows, "month").length, 2);
 });
 
+test("click rate uses summed opens across summary, category, matrix and comparison paths", () => {
+  const rows = [
+    { ...row("2026/10/07", "件名A", 100, 10), clickCount: 5 },
+    { ...row("2026/10/08", "件名A", 900, 90), clickCount: 9 },
+  ];
+  const total = computeSummary(rows);
+  assert.equal(total.clickRate, 14 / 100);
+  assert.equal(total.openRate, 100 / 1000);
+  assert.equal(total.cvr, 2 / 1000);
+  for (const grain of ["day", "week", "month"]) {
+    for (const anchor of [undefined, "2026-10-07"]) {
+      for (const group of [grain, "scenario", "template"]) {
+        const items = aggregateRows(rows, group, grain, anchor);
+        assert.ok(items.every((item) => item.clickRate === item.clickCount / item.openCount));
+        if (grain !== "day") assert.equal(items[0].clickRate, 14 / 100);
+        const previous = aggregateRows([{ ...row("2026/10/07", "件名A", 200, 20), clickCount: 6 }], group, grain, anchor);
+        const comparison = mergeComparisonMetrics(items, previous, group);
+        assert.equal(comparison[0].prevClickRate, 6 / 20);
+      }
+      const matrix = computeMatrixData(rows, ["シナリオA"], ["テンプレA"], grain, ["clickRate"], anchor);
+      const temporal = aggregateRows(rows, grain, undefined, anchor);
+      for (const series of matrix.series) {
+        for (const item of temporal) assert.equal(series.metricValues.clickRate[item.label], item.clickCount / item.openCount);
+      }
+    }
+  }
+  for (const clickCount of [0, 5]) {
+    const zeroOpens = [{ ...row("2026/10/07", "件名A", 100, 0), clickCount }];
+    assert.equal(computeSummary(zeroOpens).clickRate, 0);
+    assert.equal(computeMatrixData(zeroOpens, ["シナリオA"], [], "day", ["clickRate"]).series[0].metricValues.clickRate["2026/10/07"], 0);
+  }
+  assert.equal(computeSummary([]).clickRate, 0);
+});
+
 test("scenario/template keep different subjects separate within every period", () => {
   const rows = [row("2026/10/01"), row("2026/10/02"), row("2026/10/02", "件名B"), row("2026/10/02", ""), row("2026/10/05")];
   for (const dimension of ["scenario", "template"]) {

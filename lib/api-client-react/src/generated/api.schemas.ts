@@ -70,7 +70,7 @@ export interface NewsletterMetrics {
   cvCount: number;
   /** Open rate (openCount / deliveryCount) */
   openRate: number;
-  /** Click rate (clickCount / deliveryCount) */
+  /** Click rate among opens (clickCount / openCount); zero when openCount is zero */
   clickRate: number;
   /** Conversion rate (cvCount / deliveryCount) */
   cvr: number;

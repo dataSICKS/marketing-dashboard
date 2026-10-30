@@ -852,7 +852,7 @@ components:
           description: Open rate (openCount / deliveryCount)
         clickRate:
           type: number
-          description: Click rate (clickCount / deliveryCount)
+          description: Click rate among opens (clickCount / openCount); zero when openCount is zero
         cvr:
           type: number
           description: Conversion rate (cvCount / deliveryCount)

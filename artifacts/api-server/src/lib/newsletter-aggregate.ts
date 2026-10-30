@@ -57,7 +57,7 @@ function computeMetrics(label: string, rows: NewsletterRow[], extra?: { subject?
     clickCount,
     cvCount,
     openRate: deliveryCount > 0 ? openCount / deliveryCount : 0,
-    clickRate: deliveryCount > 0 ? clickCount / deliveryCount : 0,
+    clickRate: openCount > 0 ? clickCount / openCount : 0,
     cvr: deliveryCount > 0 ? cvCount / deliveryCount : 0,
     prevDeliveryCount: null,
     prevOpenRate: null,

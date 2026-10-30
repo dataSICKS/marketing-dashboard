@@ -113,7 +113,7 @@ function sumItems(items: NewsletterMetrics[]) {
   return {
     deliveryCount: d, openCount: o, clickCount: c, cvCount: cv,
     openRate: d > 0 ? o / d : 0,
-    clickRate: d > 0 ? c / d : 0,
+    clickRate: o > 0 ? c / o : 0,
     cvr: d > 0 ? cv / d : 0,
   };
 }

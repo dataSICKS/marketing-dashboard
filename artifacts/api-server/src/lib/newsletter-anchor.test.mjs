@@ -13,7 +13,7 @@ test("Oct 7 weekly campaign buckets are Sep 30–Oct 6, Oct 7–13 and Oct 14–
   assert.deepEqual(items.map(x => [x.label, x.periodEnd, x.deliveryCount]), [
     ["2026/09/30", "2026/10/06", 20], ["2026/10/07", "2026/10/13", 100], ["2026/10/14", "2026/10/20", 10],
   ]);
-  assert.equal(items[1].clickRate, 2 / 100);
+  assert.equal(items[1].clickRate, 2 / 4);
   assert.equal(items.reduce((s, r) => s + r.deliveryCount, 0), 130);
 });
 test("every date lands in exactly one period; weeks do not straddle the campaign", () => {

@@ -111,7 +111,9 @@ export const GetNewsletterDataResponse = zod.object({
       openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
       clickRate: zod
         .number()
-        .describe("Click rate (clickCount \/ deliveryCount)"),
+        .describe(
+          "Click rate among opens (clickCount \/ openCount); zero when openCount is zero",
+        ),
       cvr: zod.number().describe("Conversion rate (cvCount \/ deliveryCount)"),
       prevDeliveryCount: zod.number().nullish().describe("前期間の配信数"),
       prevOpenRate: zod.number().nullish().describe("前期間の開封率"),
@@ -157,7 +159,9 @@ export const GetNewsletterDataResponse = zod.object({
               .describe("Open rate (openCount \/ deliveryCount)"),
             clickRate: zod
               .number()
-              .describe("Click rate (clickCount \/ deliveryCount)"),
+              .describe(
+                "Click rate among opens (clickCount \/ openCount); zero when openCount is zero",
+              ),
             cvr: zod
               .number()
               .describe("Conversion rate (cvCount \/ deliveryCount)"),
@@ -206,7 +210,9 @@ export const GetNewsletterDataResponse = zod.object({
             .describe("Open rate (openCount \/ deliveryCount)"),
           clickRate: zod
             .number()
-            .describe("Click rate (clickCount \/ deliveryCount)"),
+            .describe(
+              "Click rate among opens (clickCount \/ openCount); zero when openCount is zero",
+            ),
           cvr: zod
             .number()
             .describe("Conversion rate (cvCount \/ deliveryCount)"),
@@ -250,7 +256,9 @@ export const GetNewsletterDataResponse = zod.object({
     openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
     clickRate: zod
       .number()
-      .describe("Click rate (clickCount \/ deliveryCount)"),
+      .describe(
+        "Click rate among opens (clickCount \/ openCount); zero when openCount is zero",
+      ),
     cvr: zod.number().describe("Conversion rate (cvCount \/ deliveryCount)"),
     prevDeliveryCount: zod.number().nullish().describe("前期間の配信数"),
     prevOpenRate: zod.number().nullish().describe("前期間の開封率"),

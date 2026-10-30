@@ -7,3 +7,4 @@
 - [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
 - [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.
 - [Newsletter matrix layout](newsletter-matrix-layout.md) — periods remain columns in both layouts; metric columns are grouped underneath each period.
+- [Newsletter click rate](newsletter-click-rate.md) — ユーザー指定：メルマガのクリック率はクリック数 ÷ 開封数。配信数を分母にしない。

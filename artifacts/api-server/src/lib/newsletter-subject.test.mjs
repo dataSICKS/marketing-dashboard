@@ -26,12 +26,12 @@ test("scenario and template aggregation split subjects and compute each row's ow
     assert.equal(old.openCount, 2);
     assert.equal(old.openRate, 2 / 10);
     assert.equal(old.clickCount, 1);
-    assert.equal(old.clickRate, 1 / 10);
+    assert.equal(old.clickRate, 1 / 2);
     assert.equal(next.deliveryCount, 30);
     assert.equal(next.openCount, 4);
     assert.equal(next.openRate, 4 / 30);
     assert.equal(next.clickCount, 2);
-    assert.equal(next.clickRate, 2 / 30);
+    assert.equal(next.clickRate, 2 / 4);
     assert.equal(result.reduce((sum, x) => sum + x.deliveryCount, 0), computeSummary(source).deliveryCount);
     assert.equal(result.reduce((sum, x) => sum + x.openCount, 0), computeSummary(source).openCount);
     assert.ok(result.every(x => x.label === (groupBy === "scenario" ? "same-scenario" : "same-template")));
