@@ -9,8 +9,8 @@ Keep periods as columns in both matrix layouts. In metric-column mode, group the
 
 **How to apply:** Change only the metric placement when switching layouts, including campaign comparisons.
 
-Show spreadsheet segments per period using only rows matching the selected scenario, template and date range. Do not list a series-wide segment history under its name. Shared-template rows must keep each segment associated with its scenario.
+Show only the latest spreadsheet segment within the selected conditions directly below the scenario name inside its row-name cell. Do not show a combined history or period-by-period segment rows.
 
-**Why:** Actual spreadsheet data can change segment within one scenario over time, and templates can be shared across scenarios. The user rejected the combined list and chose 「期間ごとに表示」.
+**Why:** After seeing the period-specific presentation, the user rejected it and clarified 「最新値だけを行内のシナリオの名前の下に入れてほしい」. A design preview was requested before changing the app.
 
-**How to apply:** Use the same filtered source rows and bucket boundaries for both numbers and segment annotations; retain the period-column layout and campaign boundary.
+**How to apply:** Resolve the latest value from matching source rows by delivery date, not an alphabetically sorted list; retain period columns and do not change the underlying numerical aggregates.

@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "bG3KjjmRjf9uuCe2OZNXU"
+uri = "file://screenshots/matrix-latest-segment-preview.jpg"
+type = "image"
+title = "マトリクス表のデザインイメージ"
+description = "最新セグメントをシナリオ名の直下に表示する案です。期間は列のままです。数値は表示例で、アプリ本体は未変更です。"
+logical_id = "95401d69-8205-4577-99df-c06f50603586"
+content_hash = "sha256:f2fee61434e1bd70a80a2cc2e833deff769aaae8179460b8cffb9817bcc1840c"
+size = 60144
+mtime_ms = 1793373964832
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:c4c6245f-7d40-4115-a6ae-a31dceeb3223/95401d69-8205-4577-99df-c06f50603586/bb214b24-de23-4305-9585-b22c1bb751b7"
+storage_version_token = "1793374001343797"
+content_type = "image/jpeg"

@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --background: 0 0% 97%;
+  --foreground: 0 0% 4%;
+  --border: 0 0% 92%;
+  --input: 0 0% 92%;
+  --ring: 0 0% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 4%;
+  --primary: 0 0% 4%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 4%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 4%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --app-font-sans: 'Inter', 'Noto Sans JP', sans-serif;
+  --app-font-mono: ui-monospace, 'SFMono-Regular', monospace;
+  --radius: 0.75rem;
+}
+
+.matrix-segment-preview { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
