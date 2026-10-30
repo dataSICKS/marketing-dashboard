@@ -557,12 +557,13 @@ function PresetBar({
       {/* Preset chips — horizontal scroll */}
       <div className="flex-1 flex items-center gap-1.5 overflow-x-auto min-w-0" style={{ scrollbarWidth: "none" }}>
         {presets.map((p) => (
-          <div key={p.id} className="flex items-center shrink-0 rounded-full overflow-hidden"
+          <div key={p.id} className="flex items-center shrink-0 rounded-xl overflow-hidden bg-white"
             style={{ border: `1.5px solid ${activeId === p.id ? YELLOW : "#E5E7EB"}` }}>
             {renamingId === p.id ? (
-              <div className="flex items-center gap-1 px-1.5 py-0.5">
+              <div className="flex items-center gap-2 px-2 py-1">
                 <input
-                  className="text-xs outline-none bg-transparent"
+                  aria-label="ビュー名"
+                  className="text-xs rounded border border-gray-300 px-2 py-1 outline-none focus:border-amber-500 bg-white"
                   style={{ width: 100, color: "#1A1A1A" }}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
@@ -573,34 +574,43 @@ function PresetBar({
                   onBlur={commitRename}
                   autoFocus
                 />
-                <button onClick={commitRename} className="flex items-center" style={{ color: YELLOW_DARK }}>
-                  <Check size={11} />
+                <button type="button" onClick={commitRename}
+                  className="flex min-h-8 items-center gap-1 rounded-md bg-amber-50 px-2 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber-600"
+                  aria-label="ビュー名の変更を確定">
+                  <Check size={14} />
+                  確定
                 </button>
               </div>
             ) : (
               <>
                 <button
                   onClick={() => onSelect(p)}
-                  className="flex items-center px-2.5 py-1 text-xs font-medium whitespace-nowrap"
-                  style={activeId === p.id ? { background: YELLOW, color: "#fff" } : { color: "#6B7280" }}
+                  type="button"
+                  aria-pressed={activeId === p.id}
+                  className="flex min-h-9 items-center px-3 py-2 text-xs font-medium whitespace-nowrap hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber-600"
+                  style={activeId === p.id ? { background: YELLOW, color: "#422006" } : { color: "#374151" }}
                 >
                   {p.name}
                 </button>
                 <button
                   onClick={() => startRename(p)}
-                  className="flex items-center px-1 py-1"
-                  style={{ color: activeId === p.id ? "#fff9" : "#D1D5DB" }}
+                  type="button"
+                  className="flex min-h-9 items-center gap-1.5 border-l border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber-600"
+                  aria-label={`「${p.name}」の名前を変更`}
                   title="名前を変更"
                 >
-                  <Pencil size={9} />
+                  <Pencil size={14} aria-hidden="true" />
+                  名前変更
                 </button>
                 <button
                   onClick={() => onDelete(p.id)}
-                  className="flex items-center px-1.5 py-1"
-                  style={{ color: activeId === p.id ? "#fff9" : "#D1D5DB" }}
+                  type="button"
+                  className="flex min-h-9 items-center gap-1.5 border-l border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-600"
+                  aria-label={`「${p.name}」を削除`}
                   title="削除"
                 >
-                  <Trash2 size={9} />
+                  <Trash2 size={14} aria-hidden="true" />
+                  削除
                 </button>
               </>
             )}
