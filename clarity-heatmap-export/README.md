@@ -32,7 +32,8 @@ python3 export.py 2026-06-23     # 指定日（Custom）
 
 `export.py` の `target_adcodes()` が **管理画面設定のみ**を対象にする。
 
-- 正: Supabase Storage `app-settings/config.json` の `clarityTargetUrls`
+- 正: Supabase Storage `app-settings/config.json` の **`adCodes`**（現行キー）
+  ／ `clarityTargetUrls`（旧キー）。`admin_target_urls()` が**両方を見て和集合**を取る
 - **対象を増やす/減らすのは管理画面での登録操作だけ**。翌日11:30の実行から反映される
 - `config.yml` の `clarity.pages` は対象判定に**使わない**（管理画面に無いコードは
   「対象外」としてログに出るだけ）
@@ -41,6 +42,17 @@ python3 export.py 2026-06-23     # 指定日（Custom）
 > 経緯: 2026-08-03まで日次cronは `config.yml` の `pages` のみを見ていたため、
 > 管理画面にだけ登録された `ch_1_a` / `ch_1_b` が7/27以降ずっと取得されていなかった。
 > 二重管理を廃止し管理画面を正に一本化した（欠損分は `backfill_admin.py` で復旧済み）。
+
+> **経緯2（2026-11-03・キー名の不一致でジョブが7日間停止）**: ダッシュボード側は
+> 設定キーを `clarityTargetUrls` → `adCodes` に改名しており、`PUT /settings` →
+> `updateSettings()`（api-server の settings-storage.ts）は **`adCodes` だけを
+> 書き出して旧キーを落とす**。config.json に旧キーが残っていた間は動いていたが、
+> 管理画面で設定を保存した時点で `clarityTargetUrls` が消え、対象0件→
+> **10/27〜11/02の7日間、日次ジョブが毎日エラー終了していた**（欠損は復旧済み）。
+> 対策として現行・旧の両キーを読むようにした。**ダッシュボード側のキーを変える
+> ときは `SETTINGS_ADCODE_KEYS` にも足すこと。**
+> 切り分けのコツ: ログに「警告: 管理画面設定の取得に失敗」が出ていなければ
+> 取得自体は成功していて、キー名か中身が空という意味になる。
 
 ## 設定（config.yml / gitignore）
 

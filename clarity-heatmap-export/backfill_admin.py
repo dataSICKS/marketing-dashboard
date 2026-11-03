@@ -2,10 +2,10 @@
 指定期間の欠損分（Storageに未保存の adCode×device）だけを取得・保存するバックフィル。
 
 - 対象URLは config.yml の pages ではなく **管理画面の設定**(Supabase Storage
-  バケット app-settings / config.json の clarityTargetUrls)を正とする。
+  バケット app-settings / config.json の adCodes ／ 旧 clarityTargetUrls)を正とする。
 - Storage の各日付フォルダを走査し、{adCode}_{device}_scroll_*.csv が
   既に存在する組み合わせはスキップ（ファイル名サフィックスは無視して prefix 判定）。
-- 欠損分のみ export.download_one で取得し Supabase Storage へアップロード。
+- 欠損分のみ export.download_one_checked（空CSVガード付き）で取得し Supabase Storage へアップロード。
 - スクロールデータ自体が無い(低トラフィック)組み合わせは export 側で skip される。
 
 使い方:
@@ -20,7 +20,7 @@ from datetime import date, timedelta
 import requests
 from playwright.sync_api import sync_playwright
 
-from export import CL, SB, admin_target_urls, download_one, upload_to_supabase
+from export import CL, SB, admin_target_urls, download_one_checked, upload_to_supabase
 
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
 FNAME_RE = re.compile(r"^(.+?)_(Desktop|Mobile)_scroll_.*\.csv$")
@@ -95,7 +95,7 @@ def main():
             print(f"\n━━━ 取得 {ds} ━━━", flush=True)
             for adcode, device in missing:
                 try:
-                    files = download_one(page, adcode, device, ds)
+                    files = download_one_checked(page, adcode, device, ds)
                 except Exception as e:
                     print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
                     files = []

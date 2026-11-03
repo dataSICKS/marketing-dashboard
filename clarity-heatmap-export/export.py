@@ -213,8 +213,20 @@ SETTINGS_BUCKET = "app-settings"
 SETTINGS_FILE = "config.json"
 
 
+# 管理画面設定で対象広告コードが入るキー。ダッシュボード側は
+# clarityTargetUrls → adCodes に改名済み（api-server の settings-storage.ts /
+# PUT /settings は adCodes だけを書き出し、保存のたびに旧キーが消える）。
+# 2026-10-27〜11-02 はこれで対象0件になり日次ジョブが毎日中止していたため、
+# 両方のキーを見て和集合を取る（どちらが書かれても動く）。
+SETTINGS_ADCODE_KEYS = ("adCodes", "clarityTargetUrls")
+
+
 def admin_target_urls():
-    """管理画面(app-settings/config.json)の clarityTargetUrls を取得。失敗時は空リスト。"""
+    """管理画面(app-settings/config.json)の対象広告コードを取得。失敗時は空リスト。
+
+    adCodes（現行キー）と clarityTargetUrls（旧キー）の両方を見て和集合を返す。
+    どちらのキーで保存されても取得漏れにならないようにするため。
+    """
     base = SB["url"].rstrip("/")
     key = SB["service_role_key"]
     try:
@@ -222,11 +234,25 @@ def admin_target_urls():
             f"{base}/storage/v1/object/{SETTINGS_BUCKET}/{SETTINGS_FILE}",
             headers={"apikey": key, "Authorization": f"Bearer {key}"}, timeout=30)
         r.raise_for_status()
-        return list(r.json().get("clarityTargetUrls", []))
+        data = r.json()
     except Exception as e:
-        print(f"警告: 管理画面設定の取得に失敗 ({e}) → config.yml の pages のみを対象にします",
-              flush=True)
+        print(f"警告: 管理画面設定の取得に失敗 ({e})", flush=True)
         return []
+    codes = []
+    for k in SETTINGS_ADCODE_KEYS:
+        v = data.get(k)
+        if not isinstance(v, list):
+            continue
+        for c in v:
+            c = str(c).strip()
+            if c and c not in codes:
+                codes.append(c)
+    if not codes:
+        print(f"警告: 管理画面設定に対象広告コードがありません"
+              f"（確認したキー: {', '.join(SETTINGS_ADCODE_KEYS)} / "
+              f"実際のキー: {', '.join(data.keys()) if isinstance(data, dict) else type(data).__name__}）",
+              flush=True)
+    return codes
 
 
 def target_adcodes():
