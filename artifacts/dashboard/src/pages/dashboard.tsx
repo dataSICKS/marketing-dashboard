@@ -48,8 +48,8 @@ import {
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
-import NewsletterRowSegment from "@/components/NewsletterRowSegment";
-import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries } from "@/lib/newsletter-matrix";
+import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
+import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -85,6 +85,7 @@ interface Preset {
   matrixMetrics?: string[];
   matrixMetricLayout?: "rows" | "columns";
   matrixShowChart?: boolean;
+  matrixDimensions?: MatrixDimension[];
   focusPeriods?: number | "all";
   dateFrom?: string;
   dateTo?: string;
@@ -762,6 +763,8 @@ function MatrixView({
   setMetricLayout,
   showChart,
   setShowChart,
+  dimensions,
+  onDimensionsChange,
 }: {
   availableScenarios: string[];
   availableTemplates: string[];
@@ -781,16 +784,20 @@ function MatrixView({
   setMetricLayout: (layout: "rows" | "columns") => void;
   showChart: boolean;
   setShowChart: React.Dispatch<React.SetStateAction<boolean>>;
+  dimensions: MatrixDimension[];
+  onDimensionsChange: (dimensions: MatrixDimension[]) => void;
 }) {
   const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
   const hasMetrics = selectedMetrics.length > 0;
   const isCompare = compareMode === "change" && !!selectedCampaign;
   const splitDate = selectedCampaign?.startDate ?? null;
+  const identityWidth = matrixIdentityWidth(dimensions);
 
   const baseParams = {
     timeGroupBy,
     anchorDate: isCompare ? selectedCampaign?.startDate : undefined,
     metrics: selectedMetrics.join(","),
+    dimensions: dimensions.join(","),
     scenarios: selectedScenarios.join("|"),
     templates: selectedTemplates.join("|"),
   };
@@ -866,6 +873,13 @@ function MatrixView({
           selected={selectedMetrics}
           onChange={setSelectedMetrics}
         />
+        <SearchableMultiSelect
+          label="表の項目"
+          options={MATRIX_DIMENSIONS.map(({ value, label }) => ({ value, label }))}
+          selected={dimensions}
+          onChange={(values) => onDimensionsChange(values as MatrixDimension[])}
+        />
+        <span className="text-[11px] text-gray-500">選んだ項目で再集計</span>
         <button type="button" aria-expanded={showChart} aria-controls="matrix-trend-chart"
           onClick={() => setShowChart((visible) => !visible)}
           className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
@@ -918,7 +932,7 @@ function MatrixView({
                   style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
                   {s.type === "scenario" ? "シナリオ" : "テンプレ"}
                 </span>
-                <span>{s.key} / {s.subject ?? "（件名未取得）"}</span>
+                <span>{matrixSeriesLabel(s)}</span>
               </div>
             ))}
           </div>}
@@ -1025,7 +1039,9 @@ function MatrixView({
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
             <div className="px-4 md:px-6 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
               <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
-              <span className="text-[11px] text-gray-500">件名ごとの配信実績で集計</span>
+              <span className="text-[11px] text-gray-500">
+                {MATRIX_DIMENSIONS.filter((dimension) => dimensions.includes(dimension.value)).map((dimension) => dimension.label).join(" × ") || "合計"}で集計
+              </span>
               {isCompare && selectedCampaign && (
                 <span className="text-[11px] px-2 py-0.5 rounded-md font-medium"
                   style={{ background: "#F0FDF4", color: "#059669" }}>
@@ -1035,7 +1051,7 @@ function MatrixView({
             </div>
             <div className="overflow-x-auto">
               {metricLayout === "columns" ? (
-                <NewsletterMatrixColumns series={series} periods={timePeriods} metrics={selectedMetrics}
+                <NewsletterMatrixColumns series={series} periods={timePeriods} metrics={selectedMetrics} dimensions={dimensions}
                   splitPeriod={isCompare && splitDate ? timePeriod(splitDate, timeGroupBy, splitDate) : undefined} />
               ) : (
               <table className="text-xs border-collapse" style={{ width: "max-content", minWidth: "100%" }}>
@@ -1043,9 +1059,8 @@ function MatrixView({
                   {/* ── Group header row (compare mode only) ── */}
                   {isCompare && (
                     <tr style={{ background: "#F9FAFB" }}>
-                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 260, width: 260 }} />
-                      <th style={{ position: "sticky", left: 260, zIndex: 3, background: "#F9FAFB", minWidth: 320, width: 320 }} />
-                      <th style={{ position: "sticky", left: 580, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
+                      <NewsletterMatrixIdentity dimensions={dimensions} background="#F9FAFB" blank />
+                      <th style={{ position: "sticky", left: identityWidth, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
                       <th colSpan={beforePeriods.length}
                         className="px-3 py-1.5 text-center font-semibold whitespace-nowrap text-[10px]"
                         style={{ color: "#94A3B8", background: "#F1F5F9", borderRight: "2px solid #CBD5E1", letterSpacing: "0.04em" }}>
@@ -1060,12 +1075,9 @@ function MatrixView({
                   )}
                   {/* ── Period header row ── */}
                   <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
-                    <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 260, width: 260, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>シナリオ / テンプレ</th>
-                    <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap border-l border-gray-200"
-                      style={{ color: "#6B7280", minWidth: 320, width: 320, position: "sticky", left: 260, zIndex: 3, background: "#F9FAFB" }}>件名</th>
+                    <NewsletterMatrixIdentity dimensions={dimensions} background="#F9FAFB" />
                     <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 580, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: identityWidth, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
                     {isCompare ? (
                       <>
                         {beforePeriods.map((p) => (
@@ -1107,33 +1119,11 @@ function MatrixView({
                         : "1px solid #F9FAFB";
                       return (
                         <tr key={`${matrixSeriesId(s)}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
-                          {isFirstMetric ? (
-                            <td rowSpan={selectedMetrics.length}
-                              className="px-4 py-2 font-medium"
-                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 260, width: 260, maxWidth: 260 }}>
-                              <div className="flex items-start gap-1.5">
-                                <span className="w-2 h-2 rounded-full shrink-0 mt-1"
-                                  style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
-                                <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
-                                  style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                                  {s.type === "scenario" ? "SC" : "TP"}
-                                </span>
-                                <div className="min-w-0">
-                                  <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
-                                  <NewsletterRowSegment series={s} />
-                                </div>
-                              </div>
-                            </td>
-                          ) : null}
                           {isFirstMetric && (
-                            <td rowSpan={selectedMetrics.length}
-                              className="border-l border-gray-200 px-4 py-3 align-middle break-all text-gray-800 leading-5"
-                              style={{ position: "sticky", left: 260, zIndex: 2, background: rowBg, width: 320, minWidth: 320, maxWidth: 320 }}>
-                              {s.subject ?? "（件名未取得）"}
-                            </td>
+                            <NewsletterMatrixIdentity dimensions={dimensions} series={s} rowSpan={selectedMetrics.length} background={rowBg} />
                           )}
                           <td className="px-3 py-2 whitespace-nowrap"
-                            style={{ position: "sticky", left: 580, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
+                            style={{ position: "sticky", left: identityWidth, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
                             {mDef.label}
                           </td>
                           {isCompare ? (
@@ -1207,6 +1197,7 @@ export default function Dashboard() {
   const [matrixMetrics, setMatrixMetrics] = useState<string[]>(["deliveryCount"]);
   const [matrixMetricLayout, setMatrixMetricLayout] = useState<"rows" | "columns">("rows");
   const [matrixShowChart, setMatrixShowChart] = useState(true);
+  const [matrixDimensions, setMatrixDimensions] = useState<MatrixDimension[]>(DEFAULT_MATRIX_DIMENSIONS);
   const { data: campaignsData } = useListCampaigns();
   const { data: templatesData } = useGetNewsletterTemplates();
   const allCampaigns = campaignsData?.campaigns ?? [];
@@ -1362,6 +1353,8 @@ export default function Dashboard() {
     setMatrixMetrics(p.matrixMetrics?.filter((key) => CHART_METRICS.some((metric) => metric.value === key)) ?? ["deliveryCount"]);
     setMatrixMetricLayout(p.matrixMetricLayout ?? "rows");
     setMatrixShowChart(p.matrixShowChart ?? true);
+    setMatrixDimensions(p.matrixDimensions?.filter((value) => MATRIX_DIMENSIONS.some((dimension) => dimension.value === value))
+      ?? (p.templates?.length && !(p.scenarios?.length || p.segments?.length) ? ["subject", "template"] : DEFAULT_MATRIX_DIMENSIONS));
     setFocusPeriods(p.focusPeriods ?? 2);
     setDateRange(p.dateFrom && p.dateTo ? { from: p.dateFrom, to: p.dateTo } : null);
     setSelectedScenarios(p.scenarios ?? p.segments ?? []);
@@ -1381,6 +1374,7 @@ export default function Dashboard() {
       matrixMetrics,
       matrixMetricLayout,
       matrixShowChart,
+      matrixDimensions,
       focusPeriods,
       dateFrom: dateRange?.from,
       dateTo: dateRange?.to,
@@ -1622,6 +1616,8 @@ export default function Dashboard() {
               setMetricLayout={(layout) => { setMatrixMetricLayout(layout); setActivePresetId(null); }}
               showChart={matrixShowChart}
               setShowChart={(visible) => { setMatrixShowChart(visible); setActivePresetId(null); }}
+              dimensions={matrixDimensions}
+              onDimensionsChange={(values) => { setMatrixDimensions(values); setActivePresetId(null); }}
             />
           ) : isLoading || (compareMode === "change" && phaseLoading) ? (
             <LoadingSkeleton />

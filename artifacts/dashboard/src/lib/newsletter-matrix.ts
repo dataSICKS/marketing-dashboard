@@ -1,13 +1,35 @@
 import type { MatrixResponse } from "@workspace/api-client-react";
 
 type Series = MatrixResponse["series"][number];
+export const MATRIX_DIMENSIONS = [
+  { value: "scenario", label: "シナリオ", width: 220 },
+  { value: "subject", label: "件名", width: 300 },
+  { value: "template", label: "テンプレ", width: 220 },
+] as const;
+export type MatrixDimension = typeof MATRIX_DIMENSIONS[number]["value"];
+export const DEFAULT_MATRIX_DIMENSIONS: MatrixDimension[] = ["scenario", "subject"];
+
+export function matrixDimensionColumns(dimensions: MatrixDimension[]) {
+  let left = 0;
+  const columns = MATRIX_DIMENSIONS.filter((item) => dimensions.includes(item.value)).map((item) => {
+    const column = { key: item.value as MatrixDimension | "total", label: item.label as string, width: item.width as number, left };
+    left += item.width;
+    return column;
+  });
+  return columns.length ? columns : [{ key: "total" as const, label: "集計", width: 120, left: 0 }];
+}
+export const matrixIdentityWidth = (dimensions: MatrixDimension[]) =>
+  matrixDimensionColumns(dimensions).reduce((sum, column) => sum + column.width, 0);
 
 /** Include type as scenarios and templates can share both name and subject. */
-export const matrixSeriesId = (series: Pick<Series, "type" | "key" | "subject">) =>
-  JSON.stringify([series.type, series.key, series.subject]);
+export const matrixSeriesId = (series: Pick<Series, "type" | "key" | "subject" | "groupKey">) =>
+  series.groupKey ?? JSON.stringify([series.type, series.key, series.subject]);
 
 export const matrixSeriesLabel = (series: Series) =>
-  `${series.type === "scenario" ? "シナリオ" : "テンプレ"}: ${series.key} / ${series.subject ?? "（件名未取得）"}`;
+  series.dimensionValues
+    ? MATRIX_DIMENSIONS.filter((dimension) => dimension.value in series.dimensionValues!)
+      .map((dimension) => `${dimension.label}: ${series.dimensionValues![dimension.value] ?? "未設定"}`).join(" / ") || "合計"
+    : `${series.type === "scenario" ? "シナリオ" : "テンプレ"}: ${series.key} / ${series.subject ?? "（件名未取得）"}`;
 
 /** Avoid Recharts treating subject punctuation as nested property paths. */
 export const matrixMetricKey = (series: Series, metric: string) =>

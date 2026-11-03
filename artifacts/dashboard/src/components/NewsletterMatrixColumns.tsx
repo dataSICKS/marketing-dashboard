@@ -1,17 +1,18 @@
 import type { MatrixResponse } from "@workspace/api-client-react";
 import { CHART_METRICS, formatChartValueLabel } from "@/lib/newsletter-chart";
-import NewsletterRowSegment from "@/components/NewsletterRowSegment";
-import { matrixSeriesId } from "@/lib/newsletter-matrix";
+import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
+import { matrixSeriesId, type MatrixDimension } from "@/lib/newsletter-matrix";
 
 interface Props {
   series: MatrixResponse["series"];
   periods: string[];
   metrics: string[];
   splitPeriod?: string;
+  dimensions: MatrixDimension[];
 }
 
 /** Column layout uses the same aggregated values as the row layout. */
-export default function NewsletterMatrixColumns({ series, periods, metrics, splitPeriod }: Props) {
+export default function NewsletterMatrixColumns({ series, periods, metrics, splitPeriod, dimensions }: Props) {
   const selected = metrics.flatMap((key) => {
     const metric = CHART_METRICS.find((entry) => entry.value === key);
     return metric ? [metric] : [];
@@ -21,14 +22,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
     <table aria-label="マトリクス表・指標を列に表示" className="text-xs border-collapse min-w-full">
       <thead>
         <tr className="bg-gray-50 border-b border-gray-100">
-          <th scope="col" rowSpan={2} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500"
-            style={{ width: 260, minWidth: 260, maxWidth: 260 }}>
-            シナリオ / テンプレ
-          </th>
-          <th scope="col" rowSpan={2} className="sticky z-10 border-l border-gray-200 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500"
-            style={{ left: 260, width: 320, minWidth: 320, maxWidth: 320 }}>
-            件名
-          </th>
+          <NewsletterMatrixIdentity dimensions={dimensions} rowSpan={2} background="#F9FAFB" />
           {periods.map((period) => (
             <th scope="colgroup" colSpan={selected.length} key={period}
               className="border-l border-gray-200 px-4 py-3 text-center font-medium whitespace-nowrap"
@@ -51,24 +45,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
       <tbody>
         {series.map((entry, index) => (
                 <tr key={matrixSeriesId(entry)} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
-                    <th scope="row"
-                      className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium"
-                      style={{ width: 260, minWidth: 260, maxWidth: 260, background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                      <div className="flex items-start gap-2">
-                        <span className="rounded px-1.5 py-0.5 text-[10px] shrink-0"
-                          style={{ background: entry.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: entry.type === "scenario" ? "#7C3AED" : "#D97706" }}>
-                          {entry.type === "scenario" ? "SC" : "TP"}
-                        </span>
-                        <div className="min-w-0">
-                          <span className="break-all">{entry.key}</span>
-                          <NewsletterRowSegment series={entry} />
-                        </div>
-                      </div>
-                    </th>
-                    <td className="sticky z-10 border-l border-gray-200 px-4 py-3 align-middle break-all text-gray-800 leading-5"
-                      style={{ left: 260, width: 320, minWidth: 320, maxWidth: 320, background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                      {entry.subject ?? "（件名未取得）"}
-                    </td>
+                    <NewsletterMatrixIdentity dimensions={dimensions} series={entry} background={index % 2 === 0 ? "#fff" : "#FAFAFA"} />
                   {periods.flatMap((period) => selected.map((metric, metricIndex) => {
                     const value = entry.metricValues[metric.value]?.[period];
                     return (

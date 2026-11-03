@@ -45,6 +45,7 @@ export * from "./getNewsletterDataTimeGroupBy";
 export * from "./getNewsletterMatrixParams";
 export * from "./getNewsletterMatrixTimeGroupBy";
 export * from "./healthStatus";
+export * from "./matrixDimensionValues";
 export * from "./matrixLatestSegment";
 export * from "./matrixMetric";
 export * from "./matrixMetricValues";

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MatrixDimensionValues } from "./matrixDimensionValues";
 import type { MatrixLatestSegment } from "./matrixLatestSegment";
 import type { MatrixMetricValues } from "./matrixMetricValues";
 import type { MatrixSeriesRowPeriodSegments } from "./matrixSeriesRowPeriodSegments";
@@ -12,6 +13,9 @@ import type { MatrixSeriesRowType } from "./matrixSeriesRowType";
 
 export interface MatrixSeriesRow {
   key: string;
+  /** Stable identity containing exactly the selected grouping dimensions and their values */
+  groupKey?: string;
+  dimensionValues?: MatrixDimensionValues;
   /**
    * Actual delivered subject for this row; metrics include only deliveries with this subject
    * @nullable

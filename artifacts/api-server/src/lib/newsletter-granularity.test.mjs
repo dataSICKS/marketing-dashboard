@@ -94,6 +94,58 @@ test("matrix row segment is selected by the latest matching delivery date, not a
   assert.deepEqual(empty.series, []);
 });
 
+test("all eight matrix dimension combinations regroup raw deliveries once and recompute weighted rates", () => {
+  const rows = [
+    { ...row("2026/10/07", "件名X", 100, 10), templateName: "テンプレ1", clickCount: 5 },
+    { ...row("2026/10/08", "件名Y", 300, 90), templateName: "テンプレ1", clickCount: 9 },
+    { ...row("2026/10/08", "件名X", 200, 20), templateName: "テンプレ2", clickCount: 1 },
+    { ...row("2026/10/09", "件名X", 400, 80), scenarioName: "シナリオB", templateName: "テンプレ1", clickCount: 4 },
+    { ...row("2026/10/09", "", 50, 0), templateName: "テンプレ1", clickCount: 0 },
+    { ...row("2026/10/10", "除外", 9000, 100), scenarioName: "別シナリオ", templateName: "テンプレ1" },
+    { ...row("2026/10/10", "除外", 9000, 100), templateName: "別テンプレ" },
+  ];
+  const allowed = rows.slice(0, 5);
+  const totals = computeSummary(allowed);
+  const names = ["scenario", "subject", "template"];
+  const field = { scenario: "scenarioName", subject: "subject", template: "templateName" };
+  const metrics = ["deliveryCount", "openCount", "clickCount", "cvCount", "openRate", "clickRate", "cvr"];
+  for (let mask = 0; mask < 8; mask++) {
+    const dimensions = names.filter((_, i) => mask & (1 << i));
+    for (const grain of ["day", "week", "month"]) {
+      for (const anchor of [undefined, "2026-10-07"]) {
+        const matrix = computeMatrixData(rows, ["シナリオA", "シナリオB"], ["テンプレ1", "テンプレ2"], grain, metrics, anchor, dimensions);
+        assert.equal(new Set(matrix.series.map((item) => item.groupKey)).size, matrix.series.length);
+        for (const metric of ["deliveryCount", "openCount", "clickCount", "cvCount"]) {
+          const sum = matrix.series.reduce((total, item) => total + Object.values(item.metricValues[metric]).reduce((a, b) => a + b, 0), 0);
+          assert.equal(sum, totals[metric], `${dimensions.join(",")} ${grain} ${metric}`);
+        }
+        for (const series of matrix.series) {
+          assert.deepEqual(Object.keys(series.dimensionValues), dimensions);
+          const matching = allowed.filter((delivery) => dimensions.every((dimension) =>
+            (delivery[field[dimension]].trim() || null) === series.dimensionValues[dimension]));
+          const expected = aggregateRows(matching, grain, undefined, anchor);
+          for (const item of expected) {
+            for (const metric of metrics) assert.equal(series.metricValues[metric][item.label], item[metric]);
+          }
+        }
+        if (!dimensions.length) {
+          assert.equal(matrix.series.length, 1);
+          assert.equal(matrix.series[0].key, "合計");
+        }
+      }
+    }
+  }
+  const original = computeMatrixData(allowed, [], [], "month", metrics, undefined, ["scenario", "subject"]);
+  const reversed = computeMatrixData(allowed, [], [], "month", metrics, undefined, ["subject", "scenario", "scenario"]);
+  assert.deepEqual(reversed, original);
+  const bySubject = computeMatrixData(allowed, [], [], "month", metrics, undefined, ["subject"]);
+  const subjectX = bySubject.series.find((series) => series.subject === "件名X");
+  assert.equal(subjectX.metricValues.deliveryCount["2026/10"], 700);
+  assert.equal(subjectX.metricValues.clickRate["2026/10"], 10 / 110);
+  assert.equal(bySubject.series.find((series) => series.subject === null).metricValues.clickRate["2026/10"], 0);
+  assert.deepEqual(computeMatrixData([], [], [], "month", metrics, undefined, []).series, []);
+});
+
 test("week buckets start on Monday and span months and years consistently", () => {
   assert.equal(newsletterPeriod("2026/10/04", "week"), "2026/09/28");
   assert.equal(newsletterPeriod("2026-10-05", "week"), "2026/10/05");

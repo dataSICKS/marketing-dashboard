@@ -2,9 +2,9 @@
 - [Supabase DDL](supabase-ddl.md) — PostgREST cannot run DDL; new tables must be created manually via Supabase Dashboard SQL Editor.
 - [Orval codegen safeguards](orval-codegen-manual.md) — keep generated files on failure and validate YAML syntax when Orval reports an input-resolution error.
 - [Clarity CSV completeness](clarity-pv-denominator.md) — block unknown PV for visitor rows; disclose dates excluded for recognized empty CSVs; preserve device curves across display modes.
-- [Newsletter subject changes](newsletter-subject-changes.md) — split detail views and matrix rows, metrics and chart series by delivered subject; never relabel historical totals with the latest subject.
+- [Newsletter subject changes](newsletter-subject-changes.md) — use actual delivered subjects; split matrix subjects when selected, with a dedicated column; never relabel history with the latest subject.
 - [Recharts category labels](recharts-category-labels.md) — custom ticks need compact measurement labels for compound identities, or valid categories can disappear.
 - [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
 - [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.
-- [Newsletter matrix layout](newsletter-matrix-layout.md) — periods remain columns in both layouts; metric columns are grouped underneath each period.
+- [Newsletter matrix layout](newsletter-matrix-layout.md) — periods stay columns; selectable scenario/subject/template fields control regrouping, not just visibility.
 - [Newsletter click rate](newsletter-click-rate.md) — ユーザー指定：メルマガのクリック率はクリック数 ÷ 開封数。配信数を分母にしない。

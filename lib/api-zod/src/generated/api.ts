@@ -321,6 +321,12 @@ export const getNewsletterMatrixQueryAnchorDateRegExp = new RegExp(
 export const getNewsletterMatrixQueryTimeGroupByDefault = `month`;
 
 export const GetNewsletterMatrixQueryParams = zod.object({
+  dimensions: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total",
+    ),
   anchorDate: zod.coerce
     .string()
     .regex(getNewsletterMatrixQueryAnchorDateRegExp)
@@ -347,6 +353,19 @@ export const GetNewsletterMatrixResponse = zod.object({
   series: zod.array(
     zod.object({
       key: zod.string(),
+      groupKey: zod
+        .string()
+        .optional()
+        .describe(
+          "Stable identity containing exactly the selected grouping dimensions and their values",
+        ),
+      dimensionValues: zod
+        .object({
+          scenario: zod.string().nullish(),
+          subject: zod.string().nullish(),
+          template: zod.string().nullish(),
+        })
+        .optional(),
       subject: zod
         .string()
         .nullable()

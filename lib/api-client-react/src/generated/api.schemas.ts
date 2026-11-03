@@ -150,6 +150,15 @@ export interface MatrixLatestSegment {
   date: string;
 }
 
+export interface MatrixDimensionValues {
+  /** @nullable */
+  scenario?: string | null;
+  /** @nullable */
+  subject?: string | null;
+  /** @nullable */
+  template?: string | null;
+}
+
 export type MatrixSeriesRowType =
   (typeof MatrixSeriesRowType)[keyof typeof MatrixSeriesRowType];
 
@@ -165,6 +174,9 @@ export type MatrixSeriesRowPeriodSegments = { [key: string]: MatrixSegment[] };
 
 export interface MatrixSeriesRow {
   key: string;
+  /** Stable identity containing exactly the selected grouping dimensions and their values */
+  groupKey?: string;
+  dimensionValues?: MatrixDimensionValues;
   /**
    * Actual delivered subject for this row; metrics include only deliveries with this subject
    * @nullable
@@ -485,6 +497,10 @@ export type GetNewsletterChangeEventsParams = {
 };
 
 export type GetNewsletterMatrixParams = {
+  /**
+   * Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total
+   */
+  dimensions?: string;
   /**
    * Campaign date used to align time buckets
    * @pattern ^\d{4}-\d{2}-\d{2}$

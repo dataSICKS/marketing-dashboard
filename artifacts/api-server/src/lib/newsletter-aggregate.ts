@@ -195,9 +195,12 @@ export function mergeComparisonMetrics(
 
 // ─── Matrix ────────────────────────────────────────────────────────
 export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
+export type MatrixDimension = "scenario" | "subject" | "template";
 
 export interface MatrixSeriesRow {
   key: string;
+  groupKey?: string;
+  dimensionValues?: Partial<Record<MatrixDimension, string | null>>;
   subject: string | null;
   type: "scenario" | "template";
   segments: string[];
@@ -231,6 +234,7 @@ export function computeMatrixData(
   timeGroupBy: "day" | "week" | "month",
   metrics: MatrixMetric[],
   anchorDate?: string,
+  dimensions?: MatrixDimension[],
 ): MatrixData {
   const allPeriods = new Set<string>();
   const rowsForScenarios = templates.length > 0
@@ -279,10 +283,37 @@ export function computeMatrixData(
     }
     return Array.from(bySubject, ([subject, deliveries]) => buildRow(deliveries, key, type, subject));
   };
-  const series: MatrixSeriesRow[] = [
+  let series: MatrixSeriesRow[] = dimensions === undefined ? [
     ...scenarios.flatMap((s) => buildSubjectRows(rowsForScenarios.filter((r) => r.scenarioName === s), s, "scenario")),
     ...templates.flatMap((t) => buildSubjectRows(rowsForTemplates.filter((r) => r.templateName === t), t, "template")),
-  ];
+  ] : [];
+
+  if (dimensions !== undefined) {
+    // Group source deliveries once, not the already aggregated scenario/template rows.
+    // This avoids duplicate counts when both scenario and template filters are selected.
+    allPeriods.clear();
+    const selected = (["scenario", "subject", "template"] as const).filter((dimension) => dimensions.includes(dimension));
+    const groups = new Map<string, { values: NonNullable<MatrixSeriesRow["dimensionValues"]>; rows: NewsletterRow[] }>();
+    for (const row of rows) {
+      if (scenarios.length && !scenarios.includes(row.scenarioName)) continue;
+      if (templates.length && !templates.includes(row.templateName)) continue;
+      const values: NonNullable<MatrixSeriesRow["dimensionValues"]> = {};
+      for (const dimension of selected) {
+        const value = dimension === "scenario" ? row.scenarioName : dimension === "template" ? row.templateName : row.subject;
+        values[dimension] = value.trim() || null;
+      }
+      const groupKey = JSON.stringify(selected.map((dimension) => [dimension, values[dimension]]));
+      const group = groups.get(groupKey) ?? { values, rows: [] };
+      group.rows.push(row);
+      groups.set(groupKey, group);
+    }
+    series = Array.from(groups, ([groupKey, group]) => ({
+      ...buildRow(group.rows, selected.map((dimension) => group.values[dimension] ?? "未設定").join(" / ") || "合計",
+        selected.includes("scenario") ? "scenario" : "template", group.values.subject ?? null),
+      groupKey,
+      dimensionValues: group.values,
+    }));
+  }
 
   const timePeriods = Array.from(allPeriods).sort();
   return { timePeriods, series, metrics };

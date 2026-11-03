@@ -212,6 +212,12 @@ paths:
       tags: [newsletter]
       summary: Get newsletter comparison matrix
       parameters:
+        - name: dimensions
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total
         - name: anchorDate
           in: query
           required: false
@@ -981,11 +987,26 @@ components:
         - segment
         - date
 
+    MatrixDimensionValues:
+      type: object
+      properties:
+        scenario:
+          type: [string, "null"]
+        subject:
+          type: [string, "null"]
+        template:
+          type: [string, "null"]
+
     MatrixSeriesRow:
       type: object
       properties:
         key:
           type: string
+        groupKey:
+          type: string
+          description: Stable identity containing exactly the selected grouping dimensions and their values
+        dimensionValues:
+          $ref: "#/components/schemas/MatrixDimensionValues"
         subject:
           type: [string, "null"]
           description: Actual delivered subject for this row; metrics include only deliveries with this subject

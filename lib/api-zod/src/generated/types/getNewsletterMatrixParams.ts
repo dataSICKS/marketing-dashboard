@@ -9,6 +9,10 @@ import type { GetNewsletterMatrixTimeGroupBy } from "./getNewsletterMatrixTimeGr
 
 export type GetNewsletterMatrixParams = {
   /**
+   * Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total
+   */
+  dimensions?: string;
+  /**
    * Campaign date used to align time buckets
    * @pattern ^\d{4}-\d{2}-\d{2}$
    */

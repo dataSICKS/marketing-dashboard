@@ -20,3 +20,9 @@ Use the visible label 「セグメント」, not 「最新セグメント」.
 **Why:** The user approved the name-with-secondary-segment mockup and explicitly requested this label.
 
 **How to apply:** Preserve the approved placement in both matrix layouts without introducing period-specific segment rows.
+
+Allow independent selection of シナリオ・件名・テンプレ as matrix grouping dimensions. Removing an item must regroup and recompute the matching delivery records, not merely hide a column.
+
+**Why:** The user requested selectable table items and explicitly chose 「選んだ項目で集計し直す」 over column visibility only.
+
+**How to apply:** Keep periods as columns, preserve selected source filters, recompute rates from summed counts, avoid counting a delivery twice, and save/restore the selected dimensions with the view.

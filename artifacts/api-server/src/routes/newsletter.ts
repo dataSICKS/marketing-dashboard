@@ -238,6 +238,12 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
 
     const validTime = ["day", "week", "month"];
     const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount"];
+    const validDimensions = ["scenario", "subject", "template"] as const;
+    const dimensions = q.dimensions === undefined ? undefined : q.dimensions.split(",").map((value) => value.trim()).filter(Boolean);
+    if (dimensions?.some((dimension) => !validDimensions.some((valid) => valid === dimension))) {
+      res.status(400).json({ error: "表の集計項目が不正です" });
+      return;
+    }
 
     const timeGroupBy = (validTime.includes(q.timeGroupBy ?? "") ? q.timeGroupBy : "month") as "day" | "week" | "month";
     const rawMetrics = q.metrics ? q.metrics.split(",").map((s) => s.trim()).filter((s) => validMetric.includes(s)) as MatrixMetric[] : [];
@@ -250,7 +256,7 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
-    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics, q.anchorDate);
+    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics, q.anchorDate, dimensions as ("scenario" | "subject" | "template")[] | undefined);
     res.json(data);
   } catch (err) {
     req.log.error({ err }, "Failed to compute matrix data");

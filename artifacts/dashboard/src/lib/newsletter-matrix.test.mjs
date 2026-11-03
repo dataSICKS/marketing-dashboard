@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries } from "./newsletter-matrix.ts";
+import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixDimensionColumns, matrixIdentityWidth } from "./newsletter-matrix.ts";
 
 const row = (subject, period, count, type = "scenario") => ({
   key: "同じ名前", type, subject, segments: [subject ?? ""],
@@ -34,4 +34,31 @@ test("series and chart identities distinguish types, subjects and punctuation", 
   assert.ok(keys.every((key) => !/[.[\]]/.test(key)));
   assert.ok(matrixSeriesLabel(variants[0]).includes("a.b[0]__clickRate"));
   assert.ok(matrixSeriesLabel(variants[2]).includes("件名未取得"));
+});
+
+test("selected table dimensions keep their own columns, sticky offsets and a total-only fallback", () => {
+  const names = ["scenario", "subject", "template"];
+  for (let mask = 0; mask < 8; mask++) {
+    const dimensions = names.filter((_, i) => mask & (1 << i));
+    const columns = matrixDimensionColumns(dimensions);
+    assert.deepEqual(columns.map((column) => column.key), dimensions.length ? dimensions : ["total"]);
+    let left = 0;
+    for (const column of columns) {
+      assert.equal(column.left, left);
+      left += column.width;
+    }
+    assert.equal(matrixIdentityWidth(dimensions), left);
+  }
+});
+
+test("regrouped comparison identities and chart labels use only selected dimensions", () => {
+  const before = { ...row(null, "2026/09/30", 100), groupKey: '[["scenario","シナリオA"]]', dimensionValues: { scenario: "シナリオA" } };
+  const after = { ...row(null, "2026/10/01", 200), key: "別表示名", groupKey: before.groupKey, dimensionValues: { scenario: "シナリオA" } };
+  const different = { ...after, groupKey: '[["scenario","シナリオB"]]', dimensionValues: { scenario: "シナリオB" } };
+  const merged = mergeMatrixSeries([before], [after, different]);
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged[0].metricValues.deliveryCount, { "2026/09/30": 100, "2026/10/01": 200 });
+  assert.equal(matrixSeriesLabel(before), "シナリオ: シナリオA");
+  assert.equal(matrixSeriesLabel({ ...before, groupKey: "[]", dimensionValues: {} }), "合計");
+  assert.notEqual(matrixMetricKey(before, "deliveryCount"), matrixMetricKey(different, "deliveryCount"));
 });
