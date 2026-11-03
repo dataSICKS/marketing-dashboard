@@ -49,6 +49,8 @@ import {
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterRowSegment from "@/components/NewsletterRowSegment";
+import NewsletterRowSubject from "@/components/NewsletterRowSubject";
+import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries } from "@/lib/newsletter-matrix";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -825,16 +827,7 @@ function MatrixView({
   });
 
   const series: MatrixResponse["series"] = isCompare
-    ? (beforeData?.series ?? afterData?.series ?? []).map((series) => {
-        const after = afterData?.series.find((other) => other.key === series.key && other.type === series.type);
-        const metricValues = { ...series.metricValues };
-        for (const metric of MATRIX_METRICS) {
-          metricValues[metric.value] = { ...series.metricValues[metric.value], ...after?.metricValues[metric.value] };
-        }
-        const latestSegment = after?.latestSegment && (!series.latestSegment || after.latestSegment.date >= series.latestSegment.date)
-          ? after.latestSegment : series.latestSegment;
-        return { ...series, latestSegment, metricValues };
-      })
+    ? mergeMatrixSeries(beforeData?.series, afterData?.series)
     : (data?.series ?? []);
   const timePeriods: string[] = isCompare
     ? [...new Set([...(beforeData?.timePeriods ?? []), ...(afterData?.timePeriods ?? []), ...(splitDate ? [timePeriod(splitDate, timeGroupBy, splitDate)] : [])])].sort()
@@ -918,7 +911,7 @@ function MatrixView({
           {/* ── Shared legend ── */}
           {showChart && <div className="flex flex-wrap gap-x-4 gap-y-2 px-1">
             {seriesLegend.map((s) => (
-              <div key={s.key} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
+              <div key={matrixSeriesId(s)} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
                 <svg width="14" height="2" viewBox="0 0 14 2">
                   <line x1="0" y1="1" x2="14" y2="1" stroke={s.color} strokeWidth="2" />
                 </svg>
@@ -926,7 +919,7 @@ function MatrixView({
                   style={{ background: s.type === "scenario" ? "#EDE9FE" : "#FEF3C7", color: s.type === "scenario" ? "#7C3AED" : "#D97706" }}>
                   {s.type === "scenario" ? "シナリオ" : "テンプレ"}
                 </span>
-                <span>{s.key}</span>
+                <span>{s.key} / {s.subject ?? "（件名未取得）"}</span>
               </div>
             ))}
           </div>}
@@ -950,7 +943,7 @@ function MatrixView({
               const pt: Record<string, string | number | null> = { period };
               for (const s of series) {
                 for (const mk of selectedMetrics) {
-                  pt[`${s.key}__${mk}`] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? null;
+                  pt[matrixMetricKey(s, mk)] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? null;
                 }
               }
               return pt;
@@ -975,19 +968,19 @@ function MatrixView({
                       )}
                       <Tooltip
                         contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: 10, fontSize: 12 }}
-                        formatter={(val: number, name: string) => {
-                          const [, mk] = name.split("__");
+                        formatter={(val: number, name: string, item) => {
+                          const mk = String(item.dataKey).split("__").at(-1);
                           const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
-                          const seriesKey = name.replace(`__${mk}`, "");
-                          return [mDef.isRate ? formatChartRate(val) : formatNumber(val), `${seriesKey} / ${mDef.label}`];
+                          return [mDef.isRate ? formatChartRate(val) : formatNumber(val), name];
                         }}
                       />
                       {series.flatMap((s, si) =>
                         selectedMetrics.map((mk, mi) => (
                           <Line
-                            key={`${s.key}__${mk}`}
+                            key={matrixMetricKey(s, mk)}
                             type="monotone"
-                            dataKey={`${s.key}__${mk}`}
+                            dataKey={matrixMetricKey(s, mk)}
+                            name={`${matrixSeriesLabel(s)} / ${MATRIX_METRICS.find((m) => m.value === mk)?.label ?? mk}`}
                             yAxisId={yAxisId(mk)}
                             stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
                             strokeWidth={2}
@@ -995,7 +988,7 @@ function MatrixView({
                             dot={false}
                             connectNulls
                           >
-                            <LabelList dataKey={`${s.key}__${mk}`} position={(si + mi) % 2 === 0 ? "top" : "bottom"} offset={9}
+                            <LabelList dataKey={matrixMetricKey(s, mk)} position={(si + mi) % 2 === 0 ? "top" : "bottom"} offset={9}
                               formatter={(value: unknown) => formatChartValueLabel(value, MATRIX_METRICS.find((m) => m.value === mk)?.isRate ?? false)}
                               fill={SERIES_COLORS[si % SERIES_COLORS.length]} fontSize={10} fontWeight={600}
                               stroke="#fff" strokeWidth={3} paintOrder="stroke" />
@@ -1012,14 +1005,14 @@ function MatrixView({
                     selectedMetrics.map((mk, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
                       return (
-                        <div key={`${s.key}__${mk}`} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
+                        <div key={matrixMetricKey(s, mk)} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
                           <svg width="18" height="8" viewBox="0 0 18 8">
                             <line x1="0" y1="4" x2="18" y2="4"
                               stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
                               strokeWidth="2"
                               strokeDasharray={["", "5 5", "2 4", "8 3 2 3", "1 3"][mi % 5]} />
                           </svg>
-                          <span>{s.key} / {mDef.label}</span>
+                          <span>{matrixSeriesLabel(s)} / {mDef.label}</span>
                         </div>
                       );
                     })
@@ -1033,6 +1026,7 @@ function MatrixView({
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid #EBEBEB" }}>
             <div className="px-4 md:px-6 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
               <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>マトリクス表</span>
+              <span className="text-[11px] text-gray-500">件名ごとの配信実績で集計</span>
               {isCompare && selectedCampaign && (
                 <span className="text-[11px] px-2 py-0.5 rounded-md font-medium"
                   style={{ background: "#F0FDF4", color: "#059669" }}>
@@ -1050,8 +1044,8 @@ function MatrixView({
                   {/* ── Group header row (compare mode only) ── */}
                   {isCompare && (
                     <tr style={{ background: "#F9FAFB" }}>
-                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 150 }} />
-                      <th style={{ position: "sticky", left: 150, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
+                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 360, width: 360 }} />
+                      <th style={{ position: "sticky", left: 360, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
                       <th colSpan={beforePeriods.length}
                         className="px-3 py-1.5 text-center font-semibold whitespace-nowrap text-[10px]"
                         style={{ color: "#94A3B8", background: "#F1F5F9", borderRight: "2px solid #CBD5E1", letterSpacing: "0.04em" }}>
@@ -1067,9 +1061,9 @@ function MatrixView({
                   {/* ── Period header row ── */}
                   <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
                     <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 220, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>行</th>
+                      style={{ color: "#6B7280", minWidth: 360, width: 360, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>シナリオ / テンプレ・件名</th>
                     <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 220, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 360, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
                     {isCompare ? (
                       <>
                         {beforePeriods.map((p) => (
@@ -1093,10 +1087,8 @@ function MatrixView({
                   {series.flatMap((s, si) =>
                     selectedMetrics.map((metricKey, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
-                      const afterSeries = afterData?.series ?? [];
-                      const afterS = afterSeries.find((a) => a.key === s.key && a.type === s.type);
                       const vals      = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
-                      const afterVals = (afterS?.metricValues[metricKey as keyof typeof afterS.metricValues] ?? {}) as Record<string, number>;
+                      const afterVals = vals as Record<string, number>;
                       const allVals = series.flatMap((sr) =>
                         Object.values(sr.metricValues[metricKey as keyof typeof sr.metricValues] ?? {})
                       ).filter((v) => v > 0);
@@ -1112,11 +1104,11 @@ function MatrixView({
                         ? (si === 0 ? "none" : "2px solid #E5E7EB")
                         : "1px solid #F9FAFB";
                       return (
-                        <tr key={`${s.key}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
+                        <tr key={`${matrixSeriesId(s)}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
                           {isFirstMetric ? (
                             <td rowSpan={selectedMetrics.length}
                               className="px-4 py-2 font-medium"
-                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 220 }}>
+                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 360, width: 360, maxWidth: 360 }}>
                               <div className="flex items-start gap-1.5">
                                 <span className="w-2 h-2 rounded-full shrink-0 mt-1"
                                   style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
@@ -1127,12 +1119,13 @@ function MatrixView({
                                 <div className="min-w-0">
                                   <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
                                   <NewsletterRowSegment series={s} />
+                                  <NewsletterRowSubject subject={s.subject} />
                                 </div>
                               </div>
                             </td>
                           ) : null}
                           <td className="px-3 py-2 whitespace-nowrap"
-                            style={{ position: "sticky", left: 220, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
+                            style={{ position: "sticky", left: 360, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
                             {mDef.label}
                           </td>
                           {isCompare ? (

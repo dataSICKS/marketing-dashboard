@@ -198,6 +198,7 @@ export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openR
 
 export interface MatrixSeriesRow {
   key: string;
+  subject: string | null;
   type: "scenario" | "template";
   segments: string[];
   latestSegment: { scenarioName: string; segment: string; date: string } | null;
@@ -239,7 +240,7 @@ export function computeMatrixData(
     ? rows.filter((row) => scenarios.includes(row.scenarioName))
     : rows;
 
-  const buildRow = (filtered: NewsletterRow[], key: string, type: "scenario" | "template"): MatrixSeriesRow => {
+  const buildRow = (filtered: NewsletterRow[], key: string, type: "scenario" | "template", subject: string | null): MatrixSeriesRow => {
     const agg = aggregateRows(filtered, timeGroupBy, undefined, anchorDate);
     for (const item of agg) allPeriods.add(item.label);
     const metricValues: Partial<Record<MatrixMetric, Record<string, number>>> = {};
@@ -265,12 +266,22 @@ export function computeMatrixData(
     for (const entries of Object.values(periodSegments)) {
       entries.sort((a, b) => a.scenarioName.localeCompare(b.scenarioName, "ja") || a.segment.localeCompare(b.segment, "ja"));
     }
-    return { key, type, segments, latestSegment, periodSegments, metricValues };
+    return { key, subject, type, segments, latestSegment, periodSegments, metricValues };
   };
 
+  const buildSubjectRows = (filtered: NewsletterRow[], key: string, type: "scenario" | "template") => {
+    const bySubject = new Map<string | null, NewsletterRow[]>();
+    for (const row of filtered) {
+      const subject = row.subject.trim() || null;
+      const group = bySubject.get(subject) ?? [];
+      group.push(row);
+      bySubject.set(subject, group);
+    }
+    return Array.from(bySubject, ([subject, deliveries]) => buildRow(deliveries, key, type, subject));
+  };
   const series: MatrixSeriesRow[] = [
-    ...scenarios.map((s) => buildRow(rowsForScenarios.filter((r) => r.scenarioName === s), s, "scenario")),
-    ...templates.map((t) => buildRow(rowsForTemplates.filter((r) => r.templateName === t), t, "template")),
+    ...scenarios.flatMap((s) => buildSubjectRows(rowsForScenarios.filter((r) => r.scenarioName === s), s, "scenario")),
+    ...templates.flatMap((t) => buildSubjectRows(rowsForTemplates.filter((r) => r.templateName === t), t, "template")),
   ];
 
   const timePeriods = Array.from(allPeriods).sort();

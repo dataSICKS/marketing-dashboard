@@ -2,7 +2,7 @@
 - [Supabase DDL](supabase-ddl.md) — PostgREST cannot run DDL; new tables must be created manually via Supabase Dashboard SQL Editor.
 - [Orval codegen safeguards](orval-codegen-manual.md) — keep generated files on failure and validate YAML syntax when Orval reports an input-resolution error.
 - [Clarity CSV completeness](clarity-pv-denominator.md) — block unknown PV for visitor rows; disclose dates excluded for recognized empty CSVs; preserve device curves across display modes.
-- [Newsletter subject changes](newsletter-subject-changes.md) — split scenario/template detail rows and metrics by subject; never list multiple subjects beside combined counts.
+- [Newsletter subject changes](newsletter-subject-changes.md) — split detail views and matrix rows, metrics and chart series by delivered subject; never relabel historical totals with the latest subject.
 - [Recharts category labels](recharts-category-labels.md) — custom ticks need compact measurement labels for compound identities, or valid categories can disappear.
 - [Git remote safety](git-remote-safety.md) — remote URLs may contain credentials; redact URL user information before displaying repository configuration.
 - [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.

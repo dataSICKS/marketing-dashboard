@@ -347,6 +347,12 @@ export const GetNewsletterMatrixResponse = zod.object({
   series: zod.array(
     zod.object({
       key: zod.string(),
+      subject: zod
+        .string()
+        .nullable()
+        .describe(
+          "Actual delivered subject for this row; metrics include only deliveries with this subject",
+        ),
       type: zod.enum(["scenario", "template"]),
       segments: zod
         .array(zod.string())

@@ -1,6 +1,8 @@
 import type { MatrixResponse } from "@workspace/api-client-react";
 import { CHART_METRICS, formatChartValueLabel } from "@/lib/newsletter-chart";
 import NewsletterRowSegment from "@/components/NewsletterRowSegment";
+import NewsletterRowSubject from "@/components/NewsletterRowSubject";
+import { matrixSeriesId } from "@/lib/newsletter-matrix";
 
 interface Props {
   series: MatrixResponse["series"];
@@ -21,7 +23,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
       <thead>
         <tr className="bg-gray-50 border-b border-gray-100">
           <th scope="col" rowSpan={2} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left font-medium text-gray-500 min-w-[360px]">
-            シナリオ / テンプレ
+            シナリオ / テンプレ・件名
           </th>
           {periods.map((period) => (
             <th scope="colgroup" colSpan={selected.length} key={period}
@@ -44,7 +46,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
       </thead>
       <tbody>
         {series.map((entry, index) => (
-                <tr key={`${entry.type}-${entry.key}`} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
+                <tr key={matrixSeriesId(entry)} style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #E5E7EB" }}>
                     <th scope="row"
                       className="sticky left-0 z-10 px-4 py-3 text-left align-middle font-medium min-w-[360px] max-w-[420px]"
                       style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA" }}>
@@ -56,6 +58,7 @@ export default function NewsletterMatrixColumns({ series, periods, metrics, spli
                         <div className="min-w-0">
                           <span className="break-all">{entry.key}</span>
                           <NewsletterRowSegment series={entry} />
+                          <NewsletterRowSubject subject={entry.subject} />
                         </div>
                       </div>
                     </th>

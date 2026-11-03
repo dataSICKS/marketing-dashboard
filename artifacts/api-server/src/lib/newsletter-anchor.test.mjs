@@ -44,9 +44,10 @@ test("category and matrix aggregates use identical anchored buckets and weighted
     assert.equal(categories.reduce((sum, x) => sum + x.deliveryCount, 0), 110);
     const matrix = computeMatrixData(rows, ["scenario"], [], grain, ["deliveryCount", "clickRate"], "2026-10-07");
     assert.deepEqual(matrix.timePeriods, temporal.map(x => x.label));
-    for (const item of temporal) {
-      assert.equal(matrix.series[0].metricValues.deliveryCount[item.label], item.deliveryCount);
-      assert.equal(matrix.series[0].metricValues.clickRate[item.label], item.clickRate);
+    for (const item of categories) {
+      const series = matrix.series.find((entry) => entry.subject === item.subject);
+      assert.equal(series.metricValues.deliveryCount[item.period], item.deliveryCount);
+      assert.equal(series.metricValues.clickRate[item.period], item.clickRate);
     }
   }
 });

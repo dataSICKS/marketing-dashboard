@@ -986,6 +986,9 @@ components:
       properties:
         key:
           type: string
+        subject:
+          type: [string, "null"]
+          description: Actual delivered subject for this row; metrics include only deliveries with this subject
         type:
           type: string
           enum: [scenario, template]
@@ -1009,6 +1012,7 @@ components:
           $ref: "#/components/schemas/MatrixMetricValues"
       required:
         - key
+        - subject
         - type
         - segments
         - latestSegment

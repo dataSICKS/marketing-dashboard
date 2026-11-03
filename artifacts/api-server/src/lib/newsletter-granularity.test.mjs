@@ -38,7 +38,7 @@ test("matrix exposes distinct spreadsheet segments without changing aggregated c
     assert.equal(series.metricValues.deliveryCount["2026/10"], 40);
   }
   const empty = computeMatrixData([], ["シナリオA"], [], "month", ["deliveryCount"]);
-  assert.deepEqual(empty.series[0].segments, []);
+  assert.deepEqual(empty.series, []);
 });
 
 test("period segments follow bucket, scenario and template filters rather than a series-wide history", () => {
@@ -91,7 +91,7 @@ test("matrix row segment is selected by the latest matching delivery date, not a
   const blank = computeMatrixData([...rows, { ...row("2026/10/30"), segment: "" }], ["シナリオA"], ["テンプレA"], "month", ["deliveryCount"]);
   assert.equal(blank.series[0].latestSegment.segment, "");
   const empty = computeMatrixData([], ["シナリオA"], [], "month", ["deliveryCount"]);
-  assert.equal(empty.series[0].latestSegment, null);
+  assert.deepEqual(empty.series, []);
 });
 
 test("week buckets start on Monday and span months and years consistently", () => {
@@ -113,6 +113,7 @@ test("all granularities preserve counts and use summed numerators for rates", ()
     }
     const matrix = computeMatrixData(rows, ["シナリオA"], [], grain, ["deliveryCount", "openRate"]);
     assert.deepEqual(matrix.timePeriods, aggregateRows(rows, grain).map(item => item.label));
+    assert.equal(matrix.series.reduce((sum, item) => sum + Object.values(item.metricValues.deliveryCount).reduce((a, b) => a + b, 0), 0), total.deliveryCount);
   }
   const weekly = aggregateRows(rows, "week");
   assert.equal(weekly.length, 2);

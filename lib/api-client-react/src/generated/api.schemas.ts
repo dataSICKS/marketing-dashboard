@@ -165,6 +165,11 @@ export type MatrixSeriesRowPeriodSegments = { [key: string]: MatrixSegment[] };
 
 export interface MatrixSeriesRow {
   key: string;
+  /**
+   * Actual delivered subject for this row; metrics include only deliveries with this subject
+   * @nullable
+   */
+  subject: string | null;
   type: MatrixSeriesRowType;
   /** Distinct spreadsheet segment values contributing to this series */
   segments: string[];
