@@ -15,3 +15,9 @@ The matrix must also split actual delivery records by subject, with that subject
 **Why:** The user superseded their initial latest-subject choice: 「過去のデータを合算して最新件名じゃなくて、その件名で表示した時は行を分けて、指標とともに表示」.
 
 **How to apply:** Apply the same subject grouping in both matrix layouts, chart identities and comparisons. Preserve subjects present on only one comparison side, with no metrics borrowed from a different subject.
+
+Show the matrix subject in a dedicated 「件名」 column next to the scenario/template column, not as secondary text beneath the name.
+
+**Why:** The user rejected the inline placement as hard to read and asked 「列を追加して。見にくいわ。」.
+
+**How to apply:** Keep this separate column in both metric layouts and comparison mode, without changing the subject-specific aggregation.

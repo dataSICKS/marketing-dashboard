@@ -49,7 +49,6 @@ import {
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterRowSegment from "@/components/NewsletterRowSegment";
-import NewsletterRowSubject from "@/components/NewsletterRowSubject";
 import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries } from "@/lib/newsletter-matrix";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
@@ -1044,8 +1043,9 @@ function MatrixView({
                   {/* ── Group header row (compare mode only) ── */}
                   {isCompare && (
                     <tr style={{ background: "#F9FAFB" }}>
-                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 360, width: 360 }} />
-                      <th style={{ position: "sticky", left: 360, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
+                      <th style={{ position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB", minWidth: 260, width: 260 }} />
+                      <th style={{ position: "sticky", left: 260, zIndex: 3, background: "#F9FAFB", minWidth: 320, width: 320 }} />
+                      <th style={{ position: "sticky", left: 580, zIndex: 3, background: "#F9FAFB", minWidth: 72, borderRight: "2px solid #E5E7EB" }} />
                       <th colSpan={beforePeriods.length}
                         className="px-3 py-1.5 text-center font-semibold whitespace-nowrap text-[10px]"
                         style={{ color: "#94A3B8", background: "#F1F5F9", borderRight: "2px solid #CBD5E1", letterSpacing: "0.04em" }}>
@@ -1061,9 +1061,11 @@ function MatrixView({
                   {/* ── Period header row ── */}
                   <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
                     <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 360, width: 360, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>シナリオ / テンプレ・件名</th>
+                      style={{ color: "#6B7280", minWidth: 260, width: 260, position: "sticky", left: 0, zIndex: 3, background: "#F9FAFB" }}>シナリオ / テンプレ</th>
+                    <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap border-l border-gray-200"
+                      style={{ color: "#6B7280", minWidth: 320, width: 320, position: "sticky", left: 260, zIndex: 3, background: "#F9FAFB" }}>件名</th>
                     <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 360, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
+                      style={{ color: "#6B7280", minWidth: 72, position: "sticky", left: 580, zIndex: 3, background: "#F9FAFB", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>指標</th>
                     {isCompare ? (
                       <>
                         {beforePeriods.map((p) => (
@@ -1108,7 +1110,7 @@ function MatrixView({
                           {isFirstMetric ? (
                             <td rowSpan={selectedMetrics.length}
                               className="px-4 py-2 font-medium"
-                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 360, width: 360, maxWidth: 360 }}>
+                              style={{ position: "sticky", left: 0, zIndex: 2, background: rowBg, color: "#1A1A1A", verticalAlign: "middle", minWidth: 260, width: 260, maxWidth: 260 }}>
                               <div className="flex items-start gap-1.5">
                                 <span className="w-2 h-2 rounded-full shrink-0 mt-1"
                                   style={{ background: SERIES_COLORS[si % SERIES_COLORS.length] }} />
@@ -1119,13 +1121,19 @@ function MatrixView({
                                 <div className="min-w-0">
                                   <span className="break-words" style={{ wordBreak: "break-all" }}>{s.key}</span>
                                   <NewsletterRowSegment series={s} />
-                                  <NewsletterRowSubject subject={s.subject} />
                                 </div>
                               </div>
                             </td>
                           ) : null}
+                          {isFirstMetric && (
+                            <td rowSpan={selectedMetrics.length}
+                              className="border-l border-gray-200 px-4 py-3 align-middle break-all text-gray-800 leading-5"
+                              style={{ position: "sticky", left: 260, zIndex: 2, background: rowBg, width: 320, minWidth: 320, maxWidth: 320 }}>
+                              {s.subject ?? "（件名未取得）"}
+                            </td>
+                          )}
                           <td className="px-3 py-2 whitespace-nowrap"
-                            style={{ position: "sticky", left: 360, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
+                            style={{ position: "sticky", left: 580, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
                             {mDef.label}
                           </td>
                           {isCompare ? (
