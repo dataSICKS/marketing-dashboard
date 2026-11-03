@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateClarityScrollDays, isEmptyClarityExport, parseClarityCsv } from "../lib/clarity-scroll.js";
+import { buildClarityCoverage, listAllClarityFiles, parseClarityFilename, type ClarityInventoryDay } from "../lib/clarity-storage.js";
+import { getSettings } from "../lib/settings-storage.js";
 
 const router: IRouter = Router();
 
@@ -11,11 +13,39 @@ function getSupabaseClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function parseFilename(name: string): { adCode: string; device: string } | null {
-  const match = name.match(/^(.+?)_(Desktop|Mobile)_scroll_/);
-  if (!match) return null;
-  return { adCode: match[1], device: match[2] };
+const listFiles = (supabase: ReturnType<typeof getSupabaseClient>, prefix: string) =>
+  listAllClarityFiles((path, options) => supabase.storage.from("clarity-heatmaps").list(path, options), prefix);
+
+let inventoryCache: { expires: number; days: ClarityInventoryDay[] } | undefined;
+let inventoryRequest: Promise<ClarityInventoryDay[]> | undefined;
+async function getInventory(supabase: ReturnType<typeof getSupabaseClient>) {
+  if (inventoryCache && inventoryCache.expires > Date.now()) return inventoryCache.days;
+  if (inventoryRequest) return inventoryRequest;
+  inventoryRequest = (async () => {
+    const dates = (await listFiles(supabase, "")).map((file) => file.name).filter((name) => /^\d{4}-\d{2}-\d{2}$/.test(name));
+    const days: ClarityInventoryDay[] = [];
+    let next = 0;
+    await Promise.all(Array.from({ length: 6 }, async () => {
+      while (next < dates.length) {
+        const date = dates[next++];
+        days.push({ date, files: await listFiles(supabase, date) });
+      }
+    }));
+    inventoryCache = { expires: Date.now() + 60_000, days };
+    return days;
+  })();
+  try { return await inventoryRequest; } finally { inventoryRequest = undefined; }
 }
+
+router.get("/clarity/coverage", async (req, res): Promise<void> => {
+  try {
+    const [inventory, settings] = await Promise.all([getInventory(getSupabaseClient()), getSettings()]);
+    res.json(buildClarityCoverage(inventory, settings.adCodes));
+  } catch (err) {
+    req.log.error({ err }, "Failed to audit Clarity coverage");
+    res.status(500).json({ error: "ヒートマップの保存状況を確認できませんでした" });
+  }
+});
 
 router.get("/clarity/files", async (req, res): Promise<void> => {
   try {
@@ -25,22 +55,18 @@ router.get("/clarity/files", async (req, res): Promise<void> => {
     if (!date) {
       // 日付フォルダは日々増える（既に100件超）。既定sort(name昇順)＋limit100だと
       // 古い100件だけ返り最新日が欠落するため、limitを大きく取り新しい順で返す。
-      const { data, error } = await supabase.storage
-        .from("clarity-heatmaps")
-        .list("", { limit: 10000, sortBy: { column: "name", order: "desc" } });
-      if (error) throw error;
-      const dates = (data ?? []).map((f) => f.name).filter(Boolean).sort().reverse();
+      const data = await listFiles(supabase, "");
+      const dates = data.map((f) => f.name).filter((name) => /^\d{4}-\d{2}-\d{2}$/.test(name)).sort().reverse();
       res.json({ dates, adCodes: [] });
       return;
     }
 
-    const { data, error } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
-    if (error) throw error;
+    const data = await listFiles(supabase, date);
 
     const adCodeMap = new Map<string, string[]>();
     for (const file of data ?? []) {
       if (!file.name.endsWith(".csv")) continue;
-      const parsed = parseFilename(file.name);
+      const parsed = parseClarityFilename(file.name);
       if (!parsed) continue;
       const devices = adCodeMap.get(parsed.adCode) ?? [];
       if (!devices.includes(parsed.device)) devices.push(parsed.device);
@@ -61,14 +87,13 @@ async function fetchScrollForDate(
   date: string,
   adCode: string,
 ): Promise<{ device: string; pageViews: number | null; points: { depth: number; visitors: number }[]; emptyExport?: boolean }[]> {
-  const { data: files, error } = await supabase.storage.from("clarity-heatmaps").list(date, { limit: 200 });
-  if (error) throw error;
+  const files = await listFiles(supabase, date);
 
   const deviceFiles = (files ?? [])
     .filter((f) => f.name.startsWith(adCode + "_") && f.name.endsWith(".csv"))
     .map((f) => {
-      const parsed = parseFilename(f.name);
-      return parsed ? { ...parsed, filename: f.name } : null;
+      const parsed = parseClarityFilename(f.name);
+      return parsed?.adCode === adCode ? { ...parsed, filename: f.name } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -105,13 +130,10 @@ router.get("/clarity/scroll", async (req, res): Promise<void> => {
     let targetDates: string[];
     if (dateFrom && dateTo) {
       // 利用可能な日付フォルダ一覧を取得して期間内のものだけ使う
-      const { data: allFolders, error: fErr } = await supabase.storage
-        .from("clarity-heatmaps")
-        .list("", { limit: 10000, sortBy: { column: "name", order: "asc" } });
-      if (fErr) throw fErr;
-      targetDates = (allFolders ?? [])
+      const allFolders = await listFiles(supabase, "");
+      targetDates = allFolders
         .map((f) => f.name)
-        .filter((n) => n >= dateFrom && n <= dateTo);
+        .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && n >= dateFrom && n <= dateTo);
     } else {
       targetDates = [date!];
     }

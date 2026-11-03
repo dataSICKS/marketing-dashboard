@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, X, Link2, Tag } from "lucide-react";
-import { useGetSettings, useUpdateSettings, useGetClarityFiles } from "@workspace/api-client-react";
+import { useGetSettings, useUpdateSettings, useGetClarityFiles, useGetClarityCoverage, getGetClarityCoverageQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +13,7 @@ export default function SettingsPage() {
     mutation: {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/clarity/coverage"] });
         toast({ title: "設定を保存しました" });
       },
       onError: () => {
@@ -22,6 +23,8 @@ export default function SettingsPage() {
   });
 
   const { data: clarityFiles, isLoading: filesLoading } = useGetClarityFiles();
+  const { data: coverage, isLoading: coverageLoading, isError: coverageError, refetch: refreshCoverage } =
+    useGetClarityCoverage({ query: { queryKey: getGetClarityCoverageQueryKey(), staleTime: 60_000, refetchInterval: 60_000 } });
 
   const [adCodes, setAdCodes] = useState<string[]>([""]);
 
@@ -108,6 +111,32 @@ export default function SettingsPage() {
             {isPending ? "保存中…" : "保存する"}
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border p-6 bg-white">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <h2 className="text-sm font-semibold text-gray-700">Clarity — 広告コード別の保存状況</h2>
+          <button type="button" onClick={() => void refreshCoverage()} className="text-xs text-gray-500 underline">再確認</button>
+        </div>
+        <p className="text-xs text-gray-500 mb-3 leading-5">
+          全体の最新保存日：{coverage?.latestDate ?? "—"}。CSVがない日は、アクセスなし／未収集を判別できません。
+          対象の追加後は収集処理の実行が必要です。設定を保存しても過去分は自動復元されません。
+        </p>
+        {coverageLoading ? <p className="text-sm text-gray-500">全保存日を確認中…</p>
+          : coverageError ? <p role="alert" className="text-sm text-red-700">保存状況の取得に失敗しました。データなしとは判定していません。</p>
+          : <div className="overflow-x-auto"><table className="w-full text-xs text-left" aria-label="広告コード別ヒートマップ保存状況">
+            <thead><tr className="border-b text-gray-500">
+              <th className="py-2 pr-3 min-w-60">広告コード</th><th className="px-2 whitespace-nowrap">保存日数</th>
+              <th className="px-2 whitespace-nowrap">Desktop</th><th className="px-2 whitespace-nowrap">Mobile</th>
+              <th className="px-2 whitespace-nowrap">最終保存日</th>
+            </tr></thead>
+            <tbody>{coverage?.adCodes.map((entry) => <tr key={entry.adCode} className="border-b last:border-0">
+              <td className="py-3 pr-3 break-all">{entry.adCode}</td>
+              <td className="px-2 whitespace-nowrap">{entry.daysWithExports ? `${entry.daysWithExports}日` : <span className="text-amber-800">CSV未保存</span>}</td>
+              <td className="px-2 whitespace-nowrap">{entry.desktopDays}日</td><td className="px-2 whitespace-nowrap">{entry.mobileDays}日</td>
+              <td className={`px-2 whitespace-nowrap ${entry.lastDate !== coverage.latestDate ? "text-amber-800" : ""}`}>{entry.lastDate ?? "—"}</td>
+            </tr>)}</tbody>
+          </table></div>}
       </div>
 
       {/* Clarity 取得済みデータ一覧 */}

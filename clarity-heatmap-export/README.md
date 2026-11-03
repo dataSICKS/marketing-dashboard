@@ -32,7 +32,11 @@ python3 export.py 2026-06-23     # 指定日（Custom）
 
 `export.py` の `target_adcodes()` が **管理画面設定のみ**を対象にする。
 
-- 正: Supabase Storage `app-settings/config.json` の `clarityTargetUrls`
+- 正: Supabase Storage `app-settings/config.json` の `adCodes`
+- 旧 `clarityTargetUrls` / `clarityTargetUrl` は移行前の設定として読める。
+  `adCodes` が存在する場合は必ずそちらを優先し、空ならエラー終了する。
+- 管理画面は保存時に `clarityTargetUrls` にも同じ一覧を書き出す。これは
+  別PCで動く旧収集スクリプトへの互換用で、独立した設定として編集しない。
 - **対象を増やす/減らすのは管理画面での登録操作だけ**。翌朝7:30の実行から反映される
 - `config.yml` の `clarity.pages` は対象判定に**使わない**（管理画面に無いコードは
   「対象外」としてログに出るだけ）
@@ -41,6 +45,23 @@ python3 export.py 2026-06-23     # 指定日（Custom）
 > 経緯: 2026-08-03まで日次cronは `config.yml` の `pages` のみを見ていたため、
 > 管理画面にだけ登録された `ch_1_a` / `ch_1_b` が7/27以降ずっと取得されていなかった。
 > 二重管理を廃止し管理画面を正に一本化した（欠損分は `backfill_admin.py` で復旧済み）。
+
+## 保存状況と欠損の再取得
+
+管理画面の「Clarity — 広告コード別の保存状況」で各コードの保存日数・
+Desktop/Mobile別の日数・最終保存日を確認できる。CSVがないことだけでは
+アクセスなしと取得漏れは区別できない。取得エラーを0PVや空データとして扱わない。
+
+収集環境のログイン済み `chrome_profile/` と `config.yml` を使用して、
+指定期間の未保存コード×デバイスだけを再取得する（このReplitにセッションは含まれない）:
+
+```bash
+python3 backfill_admin.py --dry-run 2026-10-01 2026-10-29
+python3 backfill_admin.py 2026-10-01 2026-10-29
+```
+
+期間はClarityで実データを確認できる範囲を指定する。保存済みCSVは上書きしない。
+日次・再取得処理は現在の `adCodes` を共通して読み、取得・保存失敗時は非ゼロ終了する。
 
 ## 設定（config.yml / gitignore）
 

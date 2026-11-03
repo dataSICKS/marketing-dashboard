@@ -3,9 +3,9 @@ import {
   useGetEfoData,
   useGetEfoFilters,
   useSyncEfo,
-  useGetClarityFiles,
+  useGetClarityCoverage,
+  getGetClarityCoverageQueryKey,
   useGetClarityScroll,
-  getGetClarityFilesQueryKey,
   getGetClarityScrollQueryKey,
   useListCampaigns,
   useListEfoPresets,
@@ -47,6 +47,7 @@ import { RefreshCw, MousePointerClick, CheckCircle, TrendingUp, BookmarkPlus, Ch
 import EfoDateRangePicker, { type EfoDateRange } from "@/components/EfoDateRangePicker";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 import ClarityDataNotice from "@/components/ClarityDataNotice";
+import { resolveClarityDate } from "@/lib/clarity-availability";
 
 type GroupBy = GetEfoDataGroupBy;
 
@@ -586,46 +587,21 @@ interface ClarityState {
   device: DeviceTab;
 }
 
-function resolveActiveDate(dates: string[], dateRange: EfoDateRange | null): string {
-  if (dates.length === 0) return "";
-  if (!dateRange) return dates[0];
-  const toFmt = dateRange.to.replace(/\//g, "-");
-  const fromFmt = dateRange.from.replace(/\//g, "-");
-  const inRange = dates.filter((d) => d >= fromFmt && d <= toFmt);
-  if (inRange.length > 0) return inRange[0];
-  const before = dates.filter((d) => d <= toFmt);
-  return before[0] ?? dates[0];
-}
-
 // ─── 共通データ取得フック ────────────────────────────────────────────
-function useClarityData(state: ClarityState, onResetAdCode: () => void) {
+function useClarityData(state: ClarityState) {
   const { dateRange, selectedAdCode } = state;
-  const { data: datesData } = useGetClarityFiles();
-  const dates = datesData?.dates ?? [];
-  const activeDate = useMemo(() => resolveActiveDate(dates, dateRange), [dates, dateRange]);
-  const { data: settingsData } = useGetSettings();
-  const allowedAdCodes = settingsData?.adCodes ?? [];
-  const { data: filesData, isLoading: filesLoading } = useGetClarityFiles(
-    activeDate ? { date: activeDate } : undefined,
-    {
-      query: {
-        enabled: !!activeDate,
-        queryKey: getGetClarityFilesQueryKey(activeDate ? { date: activeDate } : undefined),
-      },
-    },
-  );
-  const rawAdCodeOptions = filesData?.adCodes ?? [];
-  const adCodeOptions = allowedAdCodes.length > 0
-    ? rawAdCodeOptions.filter((a) => allowedAdCodes.includes(a.adCode))
-    : rawAdCodeOptions;
-  useEffect(() => { onResetAdCode(); }, [activeDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: coverage, isLoading: filesLoading, isError: coverageError } =
+    useGetClarityCoverage({ query: { queryKey: getGetClarityCoverageQueryKey(), staleTime: 60_000, refetchInterval: 60_000 } });
+  const adCodeOptions = coverage?.adCodes ?? [];
   const effectiveAdCode = selectedAdCode || (adCodeOptions[0]?.adCode ?? "");
+  const codeCoverage = adCodeOptions.find((entry) => entry.adCode === effectiveAdCode);
+  const activeDate = resolveClarityDate(codeCoverage, dateRange);
   const dateFrom = dateRange?.from.replace(/\//g, "-");
   const dateTo = dateRange?.to.replace(/\//g, "-");
   const scrollParams = dateFrom && dateTo
     ? { dateFrom, dateTo, adCode: effectiveAdCode }
     : { date: activeDate, adCode: effectiveAdCode };
-  const { data: scrollData, isLoading: scrollLoading } = useGetClarityScroll(
+  const { data: scrollData, isLoading: scrollLoading, isError: scrollError } = useGetClarityScroll(
     scrollParams,
     {
       query: {
@@ -636,10 +612,38 @@ function useClarityData(state: ClarityState, onResetAdCode: () => void) {
   );
   return {
     activeDate, adCodeOptions, filesLoading, effectiveAdCode,
-    scrollData, isLoading: scrollLoading || (!!activeDate && filesLoading),
+    scrollData, isLoading: filesLoading || (!!activeDate && scrollLoading),
+    isError: coverageError || (!!activeDate && scrollError),
+    coverage, codeCoverage, hasDateRange: !!dateRange,
     pageViews: scrollData?.pageViews ?? {},
     points: scrollData?.points ?? [],
   };
+}
+
+function ClarityAvailabilityNotice({ data, label }: {
+  data: ReturnType<typeof useClarityData>; label: string;
+}) {
+  if (data.isLoading) return null;
+  let message: string;
+  let warning = false;
+  if (data.isError) {
+    message = "ヒートマップの取得に失敗しました。データなしとは区別し、時間をおいて再確認してください。";
+    warning = true;
+  } else if (!data.codeCoverage?.daysWithExports) {
+    message = "この広告コードのCSVは保存されていません。設定への登録だけでは過去データは復元されません。収集処理を確認してください。";
+    warning = true;
+  } else if (!data.activeDate) {
+    message = `選択期間に保存済みCSVがありません。最終保存日は ${data.codeCoverage.lastDate} です。期間外のデータは代用していません。`;
+    warning = true;
+  } else if (data.hasDateRange) {
+    message = "保存済みCSVがある日のみ集計しています。CSVがない日は、アクセスなし／未収集のいずれか判別できません。";
+  } else {
+    warning = data.activeDate !== data.coverage?.latestDate;
+    message = `表示対象：${data.activeDate}（この広告コードの最終保存日）${warning ? `。他の広告コードの最新保存日 ${data.coverage?.latestDate} とは異なります。` : ""}`;
+  }
+  return <div role={warning ? "status" : undefined} className={`px-4 py-2 text-[11px] leading-5 ${warning ? "bg-amber-50 text-amber-900" : "bg-gray-50 text-gray-600"}`}>
+    {label}：{message}
+  </div>;
 }
 
 // ─── 共通スクロールグラフ（ドラッグリサイズ対応） ──────────────────────
@@ -760,8 +764,8 @@ function ClarityPanel({
   const setDateRange = (dateRange: EfoDateRange | null) => onChange({ ...state, dateRange });
   const setSelectedAdCode = (selectedAdCode: string) => onChange({ ...state, selectedAdCode });
   const setDevice = (device: DeviceTab) => onChange({ ...state, device });
-  const { activeDate, adCodeOptions, filesLoading, effectiveAdCode, isLoading, pageViews, points, scrollData } =
-    useClarityData(state, () => setSelectedAdCode(""));
+  const clarityData = useClarityData(state);
+  const { isLoading, pageViews, points, scrollData } = clarityData;
 
   const chartData = buildClarityChartData(points, pageViews);
   const lines = [
@@ -784,6 +788,7 @@ function ClarityPanel({
         ))}
       </div>
       <PvSummaryBar pageViews={pageViews} device={device} />
+      <ClarityAvailabilityNotice data={clarityData} label={SEG_LABELS[seg]} />
       <ClarityDataNotice data={scrollData} device={device} label={SEG_LABELS[seg]} />
       <div className="px-4 py-3" style={{ background: "#fff" }}>
         <ClarityScrollChart chartData={chartData} lines={lines} pageViews={pageViews} isLoading={isLoading} />
@@ -806,8 +811,8 @@ function ClarityOverlayView({
     onClarityBChange({ ...clarityB, device: d });
   };
 
-  const dataA = useClarityData(clarityA, () => {});
-  const dataB = useClarityData(clarityB, () => {});
+  const dataA = useClarityData(clarityA);
+  const dataB = useClarityData(clarityB);
 
   // 表示切替では計算方法を変えず、左右比較のデバイス別到達率を重ねる。
   const { chartData, pageViews: overlayPageViews } = buildClarityOverlayChartData(
@@ -867,6 +872,8 @@ function ClarityOverlayView({
       </div>
       <ClarityDataNotice data={dataA.scrollData} device={device} label={SEG_LABELS.A} />
       <ClarityDataNotice data={dataB.scrollData} device={device} label={SEG_LABELS.B} />
+      <ClarityAvailabilityNotice data={dataA} label={SEG_LABELS.A} />
+      <ClarityAvailabilityNotice data={dataB} label={SEG_LABELS.B} />
 
       <div className="px-4 pb-4" style={{ background: "#fff" }}>
         <ClarityScrollChart chartData={chartData} lines={lines} pageViews={overlayPageViews} isLoading={isLoading} />

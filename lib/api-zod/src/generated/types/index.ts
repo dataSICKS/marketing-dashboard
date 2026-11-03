@@ -13,6 +13,8 @@ export * from "./campaignInput";
 export * from "./campaignListResponse";
 export * from "./campaignResponse";
 export * from "./clarityAdCodeEntry";
+export * from "./clarityCoverageEntry";
+export * from "./clarityCoverageResponse";
 export * from "./clarityFilesResponse";
 export * from "./clarityPresetState";
 export * from "./clarityPresetStateDateRange";

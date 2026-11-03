@@ -232,6 +232,25 @@ export interface ClarityAdCodeEntry {
   devices: string[];
 }
 
+export interface ClarityCoverageEntry {
+  adCode: string;
+  availableDates: string[];
+  daysWithExports: number;
+  /** @nullable */
+  firstDate: string | null;
+  /** @nullable */
+  lastDate: string | null;
+  desktopDays: number;
+  mobileDays: number;
+}
+
+export interface ClarityCoverageResponse {
+  dates: string[];
+  /** @nullable */
+  latestDate: string | null;
+  adCodes: ClarityCoverageEntry[];
+}
+
 export interface ClarityFilesResponse {
   /** Available date folders */
   dates: string[];

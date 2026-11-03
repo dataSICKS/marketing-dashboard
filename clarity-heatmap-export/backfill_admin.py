@@ -21,6 +21,7 @@ import requests
 from playwright.sync_api import sync_playwright
 
 from export import CL, SB, admin_target_urls, download_one, upload_to_supabase
+from admin_settings import list_storage_names
 
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
 FNAME_RE = re.compile(r"^(.+?)_(Desktop|Mobile)_scroll_.*\.csv$")
@@ -35,14 +36,12 @@ def existing_combos(date_str: str) -> set[tuple[str, str]]:
     """指定日フォルダに存在する (adCode, device) の集合を返す（サフィックス無視）。"""
     base = SB["url"].rstrip("/")
     bucket = SB["storage_bucket"]
-    r = requests.post(
+    names = list_storage_names(requests.post,
         f"{base}/storage/v1/object/list/{bucket}",
         headers={**_headers(), "Content-Type": "application/json"},
-        json={"prefix": f"{date_str}/", "limit": 1000}, timeout=30)
-    r.raise_for_status()
+        prefix=f"{date_str}/")
     combos = set()
-    for item in r.json():
-        name = item.get("name", "") if isinstance(item, dict) else ""
+    for name in names:
         m = FNAME_RE.match(name)
         if m:
             combos.add((m.group(1), m.group(2)))
@@ -83,7 +82,7 @@ def main():
 
     from pathlib import Path
     HERE = Path(__file__).parent
-    n_files, n_up, n_nodata = 0, 0, 0
+    n_files, n_up, n_nodata, n_failed = 0, 0, 0, 0
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
             user_data_dir=str(HERE / "chrome_profile"), headless=True,
@@ -98,17 +97,22 @@ def main():
                     files = download_one(page, adcode, device, ds)
                 except Exception as e:
                     print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
-                    files = []
+                    n_failed += 1
+                    continue
                 if not files:
                     n_nodata += 1
                 for fp in files:
                     n_files += 1
                     if upload_to_supabase(fp, ds):
                         n_up += 1
+                    else:
+                        n_failed += 1
                 time.sleep(1)
         ctx.close()
     print(f"\n完了: 取得 {n_files} ファイル / アップロード {n_up} / "
-          f"データ無し・失敗 {n_nodata} 組み合わせ", flush=True)
+          f"Clarityでデータ無し {n_nodata} 組み合わせ / 失敗 {n_failed}", flush=True)
+    if n_failed:
+        raise RuntimeError(f"{n_failed}件の取得・保存に失敗しました。再取得が必要です")
 
 
 if __name__ == "__main__":

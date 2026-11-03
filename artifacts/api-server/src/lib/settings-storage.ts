@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { storedSettings } from "./settings-contract.js";
 import { logger } from "./logger.js";
 
 const BUCKET = "app-settings";
@@ -65,7 +66,7 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
   const updated: AppSettings = { ...current, ...patch };
   const supabase = getSupabase();
   await ensureBucket(supabase);
-  const blob = new Blob([JSON.stringify(updated)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(storedSettings(updated))], { type: "application/json" });
   const { error } = await supabase.storage.from(BUCKET).upload(FILE, blob, { upsert: true });
   if (error) {
     logger.error({ error }, "設定の保存に失敗しました");

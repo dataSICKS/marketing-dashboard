@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 import requests
+from admin_settings import parse_admin_codes
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
 
 HERE = Path(__file__).parent
@@ -112,8 +113,7 @@ def download_one(page, adcode, device, date_str):
         return saved
 
     if not vis(page, "[aria-label=ダウンロード]"):
-        print(f"    [{adcode}/{device}] ダウンロードボタンなし（データ無し?）", flush=True)
-        return saved
+        raise RuntimeError("ダウンロードボタンがありません。ログイン状態・画面変更・読み込み失敗を確認してください（データ無しとは判定しません）")
 
     for kind, label in [("csv", "CSV をダウンロード"), ("png", "PNG をダウンロード")]:
         # ダウンロードボタンを押してメニュー項目（CSV=menuitem / PNG=role=button）を出す。
@@ -148,6 +148,8 @@ def download_one(page, adcode, device, date_str):
             page.wait_for_timeout(2000)
         except PWTimeoutError:
             print(f"    [{adcode}/{device}] {kind} ダウンロードタイムアウト", flush=True)
+    if not any(path.suffix == ".csv" for path in saved):
+        raise RuntimeError("スクロールCSVを取得できませんでした（データ無しとは判定しません）")
     return saved
 
 
@@ -156,23 +158,18 @@ SETTINGS_FILE = "config.json"
 
 
 def admin_target_urls():
-    """管理画面(app-settings/config.json)の clarityTargetUrls を取得。失敗時は空リスト。"""
+    """管理画面の adCodes を取得。旧設定にも対応し、失敗時は必ず中止する。"""
     base = SB["url"].rstrip("/")
     key = SB["service_role_key"]
-    try:
-        r = requests.get(
-            f"{base}/storage/v1/object/{SETTINGS_BUCKET}/{SETTINGS_FILE}",
-            headers={"apikey": key, "Authorization": f"Bearer {key}"}, timeout=30)
-        r.raise_for_status()
-        return list(r.json().get("clarityTargetUrls", []))
-    except Exception as e:
-        print(f"警告: 管理画面設定の取得に失敗 ({e}) → config.yml の pages のみを対象にします",
-              flush=True)
-        return []
+    r = requests.get(
+        f"{base}/storage/v1/object/{SETTINGS_BUCKET}/{SETTINGS_FILE}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"}, timeout=30)
+    r.raise_for_status()
+    return parse_admin_codes(r.json())
 
 
 def target_adcodes():
-    """取得対象の広告コード＝**管理画面設定(clarityTargetUrls)のみ**。
+    """取得対象の広告コード＝**管理画面設定(adCodes)のみ**。
 
     2026-08-03: 管理画面に登録されたLPだけを対象にする方針。
     以前は config.yml の pages しか見ておらず、管理画面にだけ登録された
@@ -184,7 +181,7 @@ def target_adcodes():
     """
     admin = admin_target_urls()
     if not admin:
-        print("エラー: 管理画面設定(clarityTargetUrls)が空、または取得に失敗したため中止します。"
+        print("エラー: 管理画面設定(adCodes)が空、または取得に失敗したため中止します。"
               "管理画面で対象URLを登録してください。", flush=True)
         sys.exit(1)
     dropped = [p for p in CL.get("pages", []) if p not in admin]
@@ -219,24 +216,31 @@ def main():
     print(f"対象日: {label_date}（{'指定' if date_str else '前日/Yesterday'}）", flush=True)
 
     n_files, n_up = 0, 0
+    targets = target_adcodes()
+    failures = 0
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
             user_data_dir=str(HERE / "chrome_profile"), headless=True,
             accept_downloads=True)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        for adcode in target_adcodes():
+        for adcode in targets:
             for device in CL["devices"]:
                 try:
                     files = download_one(page, adcode, device, date_str)
                 except Exception as e:
                     print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
+                    failures += 1
                     files = []
                 for fp in files:
                     n_files += 1
                     if upload_to_supabase(fp, label_date):
                         n_up += 1
+                    else:
+                        failures += 1
         ctx.close()
     print(f"\n完了: 取得 {n_files} ファイル / アップロード {n_up} ファイル", flush=True)
+    if failures:
+        raise RuntimeError(f"{failures}件の取得・保存に失敗しました。ログを確認して再取得してください")
 
 
 if __name__ == "__main__":

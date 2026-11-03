@@ -15,6 +15,8 @@ from datetime import date, timedelta
 
 import yaml
 import requests
+from export import target_adcodes
+from admin_settings import list_storage_names
 
 HERE = Path(__file__).parent
 CFG = yaml.safe_load(open(HERE / "config.yml"))
@@ -29,24 +31,17 @@ def list_storage_files(date_str: str) -> set[str]:
     base = SB["url"].rstrip("/")
     bucket = SB["storage_bucket"]
     key = SB["service_role_key"]
-    r = requests.post(
+    return list_storage_names(requests.post,
         f"{base}/storage/v1/object/list/{bucket}",
         headers={"apikey": key, "Authorization": f"Bearer {key}",
                  "Content-Type": "application/json"},
-        json={"prefix": f"{date_str}/", "limit": 1000},
-        timeout=30,
-    )
-    if r.status_code not in (200, 201):
-        print(f"  [Storage一覧取得失敗] {date_str}: {r.status_code}", flush=True)
-        return set()
-    items = r.json()
-    return {item["name"] for item in items if isinstance(item, dict) and "name" in item}
+        prefix=f"{date_str}/")
 
 
 def is_complete(date_str: str) -> bool:
     """全adCode×device の CSV が揃っていれば True（スキップ判定）。"""
     existing = list_storage_files(date_str)
-    for adcode in CL["pages"]:
+    for adcode in target_adcodes():
         for device in CL["devices"]:
             fname = f"{adcode}_{device}_scroll_{date_str}.csv"
             if fname not in existing:
@@ -69,7 +64,7 @@ def main():
         sys.exit(1)
 
     print(f"バックフィル期間: {start} 〜 {end}（{'dry-run' if dry_run else '実行'}）", flush=True)
-    print(f"対象adCode: {CL['pages']}", flush=True)
+    print(f"対象adCode: {target_adcodes()}", flush=True)
     print(f"対象device: {CL['devices']}", flush=True)
     print("", flush=True)
 

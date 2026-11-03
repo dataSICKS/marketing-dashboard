@@ -22,6 +22,7 @@ import type {
   CampaignInput,
   CampaignListResponse,
   CampaignResponse,
+  ClarityCoverageResponse,
   ClarityFilesResponse,
   ClarityScrollResponse,
   EfoFilters,
@@ -676,6 +677,81 @@ export function useGetNewsletterMatrix<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetNewsletterMatrixQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetClarityCoverageUrl = () => {
+  return `/api/clarity/coverage`;
+};
+
+/**
+ * @summary Audit saved CSV coverage for each configured advertising code
+ */
+export const getClarityCoverage = async (
+  options?: RequestInit,
+): Promise<ClarityCoverageResponse> => {
+  return customFetch<ClarityCoverageResponse>(getGetClarityCoverageUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetClarityCoverageQueryKey = () => {
+  return [`/api/clarity/coverage`] as const;
+};
+
+export const getGetClarityCoverageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClarityCoverage>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClarityCoverage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetClarityCoverageQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClarityCoverage>>
+  > = ({ signal }) => getClarityCoverage({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClarityCoverage>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClarityCoverageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClarityCoverage>>
+>;
+export type GetClarityCoverageQueryError = ErrorType<void>;
+
+/**
+ * @summary Audit saved CSV coverage for each configured advertising code
+ */
+
+export function useGetClarityCoverage<
+  TData = Awaited<ReturnType<typeof getClarityCoverage>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClarityCoverage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClarityCoverageQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

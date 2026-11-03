@@ -419,6 +419,25 @@ export const GetNewsletterMatrixResponse = zod.object({
 });
 
 /**
+ * @summary Audit saved CSV coverage for each configured advertising code
+ */
+export const GetClarityCoverageResponse = zod.object({
+  dates: zod.array(zod.string()),
+  latestDate: zod.string().nullable(),
+  adCodes: zod.array(
+    zod.object({
+      adCode: zod.string(),
+      availableDates: zod.array(zod.string()),
+      daysWithExports: zod.number(),
+      firstDate: zod.string().nullable(),
+      lastDate: zod.string().nullable(),
+      desktopDays: zod.number(),
+      mobileDays: zod.number(),
+    }),
+  ),
+});
+
+/**
  * Returns available dates and ad codes stored in Supabase Storage
  * @summary List available Clarity heatmap files
  */
