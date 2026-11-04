@@ -9,3 +9,4 @@
 - [Newsletter matrix layout](newsletter-matrix-layout.md) — periods stay columns; selectable scenario/subject/template fields control regrouping, not just visibility.
 - [Newsletter click rate](newsletter-click-rate.md) — ユーザー指定：メルマガのクリック率はクリック数 ÷ 開封数。配信数を分母にしない。
 - [Newsletter numeric display](newsletter-number-format.md) — メルマガ分析の小数表示は第2位で四捨五入し第1位まで。集計元の精度は維持する。
+- [Newsletter display defaults](newsletter-display-defaults.md) — メルマガ分析全体で初期期間は当日を含む直近30日、グラフは折れ線か棒。点だけにしない。

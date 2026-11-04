@@ -1,4 +1,19 @@
 export type TimeGranularity = "day" | "week" | "month";
+export function recentNewsletterDateRange(now = new Date()) {
+  const from = new Date(now);
+  from.setDate(from.getDate() - 29);
+  const format = (date: Date) =>
+    `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+  return { from: format(from), to: format(now) };
+}
+
+/** Categories have no connecting order; sparse series need bars to stay visible
+ * without isolated dots or invented zero values. */
+export function newsletterSeriesUsesBars(values: unknown[], categorical = false) {
+  const count = values.filter((value) => typeof value === "number" && Number.isFinite(value)).length;
+  return categorical || count < 2 || count !== values.length;
+}
+
 export const CHART_METRICS = [
   { value: "deliveryCount", label: "配信数", isRate: false, color: "#FBBF24" },
   { value: "openCount", label: "開封数", isRate: false, color: "#60A5FA" },

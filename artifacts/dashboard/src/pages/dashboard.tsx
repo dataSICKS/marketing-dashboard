@@ -50,7 +50,7 @@ import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
 import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
-import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, formatNewsletterPercent as formatPercent, formatNewsletterDecimal, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
+import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, formatNewsletterPercent as formatPercent, formatNewsletterDecimal, recentNewsletterDateRange, newsletterSeriesUsesBars, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
 type TabMode = GroupBy | "matrix";
@@ -988,25 +988,34 @@ function MatrixView({
                         }}
                       />
                       {series.flatMap((s, si) =>
-                        selectedMetrics.map((mk, mi) => (
-                          <Line
-                            key={matrixMetricKey(s, mk)}
+                        selectedMetrics.map((mk, mi) => {
+                          const key = matrixMetricKey(s, mk);
+                          const name = `${matrixSeriesLabel(s)} / ${MATRIX_METRICS.find((m) => m.value === mk)?.label ?? mk}`;
+                          const color = SERIES_COLORS[si % SERIES_COLORS.length];
+                          const label = <LabelList dataKey={key} position={(si + mi) % 2 === 0 ? "top" : "bottom"} offset={9}
+                            formatter={(value: unknown) => formatChartValueLabel(value, MATRIX_METRICS.find((m) => m.value === mk)?.isRate ?? false)}
+                            fill={color} fontSize={10} fontWeight={600}
+                            stroke="#fff" strokeWidth={3} paintOrder="stroke" />;
+                          return newsletterSeriesUsesBars(mergedChartData.map((point) => point[key])) ? (
+                            <Bar key={key} dataKey={key} name={name} yAxisId={yAxisId(mk)}
+                              fill={color} maxBarSize={28} radius={[3, 3, 0, 0]}>
+                              {label}
+                            </Bar>
+                          ) : <Line
+                            key={key}
                             type="monotone"
-                            dataKey={matrixMetricKey(s, mk)}
-                            name={`${matrixSeriesLabel(s)} / ${MATRIX_METRICS.find((m) => m.value === mk)?.label ?? mk}`}
+                            dataKey={key}
+                            name={name}
                             yAxisId={yAxisId(mk)}
-                            stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
+                            stroke={color}
                             strokeWidth={2}
                             strokeDasharray={LINE_DASHES[mi % LINE_DASHES.length]}
                             dot={false}
                             connectNulls
                           >
-                            <LabelList dataKey={matrixMetricKey(s, mk)} position={(si + mi) % 2 === 0 ? "top" : "bottom"} offset={9}
-                              formatter={(value: unknown) => formatChartValueLabel(value, MATRIX_METRICS.find((m) => m.value === mk)?.isRate ?? false)}
-                              fill={SERIES_COLORS[si % SERIES_COLORS.length]} fontSize={10} fontWeight={600}
-                              stroke="#fff" strokeWidth={3} paintOrder="stroke" />
-                          </Line>
-                        ))
+                            {label}
+                          </Line>;
+                        })
                       )}
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -1020,10 +1029,12 @@ function MatrixView({
                       return (
                         <div key={matrixMetricKey(s, mk)} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
                           <svg width="18" height="8" viewBox="0 0 18 8">
-                            <line x1="0" y1="4" x2="18" y2="4"
+                            {newsletterSeriesUsesBars(mergedChartData.map((point) => point[matrixMetricKey(s, mk)]))
+                              ? <rect x="3" y="0" width="12" height="8" rx="1" fill={SERIES_COLORS[si % SERIES_COLORS.length]} />
+                              : <line x1="0" y1="4" x2="18" y2="4"
                               stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
                               strokeWidth="2"
-                              strokeDasharray={["", "5 5", "2 4", "8 3 2 3", "1 3"][mi % 5]} />
+                              strokeDasharray={["", "5 5", "2 4", "8 3 2 3", "1 3"][mi % 5]} />}
                           </svg>
                           <span>{matrixSeriesLabel(s)} / {mDef.label}</span>
                         </div>
@@ -1182,7 +1193,7 @@ export default function Dashboard() {
   });
   const timeGroupBy = tabGranularities[groupBy];
 
-  const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | null>(() => recentNewsletterDateRange());
   const [compareRange, setCompareRange] = useState<DateRange | null>(null);
   const [compareEnabled, setCompareEnabled] = useState(false);
 
@@ -1667,7 +1678,7 @@ export default function Dashboard() {
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
                         ? `施策日（${selectedCampaign?.startDate ?? ""}）を境に集計${hasCountMetric ? " · 青 = 施策前 / ピンク = 施策後" : " · 破線 = 施策開始"}`
-                        : subjectChart ? "棒：件名別の配信数　点：開封率 / クリック率"
+                        : subjectChart ? "棒：件名別の選択指標"
                         : "棒：件数　折れ線：率 · 表示指標を選ぶと縦軸も切り替わります"}
                     </div>
                   </div>
@@ -1746,10 +1757,10 @@ export default function Dashboard() {
                               label={{ value: c.title.slice(0, 8), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
                             />
                           ))}
-                          {visibleMetrics.map((metric) => metric.isRate ? (
+                          {visibleMetrics.map((metric) => metric.isRate && !newsletterSeriesUsesBars(chartItems.map((item) => item[metric.value]), subjectChart) ? (
                             <Line key={metric.value} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={metric.value} name={metric.label}
-                              stroke={metric.color} strokeWidth={subjectChart ? 0 : 2}
-                              dot={subjectChart ? { r: 4, fill: metric.color, stroke: metric.color, strokeWidth: 1 } : { r: 3 }}
+                              stroke={metric.color} strokeWidth={2}
+                              dot={false}
                               activeDot={{ r: 5 }} connectNulls={false}>
                               <LabelList dataKey={metric.value} position={metric.value === "clickRate" && visibleMetrics.length > 1 ? "bottom" : "top"} offset={9}
                                 formatter={(value: unknown) => formatChartValueLabel(value, true)}
@@ -1757,10 +1768,10 @@ export default function Dashboard() {
                                 stroke="#fff" strokeWidth={3} paintOrder="stroke" />
                             </Line>
                           ) : (
-                            <Bar key={metric.value} yAxisId="left" dataKey={metric.value} name={metric.label} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
-                              {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" ? getBarFill(item.label) : metric.color} />)}
+                            <Bar key={metric.value} yAxisId={metric.isRate && hasCountMetric ? "right" : "left"} dataKey={metric.value} name={metric.label} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
+                              {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" && !metric.isRate ? getBarFill(item.label) : metric.color} />)}
                               <LabelList dataKey={metric.value} position="top" offset={9}
-                                formatter={(value: unknown) => formatChartValueLabel(value, false)}
+                                formatter={(value: unknown) => formatChartValueLabel(value, metric.isRate)}
                                 fill="#374151" fontSize={10} fontWeight={600}
                                 stroke="#fff" strokeWidth={3} paintOrder="stroke" />
                             </Bar>

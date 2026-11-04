@@ -1,6 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel, formatNewsletterDecimal, formatNewsletterPercent } from "./newsletter-chart.ts";
+import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel, formatNewsletterDecimal, formatNewsletterPercent, recentNewsletterDateRange, newsletterSeriesUsesBars } from "./newsletter-chart.ts";
+
+test("default newsletter range includes today and the preceding 29 calendar days", () => {
+  assert.deepEqual(recentNewsletterDateRange(new Date(2026, 10, 5, 12)), { from: "2026/10/07", to: "2026/11/05" });
+  assert.deepEqual(recentNewsletterDateRange(new Date(2026, 0, 10, 12)), { from: "2025/12/12", to: "2026/01/10" });
+  assert.deepEqual(recentNewsletterDateRange(new Date(2024, 2, 1, 12)), { from: "2024/02/01", to: "2024/03/01" });
+});
+
+test("categorical, single-point and sparse series use bars instead of isolated dots", () => {
+  assert.equal(newsletterSeriesUsesBars([0.2, 0.3], true), true);
+  assert.equal(newsletterSeriesUsesBars([0.2, 0.3]), false);
+  assert.equal(newsletterSeriesUsesBars([0]), true);
+  assert.equal(newsletterSeriesUsesBars([null, 0.3]), true);
+  assert.equal(newsletterSeriesUsesBars([0.2, undefined, 0.3]), true);
+  assert.equal(newsletterSeriesUsesBars([0.2, NaN]), true);
+  assert.equal(newsletterSeriesUsesBars([0, 0]), false);
+});
 
 test("open and click counts are selectable count metrics", () => {
   for (const [value, label] of [["openCount", "開封数"], ["clickCount", "クリック数"]]) {
