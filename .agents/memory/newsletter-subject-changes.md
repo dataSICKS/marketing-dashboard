@@ -10,6 +10,12 @@ Treat scenario identity and email subject as independent. In scenario/template d
 
 **How to apply:** Check the actual subject recorded for each delivery date before assigning a change boundary. Charts and period-comparison identities must use the same scenario/template-plus-subject grouping as the table. Daily total trends remain temporal totals. A before/after rate difference is not proof of a causal subject-line effect.
 
+Ordinary scenario/template detail tables have one row per name + actual subject across the entire selected date range. Day/week/month is the chart's grouping, not an invisible extra table grouping. Missing subjects remain separate.
+
+**Why:** The user challenged repeated identical name/subject rows: 「まさか期間が表示されてないだけど行が分かれる原因になってないよね？」. Hiding a period column while retaining period-split rows is not the intended behavior.
+
+**How to apply:** Keep chart period buckets separate from full-range table aggregation, including scenario-group subtables and comparisons. Recompute rates from total counts, never average bucket rates. Preserve all date, scenario, template and comparison filters.
+
 When 件名 is selected as a matrix grouping dimension, split actual delivery records by subject, with that subject's metrics. Do not relabel historical totals with the latest subject.
 
 **Why:** The user superseded their initial latest-subject choice: 「過去のデータを合算して最新件名じゃなくて、その件名で表示した時は行を分けて、指標とともに表示」.

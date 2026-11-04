@@ -1263,6 +1263,14 @@ export default function Dashboard() {
   const { data, isLoading, isError } = useGetNewsletterData(params, {
     query: { queryKey: getGetNewsletterDataQueryKey(params) },
   });
+  // Charts need period buckets; category tables need one row per name + subject
+  // across the selected range. Fetch full-range metrics, including comparisons,
+  // rather than hiding the period column on period-split rows or averaging rates.
+  const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
+  const detailParams = { ...params, timeGroupBy: undefined, anchorDate: undefined };
+  const { data: detailData, isLoading: detailLoading, isError: detailError } = useGetNewsletterData(detailParams, {
+    query: { queryKey: getGetNewsletterDataQueryKey(detailParams), enabled: subjectChart },
+  });
   // Keep campaign before/after KPI boundaries exact even when the chart uses weeks/months.
   const phaseParams = { ...params, groupBy: "day" as const, timeGroupBy: undefined, anchorDate: undefined };
   const { data: phaseData, isLoading: phaseLoading, isError: phaseError } = useGetNewsletterData(phaseParams, {
@@ -1291,7 +1299,8 @@ export default function Dashboard() {
 
   const summary = data?.summary;
   const items = data?.items ?? [];
-  const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
+  const tableData = subjectChart ? detailData : data;
+  const tableItems = tableData?.items ?? [];
   const periodChart = subjectChart ? buildNewsletterPeriodChart(items, visibleMetrics.map((metric) => metric.value)) : null;
   const baseChartItems = periodChart?.points ?? items.map((item) => ({ ...item, chartKey: item.label }));
   const chartPlotSeries = periodChart ? periodChart.series.flatMap((series, index) =>
@@ -1309,7 +1318,7 @@ export default function Dashboard() {
     ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openCount: null, clickCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null }]
       .sort((a, b) => a.chartKey.localeCompare(b.chartKey))
     : baseChartItems;
-  const scenarioGroups: NewsletterScenarioGroup[] = (data?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
+  const scenarioGroups: NewsletterScenarioGroup[] = (tableData?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
   const lastSyncedAt = data?.lastSyncedAt;
   const availableScenarios = data?.availableScenarios ?? [];
   const availableTemplates = templatesData?.templates ?? [];
@@ -1825,15 +1834,19 @@ export default function Dashboard() {
                 <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
                   style={{ borderBottom: "1px solid #F3F4F6" }}>
                   <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>詳細データ</span>
-                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 件</span>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{tableItems.length} 件</span>
                 </div>
-                <MetricsTable
-                  items={items}
+                {subjectChart && detailLoading ? (
+                  <div className="p-6 text-sm text-gray-500">詳細データを読み込み中...</div>
+                ) : subjectChart && detailError ? (
+                  <div className="p-6 text-sm text-red-500" role="alert">詳細データの取得に失敗しました。</div>
+                ) : <MetricsTable
+                  items={tableItems}
                   scenarioGroups={scenarioGroups.length > 0 ? scenarioGroups : undefined}
                   groupBy={effectiveGroupBy}
                   showComparison={showComparison}
                   getRowPhase={getRowPhase}
-                />
+                />}
               </div>
             </>
           )}
