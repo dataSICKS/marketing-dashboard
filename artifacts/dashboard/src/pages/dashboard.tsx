@@ -49,6 +49,7 @@ import {
 import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
+import { buildNewsletterPeriodChart } from "@/lib/newsletter-period-chart";
 import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, formatNewsletterPercent as formatPercent, formatNewsletterDecimal, recentNewsletterDateRange, newsletterSeriesUsesBars, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
@@ -1291,10 +1292,17 @@ export default function Dashboard() {
   const summary = data?.summary;
   const items = data?.items ?? [];
   const subjectChart = effectiveGroupBy === "scenario" || effectiveGroupBy === "template";
-  const baseChartItems = items.map((item) => ({
-    ...item,
-    chartKey: subjectChart ? JSON.stringify([`${item.period ?? ""} / ${item.label}`, item.subject ?? "（件名未取得）"]) : item.label,
-  }));
+  const periodChart = subjectChart ? buildNewsletterPeriodChart(items, visibleMetrics.map((metric) => metric.value)) : null;
+  const baseChartItems = periodChart?.points ?? items.map((item) => ({ ...item, chartKey: item.label }));
+  const chartPlotSeries = periodChart ? periodChart.series.flatMap((series, index) =>
+    visibleMetrics.map((metric) => ({
+      metric, dataKey: series.keys[metric.value]!, name: `${series.name} / ${metric.label}`,
+      color: SERIES_COLORS[index % SERIES_COLORS.length],
+      singlePoint: periodChart.points.filter((point) => typeof point[series.keys[metric.value]!] === "number").length === 1,
+    }))) : visibleMetrics.map((metric) => ({
+      metric, dataKey: metric.value, name: metric.label, color: metric.color,
+      singlePoint: items.filter((item) => typeof item[metric.value] === "number").length === 1,
+    }));
   // Keep the campaign marker visible even if its first bucket has no exports.
   const anchorKey = anchorDate ? timePeriod(anchorDate, timeGroupBy, anchorDate) : undefined;
   const chartItems = anchorKey && !baseChartItems.some((item) => item.chartKey === anchorKey)
@@ -1673,12 +1681,12 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
-                      {subjectChart ? `${TIME_LABELS[timeGroupBy]}・件名別の実績` : `${TIME_LABELS[timeGroupBy]}・${chartMetric === "default" ? "配信トレンド" : visibleMetrics[0]?.label}の推移`}
+                      {subjectChart ? `${TIME_LABELS[timeGroupBy]}・件名別の推移` : `${TIME_LABELS[timeGroupBy]}・${chartMetric === "default" ? "配信トレンド" : visibleMetrics[0]?.label}の推移`}
                     </div>
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
                         ? `施策日（${selectedCampaign?.startDate ?? ""}）を境に集計${hasCountMetric ? " · 青 = 施策前 / ピンク = 施策後" : " · 破線 = 施策開始"}`
-                        : subjectChart ? "棒：件数　折れ線：率（件名別）"
+                        : subjectChart ? "横軸：期間　系列：名前・件名別　棒：件数　折れ線：率"
                         : "棒：件数　折れ線：率 · 表示指標を選ぶと縦軸も切り替わります"}
                     </div>
                   </div>
@@ -1695,27 +1703,16 @@ export default function Dashboard() {
                   <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>データがありません</div>
                 ) : (
                   <>
+                    {chartItems.length === 1 && hasRateMetric && <p className="mb-2 text-xs text-gray-500">対象データは1期間のみです。率はその期間の値を示す点で表示し、異なる件名同士は線で結びません。</p>}
                     <div className="overflow-x-auto">
-                    <div style={{ height: chartHeight, minWidth: subjectChart ? Math.min(chartItems.length, 6) * 230 : undefined }}>
+                    <div data-testid="newsletter-time-chart" style={{ height: chartHeight }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={chartItems} margin={{ top: 28, right: 28, left: 8, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                           <XAxis dataKey="chartKey" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} tickMargin={6}
-                            interval={subjectChart && chartItems.length <= 6 ? 0 : "preserveStartEnd"}
-                            tickFormatter={(value) => subjectChart
-                              ? (JSON.parse(String(value)) as [string, string])[1].slice(0, 26)
-                              : String(value)}
-                            height={subjectChart ? 52 : 30}
-                            tick={subjectChart ? ({ x, y, payload }) => {
-                              const [label, subject] = JSON.parse(String(payload.value)) as [string, string];
-                              const shorten = (text: string, max: number) => text.length > max ? `${text.slice(0, max)}…` : text;
-                              return (
-                                <text x={x} y={y} textAnchor="middle" fill="#6B7280" fontSize={10}>
-                                  <tspan x={x} dy={12}>{shorten(label, 22)}</tspan>
-                                  <tspan x={x} dy={15}>{shorten(subject, 26)}</tspan>
-                                </text>
-                              );
-                            } : undefined}
+                            interval="preserveStartEnd"
+                            tickFormatter={(value) => String(value)}
+                            height={30}
                           />
                           <YAxis yAxisId="left" stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false}
                             tickFormatter={hasCountMetric ? formatNumber : formatChartRate}
@@ -1725,11 +1722,9 @@ export default function Dashboard() {
                             domain={[0, (maximum: number) => maximum > 0 ? maximum * 1.15 : 0.01]} width={58} />}
                           <Tooltip
                             contentStyle={{ background: "#fff", border: "1px solid #EBEBEB", borderRadius: "10px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                            labelFormatter={(label, payload) => subjectChart
-                              ? `${payload[0]?.payload?.period ?? ""} / ${payload[0]?.payload?.label ?? ""} / 件名：${payload[0]?.payload?.subject ?? "（件名未取得）"}`
-                              : payload[0]?.payload?.periodEnd ? `${label} 〜 ${payload[0].payload.periodEnd}` : String(label)}
-                            formatter={(value: number, name: string) =>
-                              CHART_METRICS.find((metric) => metric.label === name)?.isRate
+                            labelFormatter={(label, payload) => payload[0]?.payload?.periodEnd ? `${label} 〜 ${payload[0].payload.periodEnd}` : String(label)}
+                            formatter={(value: number, name: string, entry) =>
+                              chartPlotSeries.find((series) => series.dataKey === String(entry.dataKey))?.metric.isRate
                                 ? [formatChartRate(value), name]
                                 : [formatNumber(value), name]
                             }
@@ -1757,20 +1752,20 @@ export default function Dashboard() {
                               label={{ value: c.title.slice(0, 8), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
                             />
                           ))}
-                          {visibleMetrics.map((metric) => !newsletterSeriesUsesBars(metric.isRate) ? (
-                            <Line key={metric.value} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={metric.value} name={metric.label}
-                              stroke={metric.color} strokeWidth={2}
-                              dot={false}
+                          {chartPlotSeries.map(({ metric, dataKey, name, color, singlePoint }) => !newsletterSeriesUsesBars(metric.isRate) ? (
+                            <Line key={dataKey} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={dataKey} name={name}
+                              stroke={color} strokeWidth={2} strokeDasharray={subjectChart && metric.value === "clickRate" ? "5 4" : undefined}
+                              dot={singlePoint ? { r: 3, fill: color } : false}
                               activeDot={{ r: 5 }} connectNulls>
-                              <LabelList dataKey={metric.value} position={metric.value === "clickRate" && visibleMetrics.length > 1 ? "bottom" : "top"} offset={9}
+                              <LabelList dataKey={dataKey} position={metric.value === "clickRate" && visibleMetrics.length > 1 ? "bottom" : "top"} offset={9}
                                 formatter={(value: unknown) => formatChartValueLabel(value, true)}
-                                fill={metric.color} fontSize={10} fontWeight={600}
+                                fill={color} fontSize={10} fontWeight={600}
                                 stroke="#fff" strokeWidth={3} paintOrder="stroke" />
                             </Line>
                           ) : (
-                            <Bar key={metric.value} yAxisId={metric.isRate && hasCountMetric ? "right" : "left"} dataKey={metric.value} name={metric.label} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
-                              {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" && !metric.isRate ? getBarFill(item.label) : metric.color} />)}
-                              <LabelList dataKey={metric.value} position="top" offset={9}
+                            <Bar key={dataKey} yAxisId="left" dataKey={dataKey} name={name} radius={[3, 3, 0, 0]} maxBarSize={28} opacity={0.9}>
+                              {chartItems.map((item, index) => <Cell key={index} fill={compareMode === "change" ? getBarFill(item.label) : color} />)}
+                              <LabelList dataKey={dataKey} position="top" offset={9}
                                 formatter={(value: unknown) => formatChartValueLabel(value, metric.isRate)}
                                 fill="#374151" fontSize={10} fontWeight={600}
                                 stroke="#fff" strokeWidth={3} paintOrder="stroke" />
@@ -1782,7 +1777,15 @@ export default function Dashboard() {
                     </div>
                     <ChartResizeHandle height={chartHeight} onHeightChange={setChartHeight} />
                     <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid #F3F4F6" }}>
-                      {compareMode === "change" ? (
+                      {subjectChart ? chartPlotSeries.map(({ metric, dataKey, name, color }) => (
+                        <div key={dataKey} className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <svg width="18" height="8" className="shrink-0">
+                            {metric.isRate ? <line x1="0" y1="4" x2="18" y2="4" stroke={color} strokeWidth="2" strokeDasharray={metric.value === "clickRate" ? "5 4" : undefined} />
+                              : <rect width="12" height="8" x="3" fill={color} />}
+                          </svg>
+                          {name}
+                        </div>
+                      )) : compareMode === "change" ? (
                         <>
                           {hasCountMetric && <>
                             <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
