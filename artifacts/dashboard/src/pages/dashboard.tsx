@@ -31,7 +31,7 @@ import {
   Cell,
   LabelList,
 } from "recharts";
-import { formatDate, formatNumber, formatPercent } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import {
   RefreshCw,
   Mail,
@@ -50,7 +50,7 @@ import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
 import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
-import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
+import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, formatNewsletterPercent as formatPercent, formatNewsletterDecimal, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
 type TabMode = GroupBy | "matrix";
@@ -132,7 +132,7 @@ function DiffBadge({ current, prev }: { current: number; prev: number | null | u
       style={{ background: isUp ? "#DCFCE7" : "#FEE2E2", color: isUp ? "#16A34A" : "#DC2626" }}
     >
       {isUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-      {isUp ? "+" : ""}{(pct * 100).toFixed(1)}%
+      {isUp ? "+" : ""}{formatNewsletterDecimal(pct * 100)}%
     </span>
   );
 }
@@ -141,8 +141,8 @@ function DiffBadgePt({ current, prev, isRate }: { current: number; prev: number;
   const diff = current - prev;
   const isUp = diff >= 0;
   const label = isRate
-    ? `${diff >= 0 ? "+" : ""}${(diff * 100).toFixed(1)}pt`
-    : `${diff >= 0 ? "+" : ""}${(((current - prev) / Math.abs(prev)) * 100).toFixed(1)}%`;
+    ? `${diff >= 0 ? "+" : ""}${formatNewsletterDecimal(diff * 100)}pt`
+    : `${diff >= 0 ? "+" : ""}${formatNewsletterDecimal(((current - prev) / Math.abs(prev)) * 100)}%`;
   return (
     <span
       className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded"

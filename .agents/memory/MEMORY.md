@@ -8,3 +8,4 @@
 - [Newsletter time comparisons](newsletter-time-comparisons.md) — calendar buckets must respect date filters; campaign KPI boundaries stay exact when weeks/months straddle a change.
 - [Newsletter matrix layout](newsletter-matrix-layout.md) — periods stay columns; selectable scenario/subject/template fields control regrouping, not just visibility.
 - [Newsletter click rate](newsletter-click-rate.md) — ユーザー指定：メルマガのクリック率はクリック数 ÷ 開封数。配信数を分母にしない。
+- [Newsletter numeric display](newsletter-number-format.md) — メルマガ分析の小数表示は第2位で四捨五入し第1位まで。集計元の精度は維持する。

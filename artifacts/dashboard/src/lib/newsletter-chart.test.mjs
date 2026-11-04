@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel } from "./newsletter-chart.ts";
+import { focusRange, timePeriod, CHART_METRICS, formatChartRate, formatChartValueLabel, formatNewsletterDecimal, formatNewsletterPercent } from "./newsletter-chart.ts";
 
 test("open and click counts are selectable count metrics", () => {
   for (const [value, label] of [["openCount", "開封数"], ["clickCount", "クリック数"]]) {
@@ -12,12 +12,27 @@ test("open and click counts are selectable count metrics", () => {
 
 test("value labels format counts and small rates without inventing missing values", () => {
   assert.equal(formatChartValueLabel(12345, false), "12,345");
-  assert.equal(formatChartValueLabel(0.000123, true), "0.012%");
+  assert.equal(formatChartValueLabel(0.000123, true), "0.0%");
   assert.equal(formatChartValueLabel(0, false), "0");
-  assert.equal(formatChartValueLabel(0, true), "0%");
+  assert.equal(formatChartValueLabel(0, true), "0.0%");
   for (const value of [null, undefined, NaN, Infinity]) {
     assert.equal(formatChartValueLabel(value, true), "");
   }
+});
+
+test("newsletter decimal displays round to one decimal without changing source values", () => {
+  for (const [value, expected] of [[0.12344, "12.3%"], [0.1235, "12.4%"], [0.28779, "28.8%"], [1, "100.0%"], [0, "0.0%"]]) {
+    assert.equal(formatChartRate(value), expected);
+    assert.equal(formatNewsletterPercent(value), expected);
+    assert.equal(formatChartValueLabel(value, true), expected);
+  }
+  assert.equal(formatNewsletterPercent(undefined), "0.0%");
+  assert.equal(formatNewsletterDecimal(1.15), "1.2");
+  assert.equal(formatNewsletterDecimal(-1.15), "-1.2");
+  assert.equal(formatChartValueLabel(12.35, false), "12.4");
+  const source = 0.123456789;
+  formatChartRate(source);
+  assert.equal(source, 0.123456789);
 });
 
 test("focus range contains equal numbers of campaign-relative periods on both sides", () => {
@@ -36,8 +51,8 @@ test("click rate and CVR are selectable percentage metrics, CV count is a count"
   assert.equal(CHART_METRICS.find(x => x.value === "cvr").isRate, true);
   assert.equal(CHART_METRICS.find(x => x.value === "cvCount").isRate, false);
 });
-test("small click rates remain distinguishable on percentage axes", () => {
-  assert.equal(formatChartRate(0.0001), "0.01%");
-  assert.equal(formatChartRate(0.0002), "0.02%");
-  assert.equal(formatChartRate(0), "0%");
+test("small click rates follow the same requested one-decimal precision on axes", () => {
+  assert.equal(formatChartRate(0.0001), "0.0%");
+  assert.equal(formatChartRate(0.0002), "0.0%");
+  assert.equal(formatChartRate(0), "0.0%");
 });
