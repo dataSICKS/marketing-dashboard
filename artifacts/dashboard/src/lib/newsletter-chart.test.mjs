@@ -8,14 +8,11 @@ test("default newsletter range includes today and the preceding 29 calendar days
   assert.deepEqual(recentNewsletterDateRange(new Date(2024, 2, 1, 12)), { from: "2024/02/01", to: "2024/03/01" });
 });
 
-test("categorical, single-point and sparse series use bars instead of isolated dots", () => {
-  assert.equal(newsletterSeriesUsesBars([0.2, 0.3], true), true);
-  assert.equal(newsletterSeriesUsesBars([0.2, 0.3]), false);
-  assert.equal(newsletterSeriesUsesBars([0]), true);
-  assert.equal(newsletterSeriesUsesBars([null, 0.3]), true);
-  assert.equal(newsletterSeriesUsesBars([0.2, undefined, 0.3]), true);
-  assert.equal(newsletterSeriesUsesBars([0.2, NaN]), true);
-  assert.equal(newsletterSeriesUsesBars([0, 0]), false);
+test("rates always use lines and counts always use bars across all newsletter charts", () => {
+  for (const metric of CHART_METRICS) {
+    assert.equal(newsletterSeriesUsesBars(metric.isRate),
+      ["deliveryCount", "openCount", "clickCount", "cvCount"].includes(metric.value));
+  }
 });
 
 test("open and click counts are selectable count metrics", () => {

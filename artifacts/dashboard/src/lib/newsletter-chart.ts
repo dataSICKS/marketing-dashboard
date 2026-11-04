@@ -7,12 +7,8 @@ export function recentNewsletterDateRange(now = new Date()) {
   return { from: format(from), to: format(now) };
 }
 
-/** Categories have no connecting order; sparse series need bars to stay visible
- * without isolated dots or invented zero values. */
-export function newsletterSeriesUsesBars(values: unknown[], categorical = false) {
-  const count = values.filter((value) => typeof value === "number" && Number.isFinite(value)).length;
-  return categorical || count < 2 || count !== values.length;
-}
+/** Chart type follows the metric, regardless of tab or available point count. */
+export const newsletterSeriesUsesBars = (isRate: boolean) => !isRate;
 
 export const CHART_METRICS = [
   { value: "deliveryCount", label: "配信数", isRate: false, color: "#FBBF24" },

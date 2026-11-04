@@ -996,7 +996,7 @@ function MatrixView({
                             formatter={(value: unknown) => formatChartValueLabel(value, MATRIX_METRICS.find((m) => m.value === mk)?.isRate ?? false)}
                             fill={color} fontSize={10} fontWeight={600}
                             stroke="#fff" strokeWidth={3} paintOrder="stroke" />;
-                          return newsletterSeriesUsesBars(mergedChartData.map((point) => point[key])) ? (
+                          return newsletterSeriesUsesBars(MATRIX_METRICS.find((metric) => metric.value === mk)?.isRate ?? false) ? (
                             <Bar key={key} dataKey={key} name={name} yAxisId={yAxisId(mk)}
                               fill={color} maxBarSize={28} radius={[3, 3, 0, 0]}>
                               {label}
@@ -1029,7 +1029,7 @@ function MatrixView({
                       return (
                         <div key={matrixMetricKey(s, mk)} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
                           <svg width="18" height="8" viewBox="0 0 18 8">
-                            {newsletterSeriesUsesBars(mergedChartData.map((point) => point[matrixMetricKey(s, mk)]))
+                            {newsletterSeriesUsesBars(mDef.isRate)
                               ? <rect x="3" y="0" width="12" height="8" rx="1" fill={SERIES_COLORS[si % SERIES_COLORS.length]} />
                               : <line x1="0" y1="4" x2="18" y2="4"
                               stroke={SERIES_COLORS[si % SERIES_COLORS.length]}
@@ -1678,7 +1678,7 @@ export default function Dashboard() {
                     <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
                       {compareMode === "change"
                         ? `施策日（${selectedCampaign?.startDate ?? ""}）を境に集計${hasCountMetric ? " · 青 = 施策前 / ピンク = 施策後" : " · 破線 = 施策開始"}`
-                        : subjectChart ? "棒：件名別の選択指標"
+                        : subjectChart ? "棒：件数　折れ線：率（件名別）"
                         : "棒：件数　折れ線：率 · 表示指標を選ぶと縦軸も切り替わります"}
                     </div>
                   </div>
@@ -1757,11 +1757,11 @@ export default function Dashboard() {
                               label={{ value: c.title.slice(0, 8), fill: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], fontSize: 8, position: "insideTopLeft" }}
                             />
                           ))}
-                          {visibleMetrics.map((metric) => metric.isRate && !newsletterSeriesUsesBars(chartItems.map((item) => item[metric.value]), subjectChart) ? (
+                          {visibleMetrics.map((metric) => !newsletterSeriesUsesBars(metric.isRate) ? (
                             <Line key={metric.value} yAxisId={hasCountMetric ? "right" : "left"} type="monotone" dataKey={metric.value} name={metric.label}
                               stroke={metric.color} strokeWidth={2}
                               dot={false}
-                              activeDot={{ r: 5 }} connectNulls={false}>
+                              activeDot={{ r: 5 }} connectNulls>
                               <LabelList dataKey={metric.value} position={metric.value === "clickRate" && visibleMetrics.length > 1 ? "bottom" : "top"} offset={9}
                                 formatter={(value: unknown) => formatChartValueLabel(value, true)}
                                 fill={metric.color} fontSize={10} fontWeight={600}
