@@ -26,3 +26,9 @@ Allow independent selection of シナリオ・件名・テンプレ as matrix gr
 **Why:** The user requested selectable table items and explicitly chose 「選んだ項目で集計し直す」 over column visibility only.
 
 **How to apply:** Keep periods as columns, preserve selected source filters, recompute rates from summed counts, avoid counting a delivery twice, and save/restore the selected dimensions with the view.
+
+シナリオ別・テンプレ別の通常の表には「期間」列を表示しない。マトリクスの期間列は維持する。
+
+**Why:** ユーザーが「シナリオ別、テンプレ別の表で期間は列に入れないでほしい」と指定した。
+
+**How to apply:** 通常の表の列表示だけを変更し、期間フィルターや集計条件、マトリクスの列構成は変更しない。

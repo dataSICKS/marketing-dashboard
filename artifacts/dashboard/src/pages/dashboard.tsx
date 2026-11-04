@@ -286,7 +286,7 @@ function MetricsTable({
   scenarioGroups?: NewsletterScenarioGroup[];
 }) {
   const showSubject = groupBy === "scenario" || groupBy === "template" || groupBy === "day";
-  const showPeriod = items.some((item) => item.period);
+  const showPeriod = groupBy !== "scenario" && groupBy !== "template" && items.some((item) => item.period);
   const [sortKey, setSortKey] = useState<SortKey>("label");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
