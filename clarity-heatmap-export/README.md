@@ -26,7 +26,22 @@ export.py:
 python3 save_session.py          # 初回のみ：手動ログイン（合図ファイル方式）
 python3 export.py                # 前日分（JST, date=Yesterday）
 python3 export.py 2026-06-23     # 指定日（Custom）
+
+# 過去分の取り直し（Storageに無い adCode×device だけ取得）
+python3 backfill_admin.py --dry-run 2026-11-03 2026-11-09   # 欠損一覧の確認だけ
+python3 backfill_admin.py 2026-11-03 2026-11-09             # 実行
+python3 backfill_admin.py --only=<広告コード> 2026-11-03 2026-11-09
+    # 1コードだけ。管理画面に新しいLPを足した後の過去分取得に使う
+    # （登録日より前の日付は日次cronでは永久に埋まらないため）
+
+# 保存済みCSVのPV過少（部分取得glitch）を監査して差し替え
+python3 audit_pv.py --dry-run 2026-11-03 2026-11-09
+python3 audit_pv.py 2026-11-03 2026-11-09
 ```
+
+> **新しいLPを追加したときの手順**: ①管理画面で広告コードを登録 →
+> ②`backfill_admin.py --only=<コード> <登録日の数日前> <前日>` で過去分を取得。
+> ①だけだと翌日11:30の実行から先しか貯まらない。
 
 ## 取得対象の広告コード（管理画面設定が単一の正）
 
@@ -78,7 +93,7 @@ python3 export.py 2026-06-23     # 指定日（Custom）
   それでも空ならアップロードせずスキップするため、Storageに空ファイルは残らない。
   スクロールデータ自体が無い組み合わせは正常なのでリトライ対象外。
   PNGだけ失敗した場合はダッシュボードが参照しないので警告のみでアップロードする。
-  ※`backfill_admin.py` は `download_one` を直接呼ぶためこのガードは通らない。
+  ※`backfill_admin.py` と `audit_pv.py` もこのガードを通る（2026-11-03に統一）。
 
 ## cron（毎日11:30・前日分）
 

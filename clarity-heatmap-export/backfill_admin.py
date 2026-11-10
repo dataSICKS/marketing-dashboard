@@ -11,6 +11,9 @@
 使い方:
   python3 backfill_admin.py 2026-07-22 2026-07-26   # 期間指定
   python3 backfill_admin.py --dry-run 2026-07-22 2026-07-26
+  python3 backfill_admin.py --only=<広告コード> 2026-11-03 2026-11-09
+      # 1コードだけ取り直す（新しいLPを管理画面に追加した後の過去分取得など）。
+      # 管理画面に未登録のコードは指定できない（管理画面を正とするため）。
 """
 import re
 import sys
@@ -51,14 +54,24 @@ def existing_combos(date_str: str) -> set[tuple[str, str]]:
 
 def main():
     dry_run = "--dry-run" in sys.argv
+    only = next((a.split("=", 1)[1].strip() for a in sys.argv[1:]
+                 if a.startswith("--only=")), None)
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if len(args) < 2:
-        print("使い方: python3 backfill_admin.py [--dry-run] <開始日> <終了日>", flush=True)
+        print("使い方: python3 backfill_admin.py [--dry-run] [--only=<広告コード>] "
+              "<開始日> <終了日>", flush=True)
         sys.exit(1)
     start = date.fromisoformat(args[0])
     end = date.fromisoformat(args[1])
 
     urls = admin_target_urls()
+    if only:
+        if only not in urls:
+            print(f"エラー: --only={only} は管理画面設定に未登録です。"
+                  f"先に管理画面で登録してください（登録済み: {urls}）", flush=True)
+            sys.exit(1)
+        urls = [only]
+        print(f"--only 指定: {only} のみを対象にします", flush=True)
     print(f"管理画面の対象URL({len(urls)}件): {urls}", flush=True)
     print(f"対象device: {DEVICES}", flush=True)
     print(f"期間: {start} 〜 {end}（{'dry-run' if dry_run else '実行'}）\n", flush=True)
