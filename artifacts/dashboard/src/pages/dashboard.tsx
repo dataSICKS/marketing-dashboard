@@ -1646,6 +1646,7 @@ export default function Dashboard() {
             </span>
           </div>
           {groupBy === "matrix" ? (
+            <>
             <MatrixView
               availableScenarios={availableScenarios}
               availableTemplates={availableTemplates}
@@ -1668,6 +1669,15 @@ export default function Dashboard() {
               dimensions={matrixDimensions}
               onDimensionsChange={(values) => { setMatrixDimensions(values); setActivePresetId(null); }}
             />
+            {/* ── Opt-out trend（マトリクスでも常に表示） ── */}
+            <OptoutTrendCard
+              items={optoutItems}
+              summary={optoutSummary}
+              loading={optoutLoading}
+              dataFrom={optoutData?.dataFrom}
+              showComparison={showComparison}
+            />
+            </>
           ) : isLoading || (compareMode === "change" && phaseLoading) ? (
             <LoadingSkeleton />
           ) : isError || (compareMode === "change" && phaseError) ? (
@@ -1858,48 +1868,13 @@ export default function Dashboard() {
               </div>
 
               {/* ── Opt-out trend ── */}
-              <div
-                className="bg-white rounded-xl p-4 md:p-6"
-                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                data-testid="card-optout-chart"
-              >
-                <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
-                  <div>
-                    <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>オプトアウト推移</div>
-                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
-                      メルマガ購読をオン→オフにした顧客数。シナリオ・テンプレートの絞り込みは対象外（解除経路のデータが無いため）
-                    </div>
-                  </div>
-                  <span className="text-xs shrink-0" style={{ color: "#9CA3AF" }}>
-                    期間合計 {formatNumber(optoutSummary?.optoutCount)} 件
-                  </span>
-                </div>
-                {optoutLoading ? (
-                  <Skeleton className="h-48 w-full" />
-                ) : optoutItems.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
-                    データがありません
-                  </div>
-                ) : (
-                  <div style={{ height: 200 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={optoutItems} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                        <XAxis
-                          dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false}
-                          axisLine={false} tickMargin={6} interval="preserveStartEnd"
-                        />
-                        <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB" }}
-                          formatter={(v: number) => [formatNumber(v), "オプトアウト"]}
-                        />
-                        <Bar dataKey="optoutCount" name="オプトアウト" fill={OPTOUT_COLOR} radius={[3, 3, 0, 0]} maxBarSize={28} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
+              <OptoutTrendCard
+                items={optoutItems}
+                summary={optoutSummary}
+                loading={optoutLoading}
+                dataFrom={optoutData?.dataFrom}
+                showComparison={showComparison}
+              />
 
               {/* ── Tables ── */}
               <div className="bg-white rounded-xl overflow-hidden"
@@ -1927,6 +1902,70 @@ export default function Dashboard() {
       </main>
 
     </>
+  );
+}
+
+// ─── Opt-out trend card ───────────────────────────────────────────
+function OptoutTrendCard({
+  items, summary, loading, dataFrom, showComparison,
+}: {
+  items: { label: string; optoutCount: number; prevOptoutCount?: number | null }[];
+  summary?: { optoutCount: number; prevOptoutCount?: number | null };
+  loading: boolean;
+  dataFrom?: string | null;
+  showComparison: boolean;
+}) {
+  return (
+    <div
+      className="bg-white rounded-xl p-4 md:p-6"
+      style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+      data-testid="card-optout-chart"
+    >
+      <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
+        <div>
+          <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>オプトアウト推移</div>
+          <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
+            メルマガ購読をオン→オフにした顧客数。シナリオ・テンプレートの絞り込みは対象外（解除経路のデータが無いため）
+            {dataFrom ? ` · ${dataFrom.replace(/-/g, "/")} 以降が対象` : ""}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs" style={{ color: "#9CA3AF" }}>期間合計</span>
+          <span className="text-lg font-bold tabular-nums" style={{ color: "#1A1A1A" }}>
+            {formatNumber(summary?.optoutCount)}
+          </span>
+          <span className="text-xs" style={{ color: "#9CA3AF" }}>件</span>
+          {showComparison && summary?.optoutCount != null && (
+            <DiffBadge current={summary.optoutCount} prev={summary.prevOptoutCount} invertColor />
+          )}
+        </div>
+      </div>
+      {loading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : items.length === 0 ? (
+        <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
+          データがありません
+        </div>
+      ) : (
+        <div style={{ height: 200 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={items} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis
+                dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false}
+                axisLine={false} tickMargin={6} interval="preserveStartEnd"
+              />
+              <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB" }}
+                formatter={(v: number) => [formatNumber(v), "オプトアウト"]}
+              />
+              <Bar dataKey="optoutCount" name="オプトアウト" fill={OPTOUT_COLOR} radius={[3, 3, 0, 0]} maxBarSize={28} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
   );
 }
 
