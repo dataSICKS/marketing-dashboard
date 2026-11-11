@@ -31,3 +31,16 @@ export interface NewsletterMetrics {
   prevClickRate: number | null;
   prevCvr: number | null;
 }
+
+/** オプトアウト1件（1顧客×1日）。シート「20260101以降のオプトアウトリスト」由来。 */
+export interface OptoutRow {
+  /** YYYY-MM-DD */
+  optoutDate: string;
+  customerCode: string;
+}
+
+export interface OptoutMetrics {
+  label: string;
+  optoutCount: number;
+  prevOptoutCount: number | null;
+}

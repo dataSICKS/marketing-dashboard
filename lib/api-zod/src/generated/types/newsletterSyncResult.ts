@@ -9,6 +9,11 @@
 export interface NewsletterSyncResult {
   /** Number of rows synced */
   rowCount: number;
+  /**
+   * Number of opt-out rows synced
+   * @nullable
+   */
+  optoutRowCount?: number | null;
   /** ISO timestamp of sync */
   syncedAt: string;
 }

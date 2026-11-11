@@ -21,6 +21,10 @@ export const HealthCheckResponse = zod.object({
  */
 export const SyncNewsletterResponse = zod.object({
   rowCount: zod.number().describe("Number of rows synced"),
+  optoutRowCount: zod
+    .number()
+    .nullish()
+    .describe("Number of opt-out rows synced"),
   syncedAt: zod.string().describe("ISO timestamp of sync"),
 });
 
@@ -310,6 +314,65 @@ export const GetNewsletterSegmentsResponse = zod.object({
  */
 export const GetNewsletterTemplatesResponse = zod.object({
   templates: zod.array(zod.string()),
+});
+
+/**
+ * Returns opt-out counts aggregated by day, week or month for the given period
+ * @summary Get newsletter opt-out counts
+ */
+export const getNewsletterOptoutQueryGroupByDefault = `day`;
+
+export const GetNewsletterOptoutQueryParams = zod.object({
+  groupBy: zod
+    .enum(["day", "week", "month"])
+    .default(getNewsletterOptoutQueryGroupByDefault)
+    .describe("Aggregation dimension"),
+  dateFrom: zod.coerce
+    .string()
+    .nullish()
+    .describe("Filter start date (YYYY-MM-DD)"),
+  dateTo: zod.coerce
+    .string()
+    .nullish()
+    .describe("Filter end date (YYYY-MM-DD)"),
+  compareFrom: zod.coerce
+    .string()
+    .nullish()
+    .describe("Comparison period start date (YYYY-MM-DD)"),
+  compareTo: zod.coerce
+    .string()
+    .nullish()
+    .describe("Comparison period end date (YYYY-MM-DD)"),
+});
+
+export const GetNewsletterOptoutResponse = zod.object({
+  groupBy: zod.enum(["day", "week", "month"]),
+  items: zod.array(
+    zod.object({
+      label: zod
+        .string()
+        .describe(
+          "Period label (day = YYYY\/MM\/DD, week = M月nW, month = YYYY\/MM)",
+        ),
+      optoutCount: zod.number().describe("Number of opt-outs in the period"),
+      prevOptoutCount: zod
+        .number()
+        .nullish()
+        .describe("Number of opt-outs in the comparison period"),
+    }),
+  ),
+  summary: zod.object({
+    optoutCount: zod.number().describe("Total opt-outs in the selected period"),
+    prevOptoutCount: zod
+      .number()
+      .nullish()
+      .describe("Total opt-outs in the comparison period"),
+  }),
+  dataFrom: zod
+    .string()
+    .nullish()
+    .describe("Earliest opt-out date available in the dataset (YYYY-MM-DD)"),
+  lastSyncedAt: zod.string().nullish(),
 });
 
 /**

@@ -40,9 +40,11 @@ import type {
   GetNewsletterChangeEventsParams,
   GetNewsletterDataParams,
   GetNewsletterMatrixParams,
+  GetNewsletterOptoutParams,
   HealthStatus,
   MatrixResponse,
   NewsletterChangeEventsResponse,
+  NewsletterOptoutResponse,
   NewsletterReportResponse,
   NewsletterSegmentsResponse,
   NewsletterSyncResult,
@@ -577,6 +579,110 @@ export function useGetNewsletterTemplates<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetNewsletterTemplatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetNewsletterOptoutUrl = (
+  params?: GetNewsletterOptoutParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/newsletter/optout?${stringifiedParams}`
+    : `/api/newsletter/optout`;
+};
+
+/**
+ * Returns opt-out counts aggregated by day, week or month for the given period
+ * @summary Get newsletter opt-out counts
+ */
+export const getNewsletterOptout = async (
+  params?: GetNewsletterOptoutParams,
+  options?: RequestInit,
+): Promise<NewsletterOptoutResponse> => {
+  return customFetch<NewsletterOptoutResponse>(
+    getGetNewsletterOptoutUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetNewsletterOptoutQueryKey = (
+  params?: GetNewsletterOptoutParams,
+) => {
+  return [`/api/newsletter/optout`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetNewsletterOptoutQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNewsletterOptout>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetNewsletterOptoutParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNewsletterOptout>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetNewsletterOptoutQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getNewsletterOptout>>
+  > = ({ signal }) =>
+    getNewsletterOptout(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNewsletterOptout>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetNewsletterOptoutQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNewsletterOptout>>
+>;
+export type GetNewsletterOptoutQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get newsletter opt-out counts
+ */
+
+export function useGetNewsletterOptout<
+  TData = Awaited<ReturnType<typeof getNewsletterOptout>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetNewsletterOptoutParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNewsletterOptout>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetNewsletterOptoutQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

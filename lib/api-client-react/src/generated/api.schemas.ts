@@ -43,8 +43,57 @@ export interface NewsletterRow {
 export interface NewsletterSyncResult {
   /** Number of rows synced */
   rowCount: number;
+  /**
+   * Number of opt-out rows synced
+   * @nullable
+   */
+  optoutRowCount?: number | null;
   /** ISO timestamp of sync */
   syncedAt: string;
+}
+
+export interface NewsletterOptoutItem {
+  /** Period label (day = YYYY/MM/DD, week = M月nW, month = YYYY/MM) */
+  label: string;
+  /** Number of opt-outs in the period */
+  optoutCount: number;
+  /**
+   * Number of opt-outs in the comparison period
+   * @nullable
+   */
+  prevOptoutCount?: number | null;
+}
+
+export interface NewsletterOptoutSummary {
+  /** Total opt-outs in the selected period */
+  optoutCount: number;
+  /**
+   * Total opt-outs in the comparison period
+   * @nullable
+   */
+  prevOptoutCount?: number | null;
+}
+
+export type NewsletterOptoutResponseGroupBy =
+  (typeof NewsletterOptoutResponseGroupBy)[keyof typeof NewsletterOptoutResponseGroupBy];
+
+export const NewsletterOptoutResponseGroupBy = {
+  day: "day",
+  week: "week",
+  month: "month",
+} as const;
+
+export interface NewsletterOptoutResponse {
+  groupBy: NewsletterOptoutResponseGroupBy;
+  items: NewsletterOptoutItem[];
+  summary: NewsletterOptoutSummary;
+  /**
+   * Earliest opt-out date available in the dataset (YYYY-MM-DD)
+   * @nullable
+   */
+  dataFrom?: string | null;
+  /** @nullable */
+  lastSyncedAt?: string | null;
 }
 
 export interface NewsletterMetrics {
@@ -514,6 +563,42 @@ export type GetNewsletterChangeEventsParams = {
    */
   segment?: string | null;
 };
+
+export type GetNewsletterOptoutParams = {
+  /**
+   * Aggregation dimension
+   */
+  groupBy?: GetNewsletterOptoutGroupBy;
+  /**
+   * Filter start date (YYYY-MM-DD)
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * Filter end date (YYYY-MM-DD)
+   * @nullable
+   */
+  dateTo?: string | null;
+  /**
+   * Comparison period start date (YYYY-MM-DD)
+   * @nullable
+   */
+  compareFrom?: string | null;
+  /**
+   * Comparison period end date (YYYY-MM-DD)
+   * @nullable
+   */
+  compareTo?: string | null;
+};
+
+export type GetNewsletterOptoutGroupBy =
+  (typeof GetNewsletterOptoutGroupBy)[keyof typeof GetNewsletterOptoutGroupBy];
+
+export const GetNewsletterOptoutGroupBy = {
+  day: "day",
+  week: "week",
+  month: "month",
+} as const;
 
 export type GetNewsletterMatrixParams = {
   /**

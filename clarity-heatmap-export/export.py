@@ -17,6 +17,7 @@ URL フィルター（config.yml）:
   python3 export.py            # 前日分（JST, date=Yesterday）
   python3 export.py 2026-06-23 # 指定日（Custom）※未指定時はYesterday
 """
+import re
 import sys
 import time
 from pathlib import Path
@@ -153,6 +154,63 @@ def download_one(page, adcode, device, date_str):
     return saved
 
 
+# 空CSVだったときの追加取得回数と、再取得までの待機秒
+CSV_RETRY = 2
+CSV_RETRY_WAIT = 30
+
+
+def csv_has_data(path) -> bool:
+    """スクロールCSVに実データが入っているか（PV欄が数値 かつ 深度行が1行以上）。
+
+    Clarity側のヒートマップ生成が間に合わないと、PV欄が空で深度行が0行の
+    「空CSV」が落ちてくることがある（2026-08〜10の60日で4件）。これをそのまま
+    アップロードするとダッシュボードがその日そのURLだけ欠損表示になるため、
+    取り込む前に弾く。判定条件はダッシュボードAPI(clarity.ts parseCsv)が
+    読む項目に合わせている。
+    """
+    raw = path.read_bytes()
+    for enc in ("utf-8-sig", "utf-16", "cp932", "utf-8"):
+        try:
+            text = raw.decode(enc)
+        except Exception:
+            continue
+        if "ページ ビュー" not in text and "スクロールの奥行き" not in text:
+            continue
+        has_pv = re.search(r'"ページ ビュー","(\d+)"', text) is not None
+        n_rows = len(re.findall(r'^"(\d+)","(\d+)"', text, re.M))
+        return has_pv and n_rows > 0
+    return False
+
+
+def download_one_checked(page, adcode, device, date_str):
+    """download_one に空CSVガードを付けたラッパ。
+
+    - スクロールデータ自体が無い組み合わせ（戻り値が空）は正常なのでリトライしない
+    - CSVが空／未取得のときだけ待ってから再取得し、最後まで駄目なら
+      アップロードせずスキップする（空ファイルをStorageに残さない）
+    - PNGだけ落ちた場合はダッシュボードが参照しないので警告のみでアップロードする
+    """
+    for attempt in range(1, CSV_RETRY + 2):
+        files = download_one(page, adcode, device, date_str)
+        if not files:
+            return files
+        csvs = [f for f in files if f.suffix == ".csv"]
+        if csvs and csv_has_data(csvs[0]):
+            if not any(f.suffix == ".png" for f in files):
+                print(f"    [{adcode}/{device}] 注意: PNG未取得（CSVは正常なのでアップロードします）",
+                      flush=True)
+            return files
+        reason = "CSVが空" if csvs else "CSV未取得"
+        if attempt <= CSV_RETRY:
+            print(f"    [{adcode}/{device}] {reason} → {CSV_RETRY_WAIT}秒待って再取得"
+                  f" ({attempt}/{CSV_RETRY})", flush=True)
+            page.wait_for_timeout(CSV_RETRY_WAIT * 1000)
+        else:
+            print(f"    [{adcode}/{device}] {reason}のまま{CSV_RETRY + 1}回失敗 →"
+                  f" アップロードせずスキップ（後で audit_pv.py で再取得してください）", flush=True)
+    return []
+
+
 SETTINGS_BUCKET = "app-settings"
 SETTINGS_FILE = "config.json"
 
@@ -226,7 +284,7 @@ def main():
         for adcode in targets:
             for device in CL["devices"]:
                 try:
-                    files = download_one(page, adcode, device, date_str)
+                    files = download_one_checked(page, adcode, device, date_str)
                 except Exception as e:
                     print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
                     failures += 1

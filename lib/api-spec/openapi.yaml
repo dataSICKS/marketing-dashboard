@@ -206,6 +206,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /newsletter/optout:
+    get:
+      operationId: getNewsletterOptout
+      tags: [newsletter]
+      summary: Get newsletter opt-out counts
+      description: Returns opt-out counts aggregated by day, week or month for the given period
+      parameters:
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+          description: Aggregation dimension
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter start date (YYYY-MM-DD)
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Filter end date (YYYY-MM-DD)
+        - name: compareFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Comparison period start date (YYYY-MM-DD)
+        - name: compareTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Comparison period end date (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Newsletter opt-out data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterOptoutResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /newsletter/matrix:
     get:
       operationId: getNewsletterMatrix
@@ -835,12 +888,65 @@ components:
         rowCount:
           type: number
           description: Number of rows synced
+        optoutRowCount:
+          type: ["number", "null"]
+          description: Number of opt-out rows synced
         syncedAt:
           type: string
           description: ISO timestamp of sync
       required:
         - rowCount
         - syncedAt
+
+    NewsletterOptoutItem:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Period label (day = YYYY/MM/DD, week = M月nW, month = YYYY/MM)
+        optoutCount:
+          type: number
+          description: Number of opt-outs in the period
+        prevOptoutCount:
+          type: ["number", "null"]
+          description: Number of opt-outs in the comparison period
+      required:
+        - label
+        - optoutCount
+
+    NewsletterOptoutSummary:
+      type: object
+      properties:
+        optoutCount:
+          type: number
+          description: Total opt-outs in the selected period
+        prevOptoutCount:
+          type: ["number", "null"]
+          description: Total opt-outs in the comparison period
+      required:
+        - optoutCount
+
+    NewsletterOptoutResponse:
+      type: object
+      properties:
+        groupBy:
+          type: string
+          enum: [day, week, month]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsletterOptoutItem"
+        summary:
+          $ref: "#/components/schemas/NewsletterOptoutSummary"
+        dataFrom:
+          type: ["string", "null"]
+          description: Earliest opt-out date available in the dataset (YYYY-MM-DD)
+        lastSyncedAt:
+          type: ["string", "null"]
+      required:
+        - groupBy
+        - items
+        - summary
 
     NewsletterMetrics:
       type: object

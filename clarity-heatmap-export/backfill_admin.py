@@ -2,15 +2,18 @@
 指定期間の欠損分（Storageに未保存の adCode×device）だけを取得・保存するバックフィル。
 
 - 対象URLは config.yml の pages ではなく **管理画面の設定**(Supabase Storage
-  バケット app-settings / config.json の clarityTargetUrls)を正とする。
+  バケット app-settings / config.json の adCodes ／ 旧 clarityTargetUrls)を正とする。
 - Storage の各日付フォルダを走査し、{adCode}_{device}_scroll_*.csv が
   既に存在する組み合わせはスキップ（ファイル名サフィックスは無視して prefix 判定）。
-- 欠損分のみ export.download_one で取得し Supabase Storage へアップロード。
+- 欠損分のみ export.download_one_checked（空CSVガード付き）で取得し Supabase Storage へアップロード。
 - スクロールデータ自体が無い(低トラフィック)組み合わせは export 側で skip される。
 
 使い方:
   python3 backfill_admin.py 2026-07-22 2026-07-26   # 期間指定
   python3 backfill_admin.py --dry-run 2026-07-22 2026-07-26
+  python3 backfill_admin.py --only=<広告コード> 2026-11-03 2026-11-09
+      # 1コードだけ取り直す（新しいLPを管理画面に追加した後の過去分取得など）。
+      # 管理画面に未登録のコードは指定できない（管理画面を正とするため）。
 """
 import re
 import sys
@@ -20,7 +23,7 @@ from datetime import date, timedelta
 import requests
 from playwright.sync_api import sync_playwright
 
-from export import CL, SB, admin_target_urls, download_one, upload_to_supabase
+from export import CL, SB, admin_target_urls, download_one_checked, upload_to_supabase
 from admin_settings import list_storage_names
 
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
@@ -50,14 +53,24 @@ def existing_combos(date_str: str) -> set[tuple[str, str]]:
 
 def main():
     dry_run = "--dry-run" in sys.argv
+    only = next((a.split("=", 1)[1].strip() for a in sys.argv[1:]
+                 if a.startswith("--only=")), None)
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if len(args) < 2:
-        print("使い方: python3 backfill_admin.py [--dry-run] <開始日> <終了日>", flush=True)
+        print("使い方: python3 backfill_admin.py [--dry-run] [--only=<広告コード>] "
+              "<開始日> <終了日>", flush=True)
         sys.exit(1)
     start = date.fromisoformat(args[0])
     end = date.fromisoformat(args[1])
 
     urls = admin_target_urls()
+    if only:
+        if only not in urls:
+            print(f"エラー: --only={only} は管理画面設定に未登録です。"
+                  f"先に管理画面で登録してください（登録済み: {urls}）", flush=True)
+            sys.exit(1)
+        urls = [only]
+        print(f"--only 指定: {only} のみを対象にします", flush=True)
     print(f"管理画面の対象URL({len(urls)}件): {urls}", flush=True)
     print(f"対象device: {DEVICES}", flush=True)
     print(f"期間: {start} 〜 {end}（{'dry-run' if dry_run else '実行'}）\n", flush=True)
@@ -94,7 +107,7 @@ def main():
             print(f"\n━━━ 取得 {ds} ━━━", flush=True)
             for adcode, device in missing:
                 try:
-                    files = download_one(page, adcode, device, ds)
+                    files = download_one_checked(page, adcode, device, ds)
                 except Exception as e:
                     print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
                     n_failed += 1
