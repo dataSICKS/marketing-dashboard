@@ -24,8 +24,12 @@ API 呼び出しは `@workspace/api-client-react` の生成 React Query フッ�
 メルマガ配信の KPI とトレンドを表示。
 
 - **タブ（集計軸）**: 日別 / 週別 / 月別 / シナリオ別 / テンプレート別 / **マトリクス**（`TabMode = GroupBy | "matrix"`）。
-- **KPI カード**: 配信数 / 開封率 / クリック率 / CVR / CV 数。
+- **KPI カード**: 配信数 / 開封率 / クリック率 / CVR / CV 数 / **オプトアウト件数**（4枚、`sm:2列 / lg:4列`）。
+  - オプトアウトは増加が悪化なので、差分バッジの色を反転する（`KpiCard invertDiff` → `DiffBadge invertColor`）。
 - **トレンドチャート**: Recharts `ComposedChart`（配信数=棒＋各率=折れ線の重ね）。
+- **オプトアウト推移**: 明細テーブルの上に独立カード（`card-optout-chart`）。棒グラフのみ（色 `#EF4444`）。
+  期間フィルタと期間比較には連動するが、**シナリオ/テンプレート絞り込みは渡さない**
+  （解除経路のデータが無く、絞り込んでも件数が変わらないため混乱を避ける）。
 - **明細テーブル**: 集計軸別行。件名(subject)は day/template で表示。
 - **Before/After 比較**: 施策（campaign）の開始日を起点に前後比較。before=青系(`#EFF6FF`/`#1D4ED8`)、after=ピンク系(`#FDF2F8`/`#9D174D`)で行を色分け。
 - **期間フィルタ**: `DateRangePicker`。セグメント絞り込み対応。

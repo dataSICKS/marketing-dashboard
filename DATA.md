@@ -38,6 +38,24 @@
 
 出所: Google Sheet `1zITxm8hxMkjNYJb7CKqY1B7JzQWvv20N8afMBkZWVbU` の `calc!A2:L`（列 A–L が上記に対応）。
 
+### `newsletter_optouts`（メルマガ オプトアウト）
+
+メルマガ購読を**オン→オフに切り替えた顧客**の一覧。1行＝1顧客×1日。
+出典は Google Sheet `1zITxm8...` の **`20260101以降のオプトアウトリスト`** タブ（A:オプトアウト日 / B:顧客番号）。
+同スプシの `BQ_オプトアウト調査`（BigQuery直結の Connected Sheet）は値取得APIで読めないため使わない。
+
+ユニークキー: `optout_date, customer_code`（upsert onConflict）。同じ顧客が別日に再度オフにした場合は別行。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| optout_date | date | オプトアウト日 |
+| customer_code | text | 顧客番号 |
+| synced_at | timestamptz | 同期時刻 |
+
+**解除経路（どのメルマガ/シナリオ経由か）の情報は無い**ため、シナリオ別・テンプレート別には分解できない。
+ダッシュボードでは期間合計の KPI と期間別推移のみを出す。データは 2025/12/31 以降しか無い
+（BQ 側のクエリが `imported_date >= 2026-01-01` 起点で、そこから1日引いた日付を採用しているため）。
+
 ### `efo_access_cv`（EFO アクセス/CV）
 
 ユニークキー: `date, ad_code, profile_name`。
@@ -150,9 +168,10 @@ Clarity スクロール深度:
 | データ | ソース | 経路 | 更新頻度 |
 |---|---|---|---|
 | newsletter_rows | Google Sheet `1zITxm8...` `calc` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期。読み出しはキャッシュ優先 |
+| newsletter_optouts | Google Sheet `1zITxm8...` `20260101以降のオプトアウトリスト` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
-| clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 07:30**（cron、前日分） |
+| clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 11:30**（cron、前日分。2026-10-14に07:30から変更） |
 | campaigns / efo_presets | ダッシュボード操作 | API CRUD | 随時 |
 | app-settings/config.json | 設定ページ | API `/settings` PUT | 随時 |
 
@@ -169,6 +188,22 @@ from newsletter_rows
 group by delivery_date
 order by delivery_date desc
 limit 14;
+
+-- newsletter_optouts の作成（service_role キーでは DDL を実行できないため SQL Editor で手動実行）
+create table if not exists newsletter_optouts (
+  optout_date   date        not null,
+  customer_code text        not null,
+  synced_at     timestamptz not null default now(),
+  primary key (optout_date, customer_code)
+);
+create index if not exists newsletter_optouts_date_idx
+  on newsletter_optouts (optout_date);
+
+-- メルマガ 月別オプトアウト件数
+select to_char(optout_date, 'YYYY/MM') as ym, count(*) as optouts
+from newsletter_optouts
+group by 1
+order by 1 desc;
 
 -- ECforce 広告 URL 別の直近アクセス/CV
 select ad_url, ad_date, access_count, cv_count

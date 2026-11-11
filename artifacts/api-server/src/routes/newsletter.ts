@@ -10,10 +10,19 @@ import {
   type GroupBy,
   type MatrixMetric,
 } from "../lib/newsletter-aggregate.js";
-import { getCache, setCache } from "../lib/newsletter-cache.js";
+import { getCache, setCache, getOptoutCache, setOptoutCache } from "../lib/newsletter-cache.js";
 import { upsertRows, fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
+import { fetchOptoutSheet } from "../lib/newsletter-optout-sheets.js";
+import { upsertOptoutRows, fetchOptoutsFromSupabase } from "../lib/newsletter-optout-supabase.js";
+import {
+  aggregateOptouts,
+  filterByDate,
+  mergeOptoutComparison,
+  earliestDate,
+  type OptoutGroupBy,
+} from "../lib/newsletter-optout-aggregate.js";
 import { GetNewsletterDataQueryParams } from "@workspace/api-zod";
-import type { NewsletterRow } from "../lib/newsletter-types.js";
+import type { NewsletterRow, OptoutRow } from "../lib/newsletter-types.js";
 
 const router: IRouter = Router();
 
@@ -37,6 +46,25 @@ async function getRows(req: { log: { info: (...a: unknown[]) => void; error: (..
   return cached;
 }
 
+async function getOptoutRows(req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: OptoutRow[]; syncedAt: string | null }> {
+  let cached = getOptoutCache();
+  if (!cached) {
+    const { rows: supabaseRows, syncedAt: supabaseSyncedAt } = await fetchOptoutsFromSupabase();
+    if (supabaseRows.length > 0 && supabaseSyncedAt) {
+      setOptoutCache(supabaseRows, supabaseSyncedAt);
+      cached = { rows: supabaseRows, syncedAt: supabaseSyncedAt };
+    } else {
+      req.log.info("Opt-out table empty, fetching from Google Sheets");
+      const rows = await fetchOptoutSheet();
+      const syncedAt = new Date().toISOString();
+      if (rows.length > 0) await upsertOptoutRows(rows, syncedAt);
+      setOptoutCache(rows, syncedAt);
+      cached = { rows, syncedAt };
+    }
+  }
+  return cached;
+}
+
 router.post("/newsletter/sync", async (req, res): Promise<void> => {
   try {
     req.log.info("Syncing newsletter data from Google Sheets");
@@ -44,7 +72,20 @@ router.post("/newsletter/sync", async (req, res): Promise<void> => {
     const syncedAt = new Date().toISOString();
     await upsertRows(rows, syncedAt);
     setCache(rows, syncedAt);
-    res.json({ rowCount: rows.length, syncedAt });
+
+    // オプトアウトも同じ同期操作でまとめて更新する。
+    // 配信データの同期は成功させたいので、ここでの失敗はログに残して続行する。
+    let optoutRowCount: number | null = null;
+    try {
+      const optoutRows = await fetchOptoutSheet();
+      if (optoutRows.length > 0) await upsertOptoutRows(optoutRows, syncedAt);
+      setOptoutCache(optoutRows, syncedAt);
+      optoutRowCount = optoutRows.length;
+    } catch (optoutErr) {
+      req.log.error({ err: optoutErr }, "Failed to sync opt-out data (newsletter rows were synced)");
+    }
+
+    res.json({ rowCount: rows.length, optoutRowCount, syncedAt });
   } catch (err) {
     req.log.error({ err }, "Failed to sync newsletter data");
     res.status(500).json({ error: "Google Sheets からのデータ取得に失敗しました" });
@@ -244,6 +285,38 @@ router.get("/newsletter/templates", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch templates");
     res.status(500).json({ error: "テンプレート取得に失敗しました" });
+  }
+});
+
+router.get("/newsletter/optout", async (req, res): Promise<void> => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const validGroupBy = ["day", "week", "month"];
+    const groupBy = (validGroupBy.includes(q.groupBy ?? "") ? q.groupBy : "day") as OptoutGroupBy;
+
+    const { rows: allRows, syncedAt } = await getOptoutRows(req);
+
+    const rows = filterByDate(allRows, q.dateFrom, q.dateTo);
+    let items = aggregateOptouts(rows, groupBy);
+
+    const hasComparison = !!(q.compareFrom || q.compareTo);
+    let prevOptoutCount: number | null = null;
+    if (hasComparison) {
+      const prevRows = filterByDate(allRows, q.compareFrom, q.compareTo);
+      items = mergeOptoutComparison(items, aggregateOptouts(prevRows, groupBy));
+      prevOptoutCount = prevRows.length;
+    }
+
+    res.json({
+      groupBy,
+      items,
+      summary: { optoutCount: rows.length, prevOptoutCount },
+      dataFrom: earliestDate(allRows),
+      lastSyncedAt: syncedAt,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch newsletter opt-out data");
+    res.status(500).json({ error: "オプトアウトデータの取得に失敗しました" });
   }
 });
 

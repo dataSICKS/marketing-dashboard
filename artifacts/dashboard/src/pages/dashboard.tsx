@@ -6,6 +6,8 @@ import {
   useGetNewsletterMatrix,
   getGetNewsletterMatrixQueryKey,
   getGetNewsletterDataQueryKey,
+  useGetNewsletterOptout,
+  getGetNewsletterOptoutQueryKey,
   useListCampaigns,
 } from "@workspace/api-client-react";
 import type {
@@ -57,6 +59,7 @@ const BEFORE_COLOR = "#60A5FA";
 const AFTER_COLOR = "#F472B6";
 const CHANGE_COLOR = "#A855F7";
 const CAMPAIGN_COLORS = ["#F97316", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#14B8A6"];
+const OPTOUT_COLOR = "#EF4444";
 const SERIES_COLORS = ["#6366F1", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#EF4444", "#84CC16"];
 
 const MATRIX_METRICS = [
@@ -112,15 +115,17 @@ function sumItems(items: NewsletterMetrics[]) {
 }
 
 // ─── Diff badge ──────────────────────────────────────────────────
-function DiffBadge({ current, prev }: { current: number; prev: number | null | undefined }) {
+function DiffBadge({ current, prev, invertColor }: { current: number; prev: number | null | undefined; invertColor?: boolean }) {
   if (prev == null || prev === 0) return null;
   const diff = current - prev;
   const pct = diff / Math.abs(prev);
   const isUp = diff >= 0;
+  // 矢印は増減の向き、色は「良い/悪い」。オプトアウトのように増加が悪化する指標は invertColor を使う。
+  const isGood = invertColor ? diff < 0 : diff >= 0;
   return (
     <span
       className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1 py-0.5 rounded ml-1.5"
-      style={{ background: isUp ? "#DCFCE7" : "#FEE2E2", color: isUp ? "#16A34A" : "#DC2626" }}
+      style={{ background: isGood ? "#DCFCE7" : "#FEE2E2", color: isGood ? "#16A34A" : "#DC2626" }}
     >
       {isUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
       {isUp ? "+" : ""}{(pct * 100).toFixed(1)}%
@@ -1167,6 +1172,21 @@ export default function Dashboard() {
   const { data: campaignsData } = useListCampaigns();
   const { data: templatesData } = useGetNewsletterTemplates();
 
+  // オプトアウトは「日付×顧客番号」しか持たずシナリオ/テンプレート別に分解できないため、
+  // 期間フィルタと期間比較だけを引き継ぎ、シナリオ・テンプレートの絞り込みは渡さない。
+  const optoutParams = {
+    groupBy: (effectiveGroupBy === "week" || effectiveGroupBy === "month" ? effectiveGroupBy : "day") as "day" | "week" | "month",
+    dateFrom: params.dateFrom,
+    dateTo: params.dateTo,
+    compareFrom: params.compareFrom,
+    compareTo: params.compareTo,
+  };
+  const { data: optoutData, isLoading: optoutLoading } = useGetNewsletterOptout(optoutParams, {
+    query: { queryKey: getGetNewsletterOptoutQueryKey(optoutParams) },
+  });
+  const optoutSummary = optoutData?.summary;
+  const optoutItems = optoutData?.items ?? [];
+
   // Auto-select first campaign when entering change mode
   useEffect(() => {
     const camps = campaignsData?.campaigns ?? [];
@@ -1179,6 +1199,7 @@ export default function Dashboard() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/data"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/newsletter/optout"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/segments"] });
         queryClient.invalidateQueries({ queryKey: ["/api/newsletter/templates"] });
       },
@@ -1482,7 +1503,7 @@ export default function Dashboard() {
                 />
               ) : (
                 /* Normal KPI cards */
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" data-testid="kpi-grid">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4" data-testid="kpi-grid">
                   <KpiCard
                     label="配信数" value={formatNumber(summary?.deliveryCount)} sub="通"
                     testId="kpi-delivery" accent
@@ -1497,6 +1518,14 @@ export default function Dashboard() {
                     label="CV数 / CVR" value={formatNumber(summary?.cvCount)} sub="件"
                     sub2={`CVR ${formatPercent(summary?.cvr)}`} testId="kpi-cv-count"
                     current={summary?.cvr} prev={showComparison ? summary?.prevCvr : undefined}
+                  />
+                  <KpiCard
+                    label="オプトアウト件数" value={formatNumber(optoutSummary?.optoutCount)} sub="件"
+                    sub2={optoutData?.dataFrom ? `${optoutData.dataFrom.replace(/-/g, "/")} 以降が対象` : undefined}
+                    testId="kpi-optout-count"
+                    current={optoutSummary?.optoutCount}
+                    prev={showComparison ? optoutSummary?.prevOptoutCount : undefined}
+                    invertDiff
                   />
                 </div>
               )}
@@ -1607,6 +1636,50 @@ export default function Dashboard() {
                 )}
               </div>
 
+              {/* ── Opt-out trend ── */}
+              <div
+                className="bg-white rounded-xl p-4 md:p-6"
+                style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+                data-testid="card-optout-chart"
+              >
+                <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>オプトアウト推移</div>
+                    <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
+                      メルマガ購読をオン→オフにした顧客数。シナリオ・テンプレートの絞り込みは対象外（解除経路のデータが無いため）
+                    </div>
+                  </div>
+                  <span className="text-xs shrink-0" style={{ color: "#9CA3AF" }}>
+                    期間合計 {formatNumber(optoutSummary?.optoutCount)} 件
+                  </span>
+                </div>
+                {optoutLoading ? (
+                  <Skeleton className="h-48 w-full" />
+                ) : optoutItems.length === 0 ? (
+                  <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
+                    データがありません
+                  </div>
+                ) : (
+                  <div style={{ height: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={optoutItems} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                        <XAxis
+                          dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false}
+                          axisLine={false} tickMargin={6} interval="preserveStartEnd"
+                        />
+                        <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB" }}
+                          formatter={(v: number) => [formatNumber(v), "オプトアウト"]}
+                        />
+                        <Bar dataKey="optoutCount" name="オプトアウト" fill={OPTOUT_COLOR} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
               {/* ── Tables ── */}
               <div className="bg-white rounded-xl overflow-hidden"
                 style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
@@ -1634,10 +1707,10 @@ export default function Dashboard() {
 
 // ─── KPI Card ─────────────────────────────────────────────────────
 function KpiCard({
-  label, value, sub, sub2, accent, testId, current, prev,
+  label, value, sub, sub2, accent, testId, current, prev, invertDiff,
 }: {
   label: string; value: string; sub?: string; sub2?: string; accent?: boolean; testId: string;
-  current?: number; prev?: number | null;
+  current?: number; prev?: number | null; invertDiff?: boolean;
 }) {
   return (
     <div
@@ -1658,7 +1731,7 @@ function KpiCard({
       </div>
       <div className="flex items-baseline gap-1 flex-wrap">
         <div className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>{value}</div>
-        {current != null && prev != null && <DiffBadge current={current} prev={prev} />}
+        {current != null && prev != null && <DiffBadge current={current} prev={prev} invertColor={invertDiff} />}
       </div>
       {sub && <div className="text-xs mt-1 md:mt-1.5 font-medium" style={{ color: accent ? YELLOW_DARK : "#9CA3AF" }}>{sub}</div>}
       {sub2 && <div className="text-xs mt-0.5 md:mt-1" style={{ color: "#6B7280" }}>{sub2}</div>}

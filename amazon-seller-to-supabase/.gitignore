@@ -1,0 +1,7 @@
+config.yml
+storage_state.json
+chrome_profile/
+downloads/
+logs/
+__pycache__/
+*.pyc
