@@ -10,10 +10,11 @@ import {
   type GroupBy,
   type MatrixMetric,
 } from "../lib/newsletter-aggregate.js";
-import { getCache, setCache, getOptoutCache, setOptoutCache } from "../lib/newsletter-cache.js";
+import { getCache, setCache, setOptoutCache } from "../lib/newsletter-cache.js";
+import { loadOptoutRows } from "../lib/newsletter-optout-source.js";
 import { upsertRows, fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
 import { fetchOptoutSheet } from "../lib/newsletter-optout-sheets.js";
-import { upsertOptoutRows, fetchOptoutsFromSupabase } from "../lib/newsletter-optout-supabase.js";
+import { upsertOptoutRows } from "../lib/newsletter-optout-supabase.js";
 import {
   aggregateOptouts,
   filterByDate,
@@ -62,23 +63,9 @@ async function getRows(req: { log: { info: (...a: unknown[]) => void; error: (..
   };
 }
 
-async function getOptoutRows(req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: OptoutRow[]; syncedAt: string | null }> {
-  let cached = getOptoutCache();
-  if (!cached) {
-    const { rows: supabaseRows, syncedAt: supabaseSyncedAt } = await fetchOptoutsFromSupabase();
-    if (supabaseRows.length > 0 && supabaseSyncedAt) {
-      setOptoutCache(supabaseRows, supabaseSyncedAt);
-      cached = { rows: supabaseRows, syncedAt: supabaseSyncedAt };
-    } else {
-      req.log.info("Opt-out table empty, fetching from Google Sheets");
-      const rows = await fetchOptoutSheet();
-      const syncedAt = new Date().toISOString();
-      if (rows.length > 0) await upsertOptoutRows(rows, syncedAt);
-      setOptoutCache(rows, syncedAt);
-      cached = { rows, syncedAt };
-    }
-  }
-  return cached;
+/** キャッシュ→Supabase→Sheets のフォールバックは lib 側（LTV分析からも使うため）。 */
+async function getOptoutRows(_req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: OptoutRow[]; syncedAt: string | null }> {
+  return loadOptoutRows();
 }
 
 router.post("/newsletter/sync", async (req, res): Promise<void> => {
@@ -296,7 +283,8 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     }
 
     const validTime = ["day", "week", "month"];
-    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount", "optoutCount"];
+    // optoutCount は「指標」ではなく includeOptout（行の足し引き）で制御する。
+    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount"];
     const validDimensions = ["scenario", "subject", "template"] as const;
     const dimensions = q.dimensions === undefined ? undefined : q.dimensions.split(",").map((value) => value.trim()).filter(Boolean);
     if (dimensions?.some((dimension) => !validDimensions.some((valid) => valid === dimension))) {
@@ -315,9 +303,10 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
-    // オプトアウトは配信行に紐づかないので、マトリクスでは専用の1系列として並べる。
+    // オプトアウトは配信行に紐づかないので、マトリクスでは専用の1系列（1行）として並べる。
+    const includeOptout = q.includeOptout === "true";
     let optoutByPeriod: Record<string, number> | undefined;
-    if (metrics.includes("optoutCount")) {
+    if (includeOptout) {
       try {
         const { rows: optoutRows } = await getOptoutRows(req);
         optoutByPeriod = optoutCountsByPeriod(filterByDate(optoutRows, q.dateFrom, q.dateTo), timeGroupBy, q.anchorDate);
@@ -330,6 +319,10 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     // オプトアウトは全体指標なので単独（選択なし）でも表示できる必要があり、
     // ここで全行を渡すと全シナリオ×件名が展開されて表が破綻する。
     const seriesRows = scenarios.length === 0 && templates.length === 0 ? [] : rows;
+    if (!includeOptout && seriesRows.length === 0) {
+      res.json({ timePeriods: [], series: [], metrics });
+      return;
+    }
 
     const data = computeMatrixData(seriesRows, scenarios, templates, timeGroupBy, metrics, q.anchorDate, dimensions as ("scenario" | "subject" | "template")[] | undefined, optoutByPeriod);
     res.json(data);
