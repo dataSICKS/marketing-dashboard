@@ -1,0 +1,10 @@
+---
+name: LTV table requirements
+description: User intent for grouping the LTV table and opt-in/opt-out terminology.
+---
+
+LTVの表は、商品などの内訳ごとに独立したブロックで表示し、内訳の項目を選択可能にする。
+
+**Why:** ユーザーが「表は内訳の商品ごとにブロックを分けて表示するようにしたい。また、その内訳の項目をオプトインの有り無しとか選択できるようにして」と依頼した。
+
+**How to apply:** この依頼中の「オプトイン有無」は、ユーザーの確認により既存の「オプトアウト有無」を意味する。新しいオプトイン属性の追加要求として扱わない。

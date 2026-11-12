@@ -11,3 +11,4 @@
 - [Newsletter numeric display](newsletter-number-format.md) — メルマガ分析の小数表示は第2位で四捨五入し第1位まで。集計元の精度は維持する。
 - [Newsletter display defaults](newsletter-display-defaults.md) — 初期期間は直近30日。横軸は常に期間、名前・件名は系列。率は折れ線、件数は棒で統一する。
 - [LTV selection menus](ltv-selection-menus.md) — use app-rendered single-select menus in LTV; native popup dismissal was reported in the embedded preview.
+- [LTV table requirements](ltv-table-requirements.md) — 表は選んだ内訳ごとにブロック分け。「オプトイン有無」という依頼は既存のオプトアウト有無を指すと確認済み。

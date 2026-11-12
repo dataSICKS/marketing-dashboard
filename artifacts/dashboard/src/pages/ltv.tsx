@@ -13,6 +13,7 @@ import {
 import { RefreshCw, Info } from "lucide-react";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 import LtvSelect from "@/components/LtvSelect";
+import LtvTableBlocks from "@/components/LtvTableBlocks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatDate } from "@/lib/format";
 
@@ -79,6 +80,7 @@ export default function LtvPage() {
   const [monthFrom, setMonthFrom] = useState<string | undefined>(undefined);
   const [monthTo, setMonthTo] = useState<string | undefined>(undefined);
   const [splitBy, setSplitBy] = useState<GetLtvDataSplitBy>("none");
+  const [tableSplitBy, setTableSplitBy] = useState<GetLtvDataSplitBy>("firstProduct");
   const [optout, setOptout] = useState<OptoutFilter>("all");
   const [offers, setOffers] = useState<string[]>([]);
   const [firstProducts, setFirstProducts] = useState<string[]>([]);
@@ -106,6 +108,11 @@ export default function LtvPage() {
   };
   const { data, isLoading, isError } = useGetLtvData(params, {
     query: { queryKey: getGetLtvDataQueryKey(params) },
+  });
+  // Share all filters, but let the table's grouping change without changing the chart.
+  const tableParams = { ...params, splitBy: tableSplitBy };
+  const { data: tableData, isLoading: tableLoading, isError: tableError } = useGetLtvData(tableParams, {
+    query: { queryKey: getGetLtvDataQueryKey(tableParams) },
   });
 
   const syncMutation = useSyncLtv({
@@ -332,50 +339,32 @@ export default function LtvPage() {
               <div className="bg-white rounded-xl overflow-hidden"
                 style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
                 data-testid="card-ltv-table">
-                <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between"
+                <div className="px-4 md:px-6 py-3 md:py-4 flex flex-wrap gap-3 items-center justify-between"
                   style={{ borderBottom: "1px solid #F3F4F6" }}>
                   <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>初回購入月別</span>
-                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{items.length} 行</span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    表の内訳
+                    <LtvSelect label="表のブロック分け" testId="select-table-split"
+                      value={tableSplitBy} onValueChange={(value) => setTableSplitBy(value as GetLtvDataSplitBy)}
+                      options={SPLIT_OPTIONS} />
+                    <span className="text-[11px] text-gray-400">表のみ切り替え</span>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="text-xs border-collapse w-full">
-                    <thead>
-                      <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #F3F4F6" }}>
-                        <th scope="col" className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                          style={{ color: "#6B7280" }}>初回購入月</th>
-                        {isSplit && (
-                          <th scope="col" className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
-                            style={{ color: "#6B7280" }}>内訳</th>
-                        )}
-                        <th scope="col" className="px-4 py-2.5 text-right font-medium whitespace-nowrap"
-                          style={{ color: "#6B7280" }}>件数</th>
-                        {LTV_METRICS.map((metric) => (
-                          <th key={metric.value} scope="col" className="px-4 py-2.5 text-right font-medium whitespace-nowrap"
-                            style={{ color: "#6B7280" }}>{metric.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.length === 0 ? (
-                        <tr><td colSpan={isSplit ? 6 : 5} className="px-4 py-8 text-center" style={{ color: "#bbb" }}>
-                          データがありません
-                        </td></tr>
-                      ) : items.map((item, index) => (
-                        <tr key={`${item.label}-${item.segment}`}
-                          style={{ background: index % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #F3F4F6" }}>
-                          <td className="px-4 py-2 whitespace-nowrap" style={{ color: "#1A1A1A" }}>{item.label}</td>
-                          {isSplit && (
-                            <td className="px-4 py-2 break-all" style={{ color: "#374151" }}>{item.segment}</td>
-                          )}
-                          <td className="px-4 py-2 text-right tabular-nums">{formatNumber(item.count)}</td>
-                          <td className="px-4 py-2 text-right tabular-nums">{yen(item.ltv95)}</td>
-                          <td className="px-4 py-2 text-right tabular-nums">{yen(item.ltv180)}</td>
-                          <td className="px-4 py-2 text-right tabular-nums">{yen(item.ltv365)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {tableLoading ? (
+                  <div className="p-4 md:p-6"><Skeleton className="h-40 w-full" /></div>
+                ) : tableError ? (
+                  <div className="p-6 text-center text-sm text-red-500" role="alert">表のデータを取得できませんでした。</div>
+                ) : (
+                  <>
+                    {tableData?.splitBy !== tableSplitBy && (
+                      <p className="px-4 pt-4 text-xs text-amber-700" role="status">
+                        内訳データを取得できないため、全体を表示しています。
+                      </p>
+                    )}
+                    <LtvTableBlocks items={tableData?.items ?? []}
+                      splitLabel={SPLIT_OPTIONS.find((option) => option.value === tableData?.splitBy)?.label ?? "内訳"} />
+                  </>
+                )}
               </div>
             </>
           )}
