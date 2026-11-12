@@ -16,4 +16,5 @@ export const MatrixMetric = {
   clickRate: "clickRate",
   cvr: "cvr",
   cvCount: "cvCount",
+  optoutCount: "optoutCount",
 } as const;

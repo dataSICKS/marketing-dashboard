@@ -112,6 +112,12 @@ export const GetNewsletterDataResponse = zod.object({
       openCount: zod.number(),
       clickCount: zod.number(),
       cvCount: zod.number(),
+      optoutCount: zod
+        .number()
+        .nullish()
+        .describe(
+          "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+        ),
       openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
       clickRate: zod
         .number()
@@ -158,6 +164,12 @@ export const GetNewsletterDataResponse = zod.object({
             openCount: zod.number(),
             clickCount: zod.number(),
             cvCount: zod.number(),
+            optoutCount: zod
+              .number()
+              .nullish()
+              .describe(
+                "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+              ),
             openRate: zod
               .number()
               .describe("Open rate (openCount \/ deliveryCount)"),
@@ -209,6 +221,12 @@ export const GetNewsletterDataResponse = zod.object({
           openCount: zod.number(),
           clickCount: zod.number(),
           cvCount: zod.number(),
+          optoutCount: zod
+            .number()
+            .nullish()
+            .describe(
+              "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+            ),
           openRate: zod
             .number()
             .describe("Open rate (openCount \/ deliveryCount)"),
@@ -257,6 +275,12 @@ export const GetNewsletterDataResponse = zod.object({
     openCount: zod.number(),
     clickCount: zod.number(),
     cvCount: zod.number(),
+    optoutCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+      ),
     openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
     clickRate: zod
       .number()
@@ -477,6 +501,7 @@ export const GetNewsletterMatrixResponse = zod.object({
       "clickRate",
       "cvr",
       "cvCount",
+      "optoutCount",
     ]),
   ),
 });

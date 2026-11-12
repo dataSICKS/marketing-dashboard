@@ -11,7 +11,7 @@ test("default newsletter range includes today and the preceding 29 calendar days
 test("rates always use lines and counts always use bars across all newsletter charts", () => {
   for (const metric of CHART_METRICS) {
     assert.equal(newsletterSeriesUsesBars(metric.isRate),
-      ["deliveryCount", "openCount", "clickCount", "cvCount"].includes(metric.value));
+      ["deliveryCount", "openCount", "clickCount", "cvCount", "optoutCount"].includes(metric.value));
   }
 });
 
