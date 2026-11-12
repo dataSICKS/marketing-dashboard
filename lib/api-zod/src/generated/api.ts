@@ -471,6 +471,15 @@ export const GetLtvDataQueryParams = zod.object({
     .describe("Pipe-separated ad group names"),
 });
 
+export const getLtvDataResponseProductRatiosStageCountsMin = 4;
+export const getLtvDataResponseProductRatiosStageCountsMax = 4;
+
+export const getLtvDataResponseProductRatiosInitialItemStageCountsMin = 4;
+export const getLtvDataResponseProductRatiosInitialItemStageCountsMax = 4;
+
+export const getLtvDataResponseProductRatiosAllItemStageCountsMin = 4;
+export const getLtvDataResponseProductRatiosAllItemStageCountsMax = 4;
+
 export const GetLtvDataResponse = zod.object({
   splitBy: zod.enum([
     "none",
@@ -498,6 +507,61 @@ export const GetLtvDataResponse = zod.object({
       ltv365: zod.number(),
     }),
   ),
+  productRatios: zod
+    .object({
+      subscriptionCount: zod
+        .number()
+        .describe(
+          "Denominator for first-purchase composition, including unknown first-product labels",
+        ),
+      totalPurchaseCount: zod
+        .number()
+        .describe(
+          "Denominator for all-purchase composition; first purchases plus nonblank purchase records at stages 2–4",
+        ),
+      missingFirstProductCount: zod.number(),
+      stageCounts: zod
+        .array(zod.number())
+        .min(getLtvDataResponseProductRatiosStageCountsMin)
+        .max(getLtvDataResponseProductRatiosStageCountsMax),
+      initial: zod.array(
+        zod.object({
+          product: zod
+            .string()
+            .describe(
+              "Source product label; combinations are not split into individual SKUs",
+            ),
+          count: zod.number(),
+          ratio: zod
+            .number()
+            .describe("Count divided by the relevant total, on a 0–1 scale"),
+          stageCounts: zod
+            .array(zod.number())
+            .min(getLtvDataResponseProductRatiosInitialItemStageCountsMin)
+            .max(getLtvDataResponseProductRatiosInitialItemStageCountsMax)
+            .describe("Counts for first, second, third, and fourth purchases"),
+        }),
+      ),
+      all: zod.array(
+        zod.object({
+          product: zod
+            .string()
+            .describe(
+              "Source product label; combinations are not split into individual SKUs",
+            ),
+          count: zod.number(),
+          ratio: zod
+            .number()
+            .describe("Count divided by the relevant total, on a 0–1 scale"),
+          stageCounts: zod
+            .array(zod.number())
+            .min(getLtvDataResponseProductRatiosAllItemStageCountsMin)
+            .max(getLtvDataResponseProductRatiosAllItemStageCountsMax)
+            .describe("Counts for first, second, third, and fourth purchases"),
+        }),
+      ),
+    })
+    .optional(),
   segments: zod.array(zod.string()),
   summary: zod.object({
     count: zod.number(),

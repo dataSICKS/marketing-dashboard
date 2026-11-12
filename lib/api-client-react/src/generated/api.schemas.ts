@@ -134,6 +134,35 @@ export interface LtvSummary {
   ltv365: number;
 }
 
+export interface LtvProductRatioItem {
+  /** Source product label; combinations are not split into individual SKUs */
+  product: string;
+  count: number;
+  /** Count divided by the relevant total, on a 0–1 scale */
+  ratio: number;
+  /**
+   * Counts for first, second, third, and fourth purchases
+   * @minItems 4
+   * @maxItems 4
+   */
+  stageCounts: number[];
+}
+
+export interface LtvProductRatios {
+  /** Denominator for first-purchase composition, including unknown first-product labels */
+  subscriptionCount: number;
+  /** Denominator for all-purchase composition; first purchases plus nonblank purchase records at stages 2–4 */
+  totalPurchaseCount: number;
+  missingFirstProductCount: number;
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  stageCounts: number[];
+  initial: LtvProductRatioItem[];
+  all: LtvProductRatioItem[];
+}
+
 export type LtvDataResponseSplitBy =
   (typeof LtvDataResponseSplitBy)[keyof typeof LtvDataResponseSplitBy];
 
@@ -149,6 +178,7 @@ export const LtvDataResponseSplitBy = {
 export interface LtvDataResponse {
   splitBy: LtvDataResponseSplitBy;
   items: LtvMetrics[];
+  productRatios?: LtvProductRatios;
   segments: string[];
   summary: LtvSummary;
   subscriptionCount?: number;

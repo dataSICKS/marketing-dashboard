@@ -58,6 +58,8 @@ export * from "./ltvDataResponse";
 export * from "./ltvDataResponseSplitBy";
 export * from "./ltvFiltersResponse";
 export * from "./ltvMetrics";
+export * from "./ltvProductRatioItem";
+export * from "./ltvProductRatios";
 export * from "./ltvSummary";
 export * from "./ltvSyncResult";
 export * from "./matrixDimensionValues";

@@ -7,11 +7,13 @@
  */
 import type { LtvDataResponseSplitBy } from "./ltvDataResponseSplitBy";
 import type { LtvMetrics } from "./ltvMetrics";
+import type { LtvProductRatios } from "./ltvProductRatios";
 import type { LtvSummary } from "./ltvSummary";
 
 export interface LtvDataResponse {
   splitBy: LtvDataResponseSplitBy;
   items: LtvMetrics[];
+  productRatios?: LtvProductRatios;
   segments: string[];
   summary: LtvSummary;
   subscriptionCount?: number;

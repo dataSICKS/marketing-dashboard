@@ -1167,6 +1167,51 @@ components:
         - ltv180
         - ltv365
 
+    LtvProductRatioItem:
+      type: object
+      required: [product, count, ratio, stageCounts]
+      properties:
+        product:
+          type: string
+          description: Source product label; combinations are not split into individual SKUs
+        count:
+          type: integer
+        ratio:
+          type: number
+          description: Count divided by the relevant total, on a 0–1 scale
+        stageCounts:
+          type: array
+          items:
+            type: integer
+          minItems: 4
+          maxItems: 4
+          description: Counts for first, second, third, and fourth purchases
+    LtvProductRatios:
+      type: object
+      required: [subscriptionCount, totalPurchaseCount, missingFirstProductCount, stageCounts, initial, all]
+      properties:
+        subscriptionCount:
+          type: integer
+          description: Denominator for first-purchase composition, including unknown first-product labels
+        totalPurchaseCount:
+          type: integer
+          description: Denominator for all-purchase composition; first purchases plus nonblank purchase records at stages 2–4
+        missingFirstProductCount:
+          type: integer
+        stageCounts:
+          type: array
+          items:
+            type: integer
+          minItems: 4
+          maxItems: 4
+        initial:
+          type: array
+          items:
+            $ref: "#/components/schemas/LtvProductRatioItem"
+        all:
+          type: array
+          items:
+            $ref: "#/components/schemas/LtvProductRatioItem"
     LtvDataResponse:
       type: object
       properties:
@@ -1177,6 +1222,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LtvMetrics"
+        productRatios:
+          $ref: "#/components/schemas/LtvProductRatios"
         segments:
           type: array
           items:

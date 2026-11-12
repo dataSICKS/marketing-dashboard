@@ -14,6 +14,7 @@ import { RefreshCw, Info } from "lucide-react";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 import LtvSelect from "@/components/LtvSelect";
 import LtvTableBlocks from "@/components/LtvTableBlocks";
+import LtvProductRatios from "@/components/LtvProductRatios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber, formatDate } from "@/lib/format";
@@ -337,6 +338,8 @@ export default function LtvPage() {
                   </div>
                 )}
               </div>
+
+              <LtvProductRatios data={data?.productRatios} periodLabel={tablePeriodLabel} />
 
               {/* ── Table ── */}
               <Tabs value={tableTimeGroupBy} onValueChange={(value) => setTableTimeGroupBy(value as GetLtvDataTimeGroupBy)}

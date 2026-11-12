@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { calculateLtvProductRatios } from "./ltv-product-ratios.ts";
+import { filterLtvRows } from "./ltv-aggregate.ts";
+
+const row = (firstProduct, product2 = "", product3 = "", product4 = "") => ({
+  subsOrderCode: "sub", customerCode: "customer", firstOrderMonth: "2026-01-01",
+  firstProduct, product2, product3, product4, adGroupName: "広告A",
+  subsStatus: "継続中", offerName: "オファーA", sellingUrl: "",
+  ltv95: 100, ltv180: 200, ltv365: 300,
+});
+
+test("first and all purchase composition use distinct denominators and repeated records count once each", () => {
+  const result = calculateLtvProductRatios([
+    row("商品A", "商品B", "商品A"),
+    row("商品A", "商品A"),
+    row("商品B", "", "", "商品C"),
+  ]);
+  assert.equal(result.subscriptionCount, 3);
+  assert.deepEqual(result.stageCounts, [3, 2, 1, 1]);
+  assert.equal(result.totalPurchaseCount, 7);
+  assert.equal(result.initial.find((i) => i.product === "商品A").ratio, 2 / 3);
+  const a = result.all.find((i) => i.product === "商品A");
+  assert.equal(a.count, 4);
+  assert.equal(a.ratio, 4 / 7);
+  assert.deepEqual(a.stageCounts, [2, 1, 1, 0]);
+  assert.equal(result.all.reduce((sum, i) => sum + i.count, 0), 7);
+  assert.ok(Math.abs(result.all.reduce((sum, i) => sum + i.ratio, 0) - 1) < 1e-12);
+});
+
+test("unknown first labels are disclosed; blank repeats do not become purchases; combinations stay intact", () => {
+  const result = calculateLtvProductRatios([row(" ", " ", "商品A,商品B", ""), row(" 商品A ", "商品A")]);
+  assert.equal(result.missingFirstProductCount, 1);
+  assert.deepEqual(result.stageCounts, [2, 1, 1, 0]);
+  assert.equal(result.initial.find((i) => i.product === "未設定").count, 1);
+  assert.equal(result.all.find((i) => i.product === "商品A,商品B").count, 1);
+  assert.equal(result.all.find((i) => i.product === "商品A").count, 2);
+});
+
+test("composition follows date, product, offer, status, ad group, and opt-out filters", () => {
+  const matching = row("商品A", "商品B");
+  const rows = [
+    matching, { ...matching, firstOrderMonth: "2025-12-01" },
+    { ...matching, firstProduct: "別商品" }, { ...matching, offerName: "別オファー" },
+    { ...matching, subsStatus: "解約" }, { ...matching, adGroupName: "別広告" },
+    { ...matching, customerCode: "not-opted-out" },
+  ];
+  const filtered = filterLtvRows(rows, {
+    monthFrom: "2026-01-01", monthTo: "2026-01-01", firstProducts: ["商品A"],
+    offers: ["オファーA"], subsStatuses: ["継続中"], adGroups: ["広告A"], optout: "yes",
+  }, new Set(["customer"]));
+  const result = calculateLtvProductRatios(filtered);
+  assert.equal(result.subscriptionCount, 1);
+  assert.equal(result.totalPurchaseCount, 2);
+});
+
+test("empty data has no invented products or nonfinite rates", () => {
+  assert.deepEqual(calculateLtvProductRatios([]), {
+    subscriptionCount: 0, totalPurchaseCount: 0, missingFirstProductCount: 0,
+    stageCounts: [0, 0, 0, 0], initial: [], all: [],
+  });
+});

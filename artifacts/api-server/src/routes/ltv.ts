@@ -14,6 +14,7 @@ import {
   type LtvQuery,
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
+import { calculateLtvProductRatios } from "../lib/ltv-product-ratios.js";
 
 const router: IRouter = Router();
 
@@ -135,6 +136,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     res.json({
       splitBy: optoutAvailable ? splitBy : "none",
       items,
+      productRatios: calculateLtvProductRatios(filtered),
       segments,
       summary: summarizeLtv(filtered),
       subscriptionCount: filtered.length,
