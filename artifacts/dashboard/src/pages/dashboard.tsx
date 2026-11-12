@@ -1700,7 +1700,10 @@ export default function Dashboard() {
                     current={summary?.cvr} prev={showComparison ? summary?.prevCvr : undefined}
                   />
                   <KpiCard
-                    label="オプトアウト件数" value={formatNumber(optoutSummary?.optoutCount)} sub="件"
+                    label="オプトアウト件数"
+                    /* 未取得(undefined)を formatNumber が "0" にしてしまい、
+                       「本当に0件」なのか「取れていない」のか区別できなくなるため分ける。 */
+                    value={optoutSummary ? formatNumber(optoutSummary.optoutCount) : "—"} sub="件"
                     sub2={optoutData?.dataFrom ? `${optoutData.dataFrom.replace(/-/g, "/")} 以降が対象` : undefined}
                     testId="kpi-optout-count"
                     current={optoutSummary?.optoutCount}
