@@ -64,7 +64,7 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
           {isBrushCount && (
             <p>本数構成ごとの購入件数・構成比です（歯ブラシ総本数の比率ではありません）。スパイラル等を大人・こどもの本数には加算しません。本数不明は別区分です。</p>
           )}
-          {(isToothpaste || isBrushCount) && isAll && (
+          {isAll && (
             <p>各購入回の％はその回の記録件数を分母にします。右端の構成比は初回〜4回目の合計が分母です。2〜4回目の空欄は購入記録に数えません。</p>
           )}
           {!!data?.missingFirstProductCount && (
@@ -97,11 +97,9 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
                     {isAll && item.stageCounts.map((count, index) => (
                       <td key={index} className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-600">
                         {formatNumber(count)}
-                        {(isToothpaste || isBrushCount) && (
-                          <span className="mt-1 block text-[10px] text-amber-700">
-                            {data.stageCounts[index] > 0 ? `${(count / data.stageCounts[index] * 100).toFixed(1)}%` : "—"}
-                          </span>
-                        )}
+                        <span className="mt-1 block text-[10px] text-amber-700">
+                          {data.stageCounts[index] > 0 ? `${(count / data.stageCounts[index] * 100).toFixed(1)}%` : "—"}
+                        </span>
                       </td>
                     ))}
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatNumber(item.count)}</td>
@@ -113,7 +111,10 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
                 <tr>
                   <th scope="row" className="px-4 py-3 text-left md:px-6">合計</th>
                   {isAll && data.stageCounts.map((count, index) => (
-                    <td key={index} className="px-3 py-3 text-right tabular-nums">{formatNumber(count)}</td>
+                    <td key={index} className="px-3 py-3 text-right tabular-nums">
+                      {formatNumber(count)}
+                      <span className="mt-1 block text-[10px] text-amber-700">{count > 0 ? "100.0%" : "—"}</span>
+                    </td>
                   ))}
                   <td className="px-4 py-3 text-right tabular-nums">{formatNumber(total)}</td>
                   <td className="px-4 py-3 text-right tabular-nums md:px-6">100.0%</td>
