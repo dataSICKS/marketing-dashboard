@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateLtvProductRatios } from "./ltv-product-ratios.ts";
-import { filterLtvRows } from "./ltv-aggregate.ts";
+import { filterLtvRows, toothpasteStatus, TOOTHPASTE_LABELS } from "./ltv-aggregate.ts";
 
 const row = (firstProduct, product2 = "", product3 = "", product4 = "") => ({
   subsOrderCode: "sub", customerCode: "customer", firstOrderMonth: "2026-01-01",
@@ -59,4 +59,29 @@ test("empty data has no invented products or nonfinite rates", () => {
     subscriptionCount: 0, totalPurchaseCount: 0, missingFirstProductCount: 0,
     stageCounts: [0, 0, 0, 0], initial: [], all: [],
   });
+});
+
+test("toothpaste composition groups product labels per purchase without changing denominators", () => {
+  const rows = [
+    row("大人2本", "大人2本,歯磨き剤", "大人2本"),
+    row("歯磨き粉", "こども2本", "未設定", "歯みがき剤"),
+    row("", "", "", ""),
+  ];
+  const products = calculateLtvProductRatios(rows);
+  const result = calculateLtvProductRatios(rows, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
+  assert.deepEqual(result.stageCounts, products.stageCounts);
+  assert.equal(result.totalPurchaseCount, 8);
+  assert.equal(result.missingFirstProductCount, 1);
+  assert.deepEqual(result.all.find((i) => i.product === "歯磨き剤あり").stageCounts, [1, 1, 0, 1]);
+  assert.deepEqual(result.all.find((i) => i.product === "歯磨き剤なし").stageCounts, [1, 1, 1, 0]);
+  assert.deepEqual(result.all.find((i) => i.product === "不明（商品未記録）").stageCounts, [1, 0, 1, 0]);
+  assert.equal(result.initial.reduce((sum, i) => sum + i.count, 0), 3);
+  assert.equal(result.all.reduce((sum, i) => sum + i.count, 0), 8);
+  for (let stage = 0; stage < 4; stage++) {
+    assert.equal(result.all.reduce((sum, i) => sum + i.stageCounts[stage], 0), result.stageCounts[stage]);
+  }
+  const filtered = filterLtvRows(rows, { toothpaste2: "yes" }, new Set());
+  const segment = calculateLtvProductRatios(filtered, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
+  assert.equal(segment.subscriptionCount, 1);
+  assert.deepEqual(segment.all.find((i) => i.product === "歯磨き剤あり").stageCounts, [0, 1, 0, 0]);
 });

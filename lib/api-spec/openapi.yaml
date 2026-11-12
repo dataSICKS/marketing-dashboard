@@ -1216,7 +1216,7 @@ components:
           description: Counts for first, second, third, and fourth purchases
     LtvProductRatios:
       type: object
-      required: [subscriptionCount, totalPurchaseCount, missingFirstProductCount, stageCounts, initial, all]
+      required: [subscriptionCount, totalPurchaseCount, missingFirstProductCount, stageCounts, initial, all, toothpasteInitial, toothpasteAll]
       properties:
         subscriptionCount:
           type: integer
@@ -1238,6 +1238,16 @@ components:
             $ref: "#/components/schemas/LtvProductRatioItem"
         all:
           type: array
+          items:
+            $ref: "#/components/schemas/LtvProductRatioItem"
+        toothpasteInitial:
+          type: array
+          description: First purchases grouped by toothpaste presence, including unknown labels
+          items:
+            $ref: "#/components/schemas/LtvProductRatioItem"
+        toothpasteAll:
+          type: array
+          description: Purchases grouped independently at each stage by toothpaste presence; blank repeats excluded
           items:
             $ref: "#/components/schemas/LtvProductRatioItem"
     LtvDataResponse:

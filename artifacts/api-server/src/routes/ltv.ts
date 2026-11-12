@@ -13,6 +13,8 @@ import {
   type LtvSplitBy,
   type LtvQuery,
   TOOTHPASTE_FIELDS,
+  TOOTHPASTE_LABELS,
+  toothpasteStatus,
   type ToothpasteAxis,
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
@@ -145,11 +147,16 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     const effectiveSplitBy = !optoutAvailable && splitBy === "optout" ? "none" : splitBy;
     const items = aggregateLtv(filtered, effectiveSplitBy, optedOut, timeGroupBy);
     const segments = [...new Set(items.map((item) => item.segment))];
+    const toothpasteRatios = calculateLtvProductRatios(filtered, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
 
     res.json({
       splitBy: effectiveSplitBy,
       items,
-      productRatios: calculateLtvProductRatios(filtered),
+      productRatios: {
+        ...calculateLtvProductRatios(filtered),
+        toothpasteInitial: toothpasteRatios.initial,
+        toothpasteAll: toothpasteRatios.all,
+      },
       segments,
       summary: summarizeLtv(filtered),
       subscriptionCount: filtered.length,

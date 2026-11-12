@@ -20,4 +20,8 @@ export interface LtvProductRatios {
   stageCounts: number[];
   initial: LtvProductRatioItem[];
   all: LtvProductRatioItem[];
+  /** First purchases grouped by toothpaste presence, including unknown labels */
+  toothpasteInitial: LtvProductRatioItem[];
+  /** Purchases grouped independently at each stage by toothpaste presence; blank repeats excluded */
+  toothpasteAll: LtvProductRatioItem[];
 }

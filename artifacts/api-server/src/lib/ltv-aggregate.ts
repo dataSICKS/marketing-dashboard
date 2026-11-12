@@ -44,7 +44,7 @@ export const TOOTHPASTE_FIELDS = {
   toothpaste3: "product3",
   toothpaste4: "product4",
 } as const;
-const TOOTHPASTE_LABELS: Record<ToothpasteStatus, string> = {
+export const TOOTHPASTE_LABELS: Record<ToothpasteStatus, string> = {
   yes: "歯磨き剤あり",
   no: "歯磨き剤なし",
   unknown: "不明（商品未記録）",

@@ -7,7 +7,7 @@ const PRODUCT_FIELDS = ["firstProduct", "product2", "product3", "product4"] as c
  * Blank repeat fields are unrecorded, not proof of a completed purchase.
  * Preserve combination labels rather than guessing SKU boundaries or quantities.
  */
-export function calculateLtvProductRatios(rows: readonly LtvRow[]) {
+export function calculateLtvProductRatios(rows: readonly LtvRow[], groupLabel: (product: string) => string = (product) => product) {
   const initial = new Map<string, number[]>();
   const all = new Map<string, number[]>();
   const stageCounts = [0, 0, 0, 0];
@@ -21,6 +21,7 @@ export function calculateLtvProductRatios(rows: readonly LtvRow[]) {
         product = "未設定";
         missingFirstProductCount++;
       }
+      product = groupLabel(product);
       stageCounts[stage]++;
       const counts = all.get(product) ?? [0, 0, 0, 0];
       counts[stage]++;
