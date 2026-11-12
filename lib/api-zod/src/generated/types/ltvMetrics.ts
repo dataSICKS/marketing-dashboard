@@ -7,7 +7,7 @@
  */
 
 export interface LtvMetrics {
-  /** First-order month (YYYY/MM) */
+  /** First-order month (YYYY/MM), or 期間合算 when timeGroupBy is total */
   label: string;
   /** Breakdown value; the literal 全体 when splitBy is none */
   segment: string;

@@ -868,7 +868,7 @@ export const getGetLtvDataUrl = (params?: GetLtvDataParams) => {
 };
 
 /**
- * Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+ * Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
  * @summary Get LTV by first-order month
  */
 export const getLtvData = async (

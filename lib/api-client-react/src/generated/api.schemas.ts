@@ -115,7 +115,7 @@ export interface LtvFiltersResponse {
 }
 
 export interface LtvMetrics {
-  /** First-order month (YYYY/MM) */
+  /** First-order month (YYYY/MM), or 期間合算 when timeGroupBy is total */
   label: string;
   /** Breakdown value; the literal 全体 when splitBy is none */
   segment: string;
@@ -693,6 +693,10 @@ export type GetLtvDataParams = {
    */
   monthTo?: string | null;
   /**
+   * Month columns or a single total for the filtered first-order month range
+   */
+  timeGroupBy?: GetLtvDataTimeGroupBy;
+  /**
    * Breakdown axis
    */
   splitBy?: GetLtvDataSplitBy;
@@ -721,6 +725,14 @@ export type GetLtvDataParams = {
    */
   adGroups?: string | null;
 };
+
+export type GetLtvDataTimeGroupBy =
+  (typeof GetLtvDataTimeGroupBy)[keyof typeof GetLtvDataTimeGroupBy];
+
+export const GetLtvDataTimeGroupBy = {
+  month: "month",
+  total: "total",
+} as const;
 
 export type GetLtvDataSplitBy =
   (typeof GetLtvDataSplitBy)[keyof typeof GetLtvDataSplitBy];

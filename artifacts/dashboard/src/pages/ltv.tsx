@@ -6,7 +6,7 @@ import {
   useSyncLtv,
   getGetLtvDataQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvDataSplitBy, LtvMetrics } from "@workspace/api-client-react";
+import type { GetLtvDataSplitBy, GetLtvDataTimeGroupBy, LtvMetrics } from "@workspace/api-client-react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from "recharts";
@@ -15,6 +15,7 @@ import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 import LtvSelect from "@/components/LtvSelect";
 import LtvTableBlocks from "@/components/LtvTableBlocks";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber, formatDate } from "@/lib/format";
 
 const YELLOW = "#FBBF24";
@@ -81,6 +82,7 @@ export default function LtvPage() {
   const [monthTo, setMonthTo] = useState<string | undefined>(undefined);
   const [splitBy, setSplitBy] = useState<GetLtvDataSplitBy>("none");
   const [tableSplitBy, setTableSplitBy] = useState<GetLtvDataSplitBy>("firstProduct");
+  const [tableTimeGroupBy, setTableTimeGroupBy] = useState<GetLtvDataTimeGroupBy>("month");
   const [optout, setOptout] = useState<OptoutFilter>("all");
   const [offers, setOffers] = useState<string[]>([]);
   const [firstProducts, setFirstProducts] = useState<string[]>([]);
@@ -110,7 +112,7 @@ export default function LtvPage() {
     query: { queryKey: getGetLtvDataQueryKey(params) },
   });
   // Share all filters, but let the table's grouping change without changing the chart.
-  const tableParams = { ...params, splitBy: tableSplitBy };
+  const tableParams = { ...params, splitBy: tableSplitBy, timeGroupBy: tableTimeGroupBy };
   const { data: tableData, isLoading: tableLoading, isError: tableError } = useGetLtvData(tableParams, {
     query: { queryKey: getGetLtvDataQueryKey(tableParams) },
   });
@@ -128,6 +130,7 @@ export default function LtvPage() {
   const segments = data?.segments ?? [];
   const isSplit = (data?.splitBy ?? "none") !== "none";
   const months = monthOptions(filters?.monthMin, filters?.monthMax);
+  const tablePeriodLabel = `${monthFrom ? monthText(monthFrom) : data?.monthMin ?? "最初"} 〜 ${monthTo ? monthText(monthTo) : data?.monthMax ?? "最後"}`;
 
   /** 月ごとに1点へ畳む。内訳ありなら系列ごとのキーを持たせる。 */
   const chartData = useMemo(() => {
@@ -336,12 +339,19 @@ export default function LtvPage() {
               </div>
 
               {/* ── Table ── */}
-              <div className="bg-white rounded-xl overflow-hidden"
+              <Tabs value={tableTimeGroupBy} onValueChange={(value) => setTableTimeGroupBy(value as GetLtvDataTimeGroupBy)}
+                className="bg-white rounded-xl overflow-hidden"
                 style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
                 data-testid="card-ltv-table">
                 <div className="px-4 md:px-6 py-3 md:py-4 flex flex-wrap gap-3 items-center justify-between"
                   style={{ borderBottom: "1px solid #F3F4F6" }}>
-                  <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>初回購入月別</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>LTV詳細</span>
+                    <TabsList aria-label="表の集計方法">
+                      <TabsTrigger value="month" className="text-xs" data-testid="tab-ltv-month">月別</TabsTrigger>
+                      <TabsTrigger value="total" className="text-xs" data-testid="tab-ltv-total">指定期間の合算</TabsTrigger>
+                    </TabsList>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     表の内訳
                     <LtvSelect label="表のブロック分け" testId="select-table-split"
@@ -350,6 +360,13 @@ export default function LtvPage() {
                     <span className="text-[11px] text-gray-400">表のみ切り替え</span>
                   </div>
                 </div>
+                <TabsContent value={tableTimeGroupBy} className="mt-0">
+                  <div className="px-4 pt-4 text-xs leading-5 text-gray-500 md:px-6" data-testid="ltv-table-period">
+                    対象の初回購入月：{tablePeriodLabel}
+                    {tableTimeGroupBy === "total" && (
+                      <p>件数は指定期間の合計、LTVは期間内の定期購入全件から算出した平均です（月別平均の合計・単純平均ではありません）。</p>
+                    )}
+                  </div>
                 {tableLoading ? (
                   <div className="p-4 md:p-6"><Skeleton className="h-40 w-full" /></div>
                 ) : tableError ? (
@@ -362,10 +379,13 @@ export default function LtvPage() {
                       </p>
                     )}
                     <LtvTableBlocks items={tableData?.items ?? []}
+                      isTotal={tableTimeGroupBy === "total"}
+                      periodLabel={tablePeriodLabel}
                       splitLabel={SPLIT_OPTIONS.find((option) => option.value === tableData?.splitBy)?.label ?? "内訳"} />
                   </>
                 )}
-              </div>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </div>

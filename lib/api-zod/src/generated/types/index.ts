@@ -43,6 +43,7 @@ export * from "./getEfoFiltersParams";
 export * from "./getLtvDataOptout";
 export * from "./getLtvDataParams";
 export * from "./getLtvDataSplitBy";
+export * from "./getLtvDataTimeGroupBy";
 export * from "./getNewsletterChangeEventsParams";
 export * from "./getNewsletterDataGroupBy";
 export * from "./getNewsletterDataParams";

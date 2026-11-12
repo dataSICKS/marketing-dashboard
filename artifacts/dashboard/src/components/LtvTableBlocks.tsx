@@ -6,11 +6,13 @@ import { formatNumber } from "@/lib/format";
 interface Props {
   items: LtvMetrics[];
   splitLabel: string;
+  isTotal?: boolean;
+  periodLabel?: string;
 }
 
 const yen = (value: number) => `¥${formatNumber(Math.round(value))}`;
 
-export default function LtvTableBlocks({ items, splitLabel }: Props) {
+export default function LtvTableBlocks({ items, splitLabel, isTotal = false, periodLabel }: Props) {
   const { periods, blocks } = useMemo(() => pivotLtvTable(items), [items]);
 
   if (!blocks.length) {
@@ -27,16 +29,18 @@ export default function LtvTableBlocks({ items, splitLabel }: Props) {
               <span className="mr-2 text-xs font-normal text-gray-500">{splitLabel}</span>
               {segment}
             </h3>
-            <span className="text-xs text-gray-500">{periods.length}か月</span>
+            <span className="text-xs text-gray-500">{isTotal ? "指定期間の合算" : `${periods.length}か月`}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs" aria-label={`${segment}の月別LTV`}>
-              <caption className="sr-only">横に初回購入月、縦に件数とLTV指標を表示。データのない月は「—」。</caption>
+            <table className="w-full border-collapse text-xs" aria-label={`${segment}の${isTotal ? "期間合算" : "月別"}LTV`}>
+              <caption className="sr-only">横に{isTotal ? "対象期間" : "初回購入月"}、縦に件数とLTV指標を表示。データのない期間は「—」。</caption>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-gray-500">
-                  <th scope="col" className="sticky left-0 z-10 min-w-[110px] whitespace-nowrap bg-gray-50 px-4 py-2.5 text-left font-medium">項目 / 初回購入月</th>
+                  <th scope="col" className="sticky left-0 z-10 min-w-[110px] whitespace-nowrap bg-gray-50 px-4 py-2.5 text-left font-medium">項目 / {isTotal ? "対象期間" : "初回購入月"}</th>
                   {periods.map((period) => (
-                    <th key={period} scope="col" className="min-w-[100px] whitespace-nowrap px-4 py-2.5 text-right font-medium">{period}</th>
+                    <th key={period} scope="col" className="min-w-[100px] whitespace-nowrap px-4 py-2.5 text-right font-medium">
+                      {isTotal ? <>{period}<span className="ml-2 font-normal">{periodLabel}</span></> : period}
+                    </th>
                   ))}
                 </tr>
               </thead>

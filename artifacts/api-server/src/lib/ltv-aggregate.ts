@@ -2,6 +2,7 @@ import type { LtvRow } from "./ltv-types.js";
 
 /** 内訳の軸。`none` は全体1本（LTVレポートのシートと同じ形）。 */
 export type LtvSplitBy = "none" | "optout" | "offer" | "firstProduct" | "subsStatus" | "adGroup";
+export type LtvTimeGroupBy = "month" | "total";
 
 export interface LtvMetrics {
   /** 初回購入月（YYYY/MM） */
@@ -96,15 +97,16 @@ export function segmentOf(row: LtvRow, splitBy: LtvSplitBy, optedOut: Set<string
 const average = (total: number, count: number) => (count > 0 ? Math.round(total / count) : 0);
 
 /**
- * 初回購入月 × 内訳 で集計する。
+ * 初回購入月（または指定期間全体）× 内訳 で元の定期購入行から集計する。
  * 件数が0の月は行を作らない（シートのLTVレポートも実績のある月だけ並んでいる）。
  */
-export function aggregateLtv(rows: LtvRow[], splitBy: LtvSplitBy, optedOut: Set<string>): LtvMetrics[] {
+export function aggregateLtv(rows: LtvRow[], splitBy: LtvSplitBy, optedOut: Set<string>, timeGroupBy: LtvTimeGroupBy = "month"): LtvMetrics[] {
   const map = new Map<string, { label: string; segment: string; count: number; s95: number; s180: number; s365: number }>();
 
   for (const row of rows) {
-    const label = monthLabel(row.firstOrderMonth);
-    if (!label) continue;
+    const month = monthLabel(row.firstOrderMonth);
+    if (!month) continue;
+    const label = timeGroupBy === "total" ? "期間合算" : month;
     const segment = segmentOf(row, splitBy, optedOut);
     const key = `${label}|${segment}`;
     const entry = map.get(key) ?? { label, segment, count: 0, s95: 0, s180: 0, s365: 0 };

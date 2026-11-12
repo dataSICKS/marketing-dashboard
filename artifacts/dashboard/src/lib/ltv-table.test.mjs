@@ -57,3 +57,14 @@ test("pivot supports opt-out blocks, overall, and empty results", () => {
   assert.equal(pivotLtvTable([row("2026/01", "全体")]).blocks.length, 1);
   assert.deepEqual(pivotLtvTable([]), { periods: [], blocks: [] });
 });
+
+test("period totals remain a single column per product without averaging again", () => {
+  const result = pivotLtvTable([
+    { ...row("期間合算", "商品A", 4), ltv95: 250 },
+    { ...row("期間合算", "商品B", 2), ltv95: 100 },
+  ]);
+  assert.deepEqual(result.periods, ["期間合算"]);
+  assert.equal(result.blocks.length, 2);
+  assert.deepEqual(result.blocks[0].metrics[0].values, [4]);
+  assert.deepEqual(result.blocks[0].metrics[1].values, [250]);
+});

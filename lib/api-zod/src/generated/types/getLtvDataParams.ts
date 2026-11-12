@@ -7,6 +7,7 @@
  */
 import type { GetLtvDataOptout } from "./getLtvDataOptout";
 import type { GetLtvDataSplitBy } from "./getLtvDataSplitBy";
+import type { GetLtvDataTimeGroupBy } from "./getLtvDataTimeGroupBy";
 
 export type GetLtvDataParams = {
   /**
@@ -19,6 +20,10 @@ export type GetLtvDataParams = {
    * @nullable
    */
   monthTo?: string | null;
+  /**
+   * Month columns or a single total for the filtered first-order month range
+   */
+  timeGroupBy?: GetLtvDataTimeGroupBy;
   /**
    * Breakdown axis
    */

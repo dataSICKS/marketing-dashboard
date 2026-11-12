@@ -426,9 +426,10 @@ export const GetLtvFiltersResponse = zod.object({
 });
 
 /**
- * Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+ * Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
  * @summary Get LTV by first-order month
  */
+export const getLtvDataQueryTimeGroupByDefault = `month`;
 export const getLtvDataQuerySplitByDefault = `none`;
 export const getLtvDataQueryOptoutDefault = `all`;
 
@@ -441,6 +442,12 @@ export const GetLtvDataQueryParams = zod.object({
     .string()
     .nullish()
     .describe("First-order month upper bound (YYYY-MM-DD, month start)"),
+  timeGroupBy: zod
+    .enum(["month", "total"])
+    .default(getLtvDataQueryTimeGroupByDefault)
+    .describe(
+      "Month columns or a single total for the filtered first-order month range",
+    ),
   splitBy: zod
     .enum(["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup"])
     .default(getLtvDataQuerySplitByDefault)
@@ -475,7 +482,11 @@ export const GetLtvDataResponse = zod.object({
   ]),
   items: zod.array(
     zod.object({
-      label: zod.string().describe("First-order month (YYYY\/MM)"),
+      label: zod
+        .string()
+        .describe(
+          "First-order month (YYYY\/MM), or 期間合算 when timeGroupBy is total",
+        ),
       segment: zod
         .string()
         .describe("Breakdown value; the literal 全体 when splitBy is none"),

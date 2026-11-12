@@ -302,7 +302,7 @@ paths:
       operationId: getLtvData
       tags: [ltv]
       summary: Get LTV by first-order month
-      description: Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+      description: Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
       parameters:
         - name: monthFrom
           in: query
@@ -316,6 +316,14 @@ paths:
           schema:
             type: ["string", "null"]
           description: First-order month upper bound (YYYY-MM-DD, month start)
+        - name: timeGroupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [month, total]
+            default: month
+          description: Month columns or a single total for the filtered first-order month range
         - name: splitBy
           in: query
           required: false
@@ -1120,7 +1128,7 @@ components:
       properties:
         label:
           type: string
-          description: First-order month (YYYY/MM)
+          description: First-order month (YYYY/MM), or 期間合算 when timeGroupBy is total
         segment:
           type: string
           description: Breakdown value; the literal 全体 when splitBy is none

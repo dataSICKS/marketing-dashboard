@@ -97,6 +97,11 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       res.status(400).json({ error: "初回購入月の指定が不正です（YYYY-MM-DD）" });
       return;
     }
+    if (q.timeGroupBy && q.timeGroupBy !== "month" && q.timeGroupBy !== "total") {
+      res.status(400).json({ error: "集計方法は month または total を指定してください" });
+      return;
+    }
+    const timeGroupBy = q.timeGroupBy === "total" ? "total" : "month";
     const splitBy = (SPLIT_BY as string[]).includes(q.splitBy ?? "") ? (q.splitBy as LtvSplitBy) : "none";
     const optout = q.optout === "yes" || q.optout === "no" ? q.optout : "all";
 
@@ -124,7 +129,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
 
     const allMonths = rows.map((r) => r.firstOrderMonth).filter((v): v is string => !!v).sort();
     const filtered = filterLtvRows(rows, query, optedOut);
-    const items = aggregateLtv(filtered, optoutAvailable ? splitBy : "none", optedOut);
+    const items = aggregateLtv(filtered, optoutAvailable ? splitBy : "none", optedOut, timeGroupBy);
     const segments = [...new Set(items.map((item) => item.segment))];
 
     res.json({
