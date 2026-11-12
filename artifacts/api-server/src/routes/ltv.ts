@@ -12,13 +12,15 @@ import {
   monthLabel,
   type LtvSplitBy,
   type LtvQuery,
+  TOOTHPASTE_FIELDS,
+  type ToothpasteAxis,
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
 import { calculateLtvProductRatios } from "../lib/ltv-product-ratios.js";
 
 const router: IRouter = Router();
 
-const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup"];
+const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup", "toothpaste1", "toothpaste2", "toothpaste3", "toothpaste4"];
 
 /** Supabaseからの読み込みが同時に走らないようにする（57,000行超を二重に取りに行かないため）。 */
 let inFlight: Promise<{ rows: LtvRow[]; syncedAt: string | null }> | null = null;
@@ -103,6 +105,15 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       return;
     }
     const timeGroupBy = q.timeGroupBy === "total" ? "total" : "month";
+    const toothpasteFilters: Pick<LtvQuery, ToothpasteAxis> = {};
+    for (const axis of Object.keys(TOOTHPASTE_FIELDS) as ToothpasteAxis[]) {
+      const value = q[axis];
+      if (value && !["all", "yes", "no", "unknown"].includes(value)) {
+        res.status(400).json({ error: "歯磨き剤の絞り込みは all / yes / no / unknown を指定してください" });
+        return;
+      }
+      toothpasteFilters[axis] = (value || "all") as LtvQuery[ToothpasteAxis];
+    }
     const splitBy = (SPLIT_BY as string[]).includes(q.splitBy ?? "") ? (q.splitBy as LtvSplitBy) : "none";
     const optout = q.optout === "yes" || q.optout === "no" ? q.optout : "all";
 
@@ -119,6 +130,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     }
 
     const query: LtvQuery = {
+      ...toothpasteFilters,
       monthFrom: q.monthFrom,
       monthTo: q.monthTo,
       offers: splitList(q.offers),
@@ -130,11 +142,12 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
 
     const allMonths = rows.map((r) => r.firstOrderMonth).filter((v): v is string => !!v).sort();
     const filtered = filterLtvRows(rows, query, optedOut);
-    const items = aggregateLtv(filtered, optoutAvailable ? splitBy : "none", optedOut, timeGroupBy);
+    const effectiveSplitBy = !optoutAvailable && splitBy === "optout" ? "none" : splitBy;
+    const items = aggregateLtv(filtered, effectiveSplitBy, optedOut, timeGroupBy);
     const segments = [...new Set(items.map((item) => item.segment))];
 
     res.json({
-      splitBy: optoutAvailable ? splitBy : "none",
+      splitBy: effectiveSplitBy,
       items,
       productRatios: calculateLtvProductRatios(filtered),
       segments,

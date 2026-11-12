@@ -6,7 +6,7 @@ import {
   useSyncLtv,
   getGetLtvDataQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvDataSplitBy, GetLtvDataTimeGroupBy, LtvMetrics } from "@workspace/api-client-react";
+import type { GetLtvDataSplitBy, GetLtvDataTimeGroupBy, GetLtvDataToothpaste1, LtvMetrics } from "@workspace/api-client-react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from "recharts";
@@ -46,7 +46,27 @@ const SPLIT_OPTIONS: { value: GetLtvDataSplitBy; label: string }[] = [
   { value: "firstProduct", label: "初回商品" },
   { value: "subsStatus", label: "サブスク状態" },
   { value: "adGroup", label: "広告グループ" },
+  { value: "toothpaste1", label: "初回：歯磨き剤有無" },
+  { value: "toothpaste2", label: "2回目：歯磨き剤有無" },
+  { value: "toothpaste3", label: "3回目：歯磨き剤有無" },
+  { value: "toothpaste4", label: "4回目：歯磨き剤有無" },
 ];
+
+const TOOTHPASTE_STAGES = [
+  { key: "toothpaste1", label: "初回" },
+  { key: "toothpaste2", label: "2回目" },
+  { key: "toothpaste3", label: "3回目" },
+  { key: "toothpaste4", label: "4回目" },
+] as const;
+const TOOTHPASTE_OPTIONS: { value: GetLtvDataToothpaste1; label: string }[] = [
+  { value: "all", label: "すべて" },
+  { value: "yes", label: "歯磨き剤あり" },
+  { value: "no", label: "歯磨き剤なし" },
+  { value: "unknown", label: "不明（商品未記録）" },
+];
+const DEFAULT_TOOTHPASTE_FILTERS = {
+  toothpaste1: "all", toothpaste2: "all", toothpaste3: "all", toothpaste4: "all",
+} as const;
 
 const OPTOUT_OPTIONS = [
   { value: "all", label: "すべて" },
@@ -85,6 +105,9 @@ export default function LtvPage() {
   const [tableSplitBy, setTableSplitBy] = useState<GetLtvDataSplitBy>("firstProduct");
   const [tableTimeGroupBy, setTableTimeGroupBy] = useState<GetLtvDataTimeGroupBy>("month");
   const [optout, setOptout] = useState<OptoutFilter>("all");
+  const [toothpasteFilters, setToothpasteFilters] = useState<
+    Record<typeof TOOTHPASTE_STAGES[number]["key"], GetLtvDataToothpaste1>
+  >(DEFAULT_TOOTHPASTE_FILTERS);
   const [offers, setOffers] = useState<string[]>([]);
   const [firstProducts, setFirstProducts] = useState<string[]>([]);
   const [subsStatuses, setSubsStatuses] = useState<string[]>([]);
@@ -100,6 +123,7 @@ export default function LtvPage() {
     : "候補がありません";
 
   const params = {
+    ...toothpasteFilters,
     monthFrom,
     monthTo,
     splitBy,
@@ -234,6 +258,31 @@ export default function LtvPage() {
               広告グループ
               <div className="w-40"><MultiSelectCombobox options={filters?.adGroups ?? []} selected={adGroups} onChange={setAdGroups} emptyMessage={comboEmptyMessage} /></div>
             </div>
+            <div className="mt-1 flex w-full flex-wrap items-center gap-3 border-t border-gray-100 pt-3 text-xs text-gray-500"
+              data-testid="toothpaste-segment-controls">
+              <span className="font-medium text-gray-700">歯磨き剤セグメント</span>
+              {TOOTHPASTE_STAGES.map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span>{label}</span>
+                  <LtvSelect label={`${label}の歯磨き剤で絞り込み`} testId={`select-${key}`}
+                    value={toothpasteFilters[key]}
+                    onValueChange={(value) => setToothpasteFilters((current) => ({ ...current, [key]: value as GetLtvDataToothpaste1 }))}
+                    options={TOOTHPASTE_OPTIONS} />
+                </div>
+              ))}
+              {Object.values(toothpasteFilters).some((value) => value !== "all") && (
+                <button type="button" className="text-amber-700 underline"
+                  onClick={() => setToothpasteFilters(DEFAULT_TOOTHPASTE_FILTERS)}
+                  data-testid="clear-toothpaste-segments">歯磨き剤条件を解除</button>
+              )}
+              <p className="w-full text-[11px] leading-5 text-gray-400">
+                各購入回の商品名に「歯磨き剤」「歯磨き粉」等を含むかで個別に判定します。空欄・未設定・未購入は「不明」で、「なし」には含めません。
+                複数回の条件はすべて満たす定期を対象にします。例：初回「なし」かつ2回目「あり」。
+              </p>
+              <p className="w-full text-[11px] leading-5 text-gray-400">
+                グラフ・表の「内訳」からも購入回別の歯磨き剤有無を選択できます。LTVは、その区分に属する定期全体の値です。
+              </p>
+            </div>
           </div>
 
           {/* ── Notes ── */}
@@ -248,7 +297,7 @@ export default function LtvPage() {
               LTVは売上ではなく<strong>利益</strong>の合計で、<strong>定期1件あたりの平均</strong>です（対象はFB広告経由・2024年6月以降の発送完了分）。
               {immatureFrom && <> <strong>{immatureFrom}</strong> より後に初回購入した月は、まだ365日経っていないぶんLTV365が小さく出ます。</>}
               {data?.optoutAvailable === false
-                ? " オプトアウトのデータが取得できないため、内訳と絞り込みは無効です。"
+                ? " オプトアウトのデータが取得できないため、オプトアウトの内訳・絞り込みのみ無効です。他の内訳は利用できます。"
                 : <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>しかないため、それ以前に初回購入した定期は実際に解除していても「オプトアウトなし」に入ります。</>}
             </div>
           </div>

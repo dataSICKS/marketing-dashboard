@@ -329,9 +329,37 @@ paths:
           required: false
           schema:
             type: string
-            enum: [none, optout, offer, firstProduct, subsStatus, adGroup]
+            enum: [none, optout, offer, firstProduct, subsStatus, adGroup, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
             default: none
           description: Breakdown axis
+        - name: toothpaste1
+          in: query
+          schema:
+            type: string
+            enum: [all, yes, no, unknown]
+            default: all
+          description: First-purchase toothpaste label; missing product data is unknown, not no
+        - name: toothpaste2
+          in: query
+          schema:
+            type: string
+            enum: [all, yes, no, unknown]
+            default: all
+          description: Second-purchase toothpaste label
+        - name: toothpaste3
+          in: query
+          schema:
+            type: string
+            enum: [all, yes, no, unknown]
+            default: all
+          description: Third-purchase toothpaste label
+        - name: toothpaste4
+          in: query
+          schema:
+            type: string
+            enum: [all, yes, no, unknown]
+            default: all
+          description: Fourth-purchase toothpaste label; filters across stages are combined with AND
         - name: optout
           in: query
           required: false
@@ -1217,7 +1245,7 @@ components:
       properties:
         splitBy:
           type: string
-          enum: [none, optout, offer, firstProduct, subsStatus, adGroup]
+          enum: [none, optout, offer, firstProduct, subsStatus, adGroup, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
         items:
           type: array
           items:

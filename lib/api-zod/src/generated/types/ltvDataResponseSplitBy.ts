@@ -16,4 +16,8 @@ export const LtvDataResponseSplitBy = {
   firstProduct: "firstProduct",
   subsStatus: "subsStatus",
   adGroup: "adGroup",
+  toothpaste1: "toothpaste1",
+  toothpaste2: "toothpaste2",
+  toothpaste3: "toothpaste3",
+  toothpaste4: "toothpaste4",
 } as const;

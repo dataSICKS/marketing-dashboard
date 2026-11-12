@@ -173,6 +173,10 @@ export const LtvDataResponseSplitBy = {
   firstProduct: "firstProduct",
   subsStatus: "subsStatus",
   adGroup: "adGroup",
+  toothpaste1: "toothpaste1",
+  toothpaste2: "toothpaste2",
+  toothpaste3: "toothpaste3",
+  toothpaste4: "toothpaste4",
 } as const;
 
 export interface LtvDataResponse {
@@ -731,6 +735,22 @@ export type GetLtvDataParams = {
    */
   splitBy?: GetLtvDataSplitBy;
   /**
+   * First-purchase toothpaste label; missing product data is unknown, not no
+   */
+  toothpaste1?: GetLtvDataToothpaste1;
+  /**
+   * Second-purchase toothpaste label
+   */
+  toothpaste2?: GetLtvDataToothpaste2;
+  /**
+   * Third-purchase toothpaste label
+   */
+  toothpaste3?: GetLtvDataToothpaste3;
+  /**
+   * Fourth-purchase toothpaste label; filters across stages are combined with AND
+   */
+  toothpaste4?: GetLtvDataToothpaste4;
+  /**
    * Restrict to customers who did or did not opt out
    */
   optout?: GetLtvDataOptout;
@@ -774,6 +794,50 @@ export const GetLtvDataSplitBy = {
   firstProduct: "firstProduct",
   subsStatus: "subsStatus",
   adGroup: "adGroup",
+  toothpaste1: "toothpaste1",
+  toothpaste2: "toothpaste2",
+  toothpaste3: "toothpaste3",
+  toothpaste4: "toothpaste4",
+} as const;
+
+export type GetLtvDataToothpaste1 =
+  (typeof GetLtvDataToothpaste1)[keyof typeof GetLtvDataToothpaste1];
+
+export const GetLtvDataToothpaste1 = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+  unknown: "unknown",
+} as const;
+
+export type GetLtvDataToothpaste2 =
+  (typeof GetLtvDataToothpaste2)[keyof typeof GetLtvDataToothpaste2];
+
+export const GetLtvDataToothpaste2 = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+  unknown: "unknown",
+} as const;
+
+export type GetLtvDataToothpaste3 =
+  (typeof GetLtvDataToothpaste3)[keyof typeof GetLtvDataToothpaste3];
+
+export const GetLtvDataToothpaste3 = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+  unknown: "unknown",
+} as const;
+
+export type GetLtvDataToothpaste4 =
+  (typeof GetLtvDataToothpaste4)[keyof typeof GetLtvDataToothpaste4];
+
+export const GetLtvDataToothpaste4 = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+  unknown: "unknown",
 } as const;
 
 export type GetLtvDataOptout =

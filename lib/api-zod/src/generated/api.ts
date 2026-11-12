@@ -431,6 +431,10 @@ export const GetLtvFiltersResponse = zod.object({
  */
 export const getLtvDataQueryTimeGroupByDefault = `month`;
 export const getLtvDataQuerySplitByDefault = `none`;
+export const getLtvDataQueryToothpaste1Default = `all`;
+export const getLtvDataQueryToothpaste2Default = `all`;
+export const getLtvDataQueryToothpaste3Default = `all`;
+export const getLtvDataQueryToothpaste4Default = `all`;
 export const getLtvDataQueryOptoutDefault = `all`;
 
 export const GetLtvDataQueryParams = zod.object({
@@ -449,9 +453,40 @@ export const GetLtvDataQueryParams = zod.object({
       "Month columns or a single total for the filtered first-order month range",
     ),
   splitBy: zod
-    .enum(["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup"])
+    .enum([
+      "none",
+      "optout",
+      "offer",
+      "firstProduct",
+      "subsStatus",
+      "adGroup",
+      "toothpaste1",
+      "toothpaste2",
+      "toothpaste3",
+      "toothpaste4",
+    ])
     .default(getLtvDataQuerySplitByDefault)
     .describe("Breakdown axis"),
+  toothpaste1: zod
+    .enum(["all", "yes", "no", "unknown"])
+    .default(getLtvDataQueryToothpaste1Default)
+    .describe(
+      "First-purchase toothpaste label; missing product data is unknown, not no",
+    ),
+  toothpaste2: zod
+    .enum(["all", "yes", "no", "unknown"])
+    .default(getLtvDataQueryToothpaste2Default)
+    .describe("Second-purchase toothpaste label"),
+  toothpaste3: zod
+    .enum(["all", "yes", "no", "unknown"])
+    .default(getLtvDataQueryToothpaste3Default)
+    .describe("Third-purchase toothpaste label"),
+  toothpaste4: zod
+    .enum(["all", "yes", "no", "unknown"])
+    .default(getLtvDataQueryToothpaste4Default)
+    .describe(
+      "Fourth-purchase toothpaste label; filters across stages are combined with AND",
+    ),
   optout: zod
     .enum(["all", "yes", "no"])
     .default(getLtvDataQueryOptoutDefault)
@@ -488,6 +523,10 @@ export const GetLtvDataResponse = zod.object({
     "firstProduct",
     "subsStatus",
     "adGroup",
+    "toothpaste1",
+    "toothpaste2",
+    "toothpaste3",
+    "toothpaste4",
   ]),
   items: zod.array(
     zod.object({

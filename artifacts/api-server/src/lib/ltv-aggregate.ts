@@ -1,7 +1,9 @@
 import type { LtvRow } from "./ltv-types.js";
 
 /** 内訳の軸。`none` は全体1本（LTVレポートのシートと同じ形）。 */
-export type LtvSplitBy = "none" | "optout" | "offer" | "firstProduct" | "subsStatus" | "adGroup";
+export type ToothpasteAxis = "toothpaste1" | "toothpaste2" | "toothpaste3" | "toothpaste4";
+export type ToothpasteStatus = "yes" | "no" | "unknown";
+export type LtvSplitBy = "none" | "optout" | "offer" | "firstProduct" | "subsStatus" | "adGroup" | ToothpasteAxis;
 export type LtvTimeGroupBy = "month" | "total";
 
 export interface LtvMetrics {
@@ -36,6 +38,26 @@ export const OPTOUT_NO = "オプトアウトなし";
 export const OVERALL = "全体";
 const UNSET = "未設定";
 
+export const TOOTHPASTE_FIELDS = {
+  toothpaste1: "firstProduct",
+  toothpaste2: "product2",
+  toothpaste3: "product3",
+  toothpaste4: "product4",
+} as const;
+const TOOTHPASTE_LABELS: Record<ToothpasteStatus, string> = {
+  yes: "歯磨き剤あり",
+  no: "歯磨き剤なし",
+  unknown: "不明（商品未記録）",
+};
+
+/** Classify each purchase independently; missing or placeholder labels are not evidence of absence. */
+export function toothpasteStatus(product: string | null | undefined): ToothpasteStatus {
+  const label = (product ?? "").normalize("NFKC").trim();
+  if (!label || /^[,、\s|;]+$/.test(label) ||
+    /^(未設定|不明|未記録|未購入|未到達|なし|null|n\/a|[-—ー]+)$/i.test(label)) return "unknown";
+  return /歯磨き剤|歯磨き粉|歯みがき剤|歯みがき粉|ハミガキ剤|ハミガキ粉|toothpaste/i.test(label) ? "yes" : "no";
+}
+
 /** `2024-06-01` → `2024/06`。LTVレポートのシートは `2024/06/01` 表記だが、月粒度なので年月までに揃える。 */
 export function monthLabel(isoDate: string | null): string | null {
   if (!isoDate) return null;
@@ -53,6 +75,10 @@ export interface LtvQuery {
   adGroups?: string[];
   /** `yes` = オプトアウトした顧客のみ / `no` = していない顧客のみ */
   optout?: "all" | "yes" | "no";
+  toothpaste1?: "all" | ToothpasteStatus;
+  toothpaste2?: "all" | ToothpasteStatus;
+  toothpaste3?: "all" | ToothpasteStatus;
+  toothpaste4?: "all" | ToothpasteStatus;
 }
 
 /**
@@ -73,6 +99,10 @@ export function filterLtvRows(rows: LtvRow[], query: LtvQuery, optedOut: Set<str
     if (has(query.firstProducts) && !query.firstProducts!.includes(row.firstProduct || UNSET)) return false;
     if (has(query.subsStatuses) && !query.subsStatuses!.includes(row.subsStatus || UNSET)) return false;
     if (has(query.adGroups) && !query.adGroups!.includes(row.adGroupName || UNSET)) return false;
+    for (const axis of Object.keys(TOOTHPASTE_FIELDS) as ToothpasteAxis[]) {
+      const expected = query[axis];
+      if (expected && expected !== "all" && toothpasteStatus(row[TOOTHPASTE_FIELDS[axis]]) !== expected) return false;
+    }
     if (query.optout && query.optout !== "all") {
       const isOut = optedOut.has(row.customerCode);
       if (query.optout === "yes" && !isOut) return false;
@@ -89,6 +119,11 @@ export function segmentOf(row: LtvRow, splitBy: LtvSplitBy, optedOut: Set<string
     case "firstProduct": return row.firstProduct || UNSET;
     case "subsStatus": return row.subsStatus || UNSET;
     case "adGroup": return row.adGroupName || UNSET;
+    case "toothpaste1":
+    case "toothpaste2":
+    case "toothpaste3":
+    case "toothpaste4":
+      return TOOTHPASTE_LABELS[toothpasteStatus(row[TOOTHPASTE_FIELDS[splitBy]])];
     default: return OVERALL;
   }
 }

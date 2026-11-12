@@ -8,6 +8,10 @@
 import type { GetLtvDataOptout } from "./getLtvDataOptout";
 import type { GetLtvDataSplitBy } from "./getLtvDataSplitBy";
 import type { GetLtvDataTimeGroupBy } from "./getLtvDataTimeGroupBy";
+import type { GetLtvDataToothpaste1 } from "./getLtvDataToothpaste1";
+import type { GetLtvDataToothpaste2 } from "./getLtvDataToothpaste2";
+import type { GetLtvDataToothpaste3 } from "./getLtvDataToothpaste3";
+import type { GetLtvDataToothpaste4 } from "./getLtvDataToothpaste4";
 
 export type GetLtvDataParams = {
   /**
@@ -28,6 +32,22 @@ export type GetLtvDataParams = {
    * Breakdown axis
    */
   splitBy?: GetLtvDataSplitBy;
+  /**
+   * First-purchase toothpaste label; missing product data is unknown, not no
+   */
+  toothpaste1?: GetLtvDataToothpaste1;
+  /**
+   * Second-purchase toothpaste label
+   */
+  toothpaste2?: GetLtvDataToothpaste2;
+  /**
+   * Third-purchase toothpaste label
+   */
+  toothpaste3?: GetLtvDataToothpaste3;
+  /**
+   * Fourth-purchase toothpaste label; filters across stages are combined with AND
+   */
+  toothpaste4?: GetLtvDataToothpaste4;
   /**
    * Restrict to customers who did or did not opt out
    */
