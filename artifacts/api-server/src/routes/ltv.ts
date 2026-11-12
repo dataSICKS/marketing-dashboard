@@ -19,24 +19,35 @@ const router: IRouter = Router();
 
 const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup"];
 
-/** キャッシュ → Supabase → スプレッドシート の順にフォールバックする。 */
+/** Supabaseからの読み込みが同時に走らないようにする（57,000行超を二重に取りに行かないため）。 */
+let inFlight: Promise<{ rows: LtvRow[]; syncedAt: string | null }> | null = null;
+
+/**
+ * キャッシュ → Supabase。**GET の中でスプレッドシートからの取り込みはしない**。
+ * 5万行超の取り込みは数十秒かかり、画面を開いただけで走るとタイムアウトして
+ * 「一部の月しか出ない」「絞り込みの候補が空」といった中途半端な表示になるため、
+ * 取り込みは明示的に `POST /ltv/sync` でだけ行う。
+ */
 async function getLtvRows(req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: LtvRow[]; syncedAt: string | null }> {
-  let cached = getLtvCache();
-  if (!cached) {
-    const { rows: supabaseRows, syncedAt: supabaseSyncedAt } = await fetchLtvFromSupabase();
-    if (supabaseRows.length > 0 && supabaseSyncedAt) {
-      setLtvCache(supabaseRows, supabaseSyncedAt);
-      cached = { rows: supabaseRows, syncedAt: supabaseSyncedAt };
-    } else {
-      req.log.info("LTV table empty, fetching from Google Sheets");
-      const rows = await fetchLtvSheet();
-      const syncedAt = new Date().toISOString();
-      if (rows.length > 0) await upsertLtvRows(rows, syncedAt);
+  const cached = getLtvCache();
+  if (cached) return cached;
+  if (inFlight) return inFlight;
+
+  inFlight = (async () => {
+    const { rows, syncedAt } = await fetchLtvFromSupabase();
+    if (rows.length > 0 && syncedAt) {
       setLtvCache(rows, syncedAt);
-      cached = { rows, syncedAt };
+      return { rows, syncedAt };
     }
+    req.log.info("LTV table is empty; waiting for an explicit /ltv/sync");
+    return { rows: [] as LtvRow[], syncedAt: null };
+  })();
+
+  try {
+    return await inFlight;
+  } finally {
+    inFlight = null;
   }
-  return cached;
 }
 
 /** `a|b|c` → `["a","b","c"]`。商品名にカンマが入るのでパイプ区切りにしている。 */
@@ -70,6 +81,7 @@ router.get("/ltv/filters", async (req, res): Promise<void> => {
       ...collectFilters(rows),
       monthMin: months[0] ?? null,
       monthMax: months.at(-1) ?? null,
+      rowCount: rows.length,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch LTV filters");
@@ -110,6 +122,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       optout: optoutAvailable ? optout : "all",
     };
 
+    const allMonths = rows.map((r) => r.firstOrderMonth).filter((v): v is string => !!v).sort();
     const filtered = filterLtvRows(rows, query, optedOut);
     const items = aggregateLtv(filtered, optoutAvailable ? splitBy : "none", optedOut);
     const segments = [...new Set(items.map((item) => item.segment))];
@@ -127,7 +140,10 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       optoutAvailable,
       // オプトアウトは2025-12-31以降しか無い。それ以前の月は「なし」に寄るので注記に使う。
       optoutDataFrom: "2025-12-31",
-      monthMin: monthLabel(rows.map((r) => r.firstOrderMonth).filter((v): v is string => !!v).sort()[0] ?? null),
+      monthMin: monthLabel(allMonths[0] ?? null),
+      monthMax: monthLabel(allMonths.at(-1) ?? null),
+      // 絞り込み前の取り込み総件数。画面に出して「取り込めていない」のか「絞り込みで消えた」のかを分かるようにする。
+      loadedRowCount: rows.length,
       lastSyncedAt: syncedAt,
     });
   } catch (err) {

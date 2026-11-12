@@ -1106,6 +1106,9 @@ components:
           type: ["string", "null"]
         monthMax:
           type: ["string", "null"]
+        rowCount:
+          type: number
+          description: Number of rows currently loaded (0 means the table has not been synced yet)
       required:
         - offers
         - firstProducts
@@ -1187,6 +1190,11 @@ components:
           type: string
         monthMin:
           type: ["string", "null"]
+        monthMax:
+          type: ["string", "null"]
+        loadedRowCount:
+          type: number
+          description: Rows loaded before filtering; 0 means the table has not been synced yet
         lastSyncedAt:
           type: ["string", "null"]
       required:

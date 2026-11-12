@@ -85,7 +85,13 @@ export default function LtvPage() {
   const [adGroups, setAdGroups] = useState<string[]>([]);
   const [segmentMetric, setSegmentMetric] = useState<LtvMetricKey>("ltv180");
 
-  const { data: filters } = useGetLtvFilters();
+  const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters();
+
+  /** 候補が空のとき、読み込み中・取得失敗・未取り込みを黙って同じ見た目にしない。 */
+  const comboEmptyMessage = filtersLoading ? "読み込み中..."
+    : filtersError ? "絞り込み候補を取得できませんでした"
+    : (filters?.rowCount ?? 0) === 0 ? "まだ取り込まれていません（右上の「スプレッドシートから更新」）"
+    : "候補がありません";
 
   const params = {
     monthFrom,
@@ -212,26 +218,31 @@ export default function LtvPage() {
 
             <div className="flex items-center gap-2 text-xs text-gray-500">
               オファー
-              <div className="w-48"><MultiSelectCombobox options={filters?.offers ?? []} selected={offers} onChange={setOffers} /></div>
+              <div className="w-48"><MultiSelectCombobox options={filters?.offers ?? []} selected={offers} onChange={setOffers} emptyMessage={comboEmptyMessage} /></div>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               初回商品
-              <div className="w-48"><MultiSelectCombobox options={filters?.firstProducts ?? []} selected={firstProducts} onChange={setFirstProducts} /></div>
+              <div className="w-48"><MultiSelectCombobox options={filters?.firstProducts ?? []} selected={firstProducts} onChange={setFirstProducts} emptyMessage={comboEmptyMessage} /></div>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               サブスク状態
-              <div className="w-40"><MultiSelectCombobox options={filters?.subsStatuses ?? []} selected={subsStatuses} onChange={setSubsStatuses} /></div>
+              <div className="w-40"><MultiSelectCombobox options={filters?.subsStatuses ?? []} selected={subsStatuses} onChange={setSubsStatuses} emptyMessage={comboEmptyMessage} /></div>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               広告グループ
-              <div className="w-40"><MultiSelectCombobox options={filters?.adGroups ?? []} selected={adGroups} onChange={setAdGroups} /></div>
+              <div className="w-40"><MultiSelectCombobox options={filters?.adGroups ?? []} selected={adGroups} onChange={setAdGroups} emptyMessage={comboEmptyMessage} /></div>
             </div>
           </div>
 
           {/* ── Notes ── */}
           <div className="flex items-start gap-2 text-[11px] leading-5" style={{ color: "#9CA3AF" }}>
             <Info size={13} className="mt-0.5 shrink-0" />
-            <div>
+            <div data-testid="ltv-notes">
+              <span style={{ color: "#6B7280" }}>
+                取り込み済み <strong>{formatNumber(data?.loadedRowCount)}</strong> 件
+                {data?.monthMin && data?.monthMax && <>（初回購入月 {data.monthMin} 〜 {data.monthMax}）</>}
+              </span>
+              <br />
               LTVは売上ではなく<strong>利益</strong>の合計で、<strong>定期1件あたりの平均</strong>です（対象はFB広告経由・2024年6月以降の発送完了分）。
               {immatureFrom && <> <strong>{immatureFrom}</strong> より後に初回購入した月は、まだ365日経っていないぶんLTV365が小さく出ます。</>}
               {data?.optoutAvailable === false
@@ -240,7 +251,13 @@ export default function LtvPage() {
             </div>
           </div>
 
-          {isError ? (
+          {!isLoading && !isError && (data?.loadedRowCount ?? 0) === 0 ? (
+            <div className="bg-white rounded-xl p-10 text-center text-sm" style={{ border: "1px solid #EBEBEB", color: "#6B7280" }}
+              data-testid="ltv-needs-sync">
+              LTVデータがまだ取り込まれていません。<br />
+              右上の「スプレッドシートから更新」を押してください（5万行超あるため数分かかります）。
+            </div>
+          ) : isError ? (
             <div className="bg-white rounded-xl p-10 text-center text-sm text-red-500" role="alert"
               style={{ border: "1px solid #EBEBEB" }}>
               LTVデータの取得に失敗しました。
