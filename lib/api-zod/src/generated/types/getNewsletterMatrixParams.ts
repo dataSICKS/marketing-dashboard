@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GetNewsletterMatrixIncludeOptout } from "./getNewsletterMatrixIncludeOptout";
 import type { GetNewsletterMatrixTimeGroupBy } from "./getNewsletterMatrixTimeGroupBy";
 
 export type GetNewsletterMatrixParams = {
@@ -22,6 +23,10 @@ export type GetNewsletterMatrixParams = {
    * Comma-separated metrics
    */
   metrics?: string;
+  /**
+   * 指定すると「オプトアウト（全体）」専用系列を 1 行追加する。オプトアウトはシナリオ/テンプレートに紐づかないため metrics では指定できない
+   */
+  includeOptout?: GetNewsletterMatrixIncludeOptout;
   /**
    * Pipe-separated scenario names
    */

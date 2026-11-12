@@ -96,6 +96,72 @@ export interface NewsletterOptoutResponse {
   lastSyncedAt?: string | null;
 }
 
+export interface LtvSyncResult {
+  rowCount: number;
+  syncedAt: string;
+}
+
+export interface LtvFiltersResponse {
+  offers: string[];
+  firstProducts: string[];
+  subsStatuses: string[];
+  adGroups: string[];
+  /** @nullable */
+  monthMin?: string | null;
+  /** @nullable */
+  monthMax?: string | null;
+}
+
+export interface LtvMetrics {
+  /** First-order month (YYYY/MM) */
+  label: string;
+  /** Breakdown value; the literal 全体 when splitBy is none */
+  segment: string;
+  /** Number of subscriptions */
+  count: number;
+  /** Average profit per subscription within 95 days */
+  ltv95: number;
+  ltv180: number;
+  ltv365: number;
+}
+
+export interface LtvSummary {
+  count: number;
+  ltv95: number;
+  ltv180: number;
+  ltv365: number;
+}
+
+export type LtvDataResponseSplitBy =
+  (typeof LtvDataResponseSplitBy)[keyof typeof LtvDataResponseSplitBy];
+
+export const LtvDataResponseSplitBy = {
+  none: "none",
+  optout: "optout",
+  offer: "offer",
+  firstProduct: "firstProduct",
+  subsStatus: "subsStatus",
+  adGroup: "adGroup",
+} as const;
+
+export interface LtvDataResponse {
+  splitBy: LtvDataResponseSplitBy;
+  items: LtvMetrics[];
+  segments: string[];
+  summary: LtvSummary;
+  subscriptionCount?: number;
+  customerCount?: number;
+  /** Months after this one (YYYY/MM) cannot have a full 365-day window yet */
+  matured365Through?: string;
+  matured180Through?: string;
+  optoutAvailable?: boolean;
+  optoutDataFrom?: string;
+  /** @nullable */
+  monthMin?: string | null;
+  /** @nullable */
+  lastSyncedAt?: string | null;
+}
+
 export interface NewsletterMetrics {
   /** Group label (date, week, month, or template name) */
   label: string;
@@ -177,6 +243,9 @@ export interface NewsletterTemplatesResponse {
   templates: string[];
 }
 
+/**
+ * optoutCount は metrics では指定できず（includeOptout を使う）、オプトアウト行の metricValues のキーとしてだけ現れる
+ */
 export type MatrixMetric = (typeof MatrixMetric)[keyof typeof MatrixMetric];
 
 export const MatrixMetric = {
@@ -606,6 +675,68 @@ export const GetNewsletterOptoutGroupBy = {
   month: "month",
 } as const;
 
+export type GetLtvDataParams = {
+  /**
+   * First-order month lower bound (YYYY-MM-DD, month start)
+   * @nullable
+   */
+  monthFrom?: string | null;
+  /**
+   * First-order month upper bound (YYYY-MM-DD, month start)
+   * @nullable
+   */
+  monthTo?: string | null;
+  /**
+   * Breakdown axis
+   */
+  splitBy?: GetLtvDataSplitBy;
+  /**
+   * Restrict to customers who did or did not opt out
+   */
+  optout?: GetLtvDataOptout;
+  /**
+   * Pipe-separated offer names
+   * @nullable
+   */
+  offers?: string | null;
+  /**
+   * Pipe-separated first-purchase product labels
+   * @nullable
+   */
+  firstProducts?: string | null;
+  /**
+   * Pipe-separated subscription statuses
+   * @nullable
+   */
+  subsStatuses?: string | null;
+  /**
+   * Pipe-separated ad group names
+   * @nullable
+   */
+  adGroups?: string | null;
+};
+
+export type GetLtvDataSplitBy =
+  (typeof GetLtvDataSplitBy)[keyof typeof GetLtvDataSplitBy];
+
+export const GetLtvDataSplitBy = {
+  none: "none",
+  optout: "optout",
+  offer: "offer",
+  firstProduct: "firstProduct",
+  subsStatus: "subsStatus",
+  adGroup: "adGroup",
+} as const;
+
+export type GetLtvDataOptout =
+  (typeof GetLtvDataOptout)[keyof typeof GetLtvDataOptout];
+
+export const GetLtvDataOptout = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+} as const;
+
 export type GetNewsletterMatrixParams = {
   /**
    * Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total
@@ -621,6 +752,10 @@ export type GetNewsletterMatrixParams = {
    * Comma-separated metrics
    */
   metrics?: string;
+  /**
+   * 指定すると「オプトアウト（全体）」専用系列を 1 行追加する。オプトアウトはシナリオ/テンプレートに紐づかないため metrics では指定できない
+   */
+  includeOptout?: GetNewsletterMatrixIncludeOptout;
   /**
    * Pipe-separated scenario names
    */
@@ -640,6 +775,13 @@ export const GetNewsletterMatrixTimeGroupBy = {
   day: "day",
   week: "week",
   month: "month",
+} as const;
+
+export type GetNewsletterMatrixIncludeOptout =
+  (typeof GetNewsletterMatrixIncludeOptout)[keyof typeof GetNewsletterMatrixIncludeOptout];
+
+export const GetNewsletterMatrixIncludeOptout = {
+  true: "true",
 } as const;
 
 export type GetClarityFilesParams = {

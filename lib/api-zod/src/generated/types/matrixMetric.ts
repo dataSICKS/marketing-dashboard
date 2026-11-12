@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * optoutCount は metrics では指定できず（includeOptout を使う）、オプトアウト行の metricValues のキーとしてだけ現れる
+ */
 export type MatrixMetric = (typeof MatrixMetric)[keyof typeof MatrixMetric];
 
 export const MatrixMetric = {
