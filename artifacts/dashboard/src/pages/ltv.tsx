@@ -235,6 +235,15 @@ export default function LtvPage() {
                 options={SPLIT_OPTIONS} />
             </div>
 
+            {splitBy !== "none" && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                表示するLTV
+                <LtvSelect label="セグメント別に表示するLTV" testId="select-segment-metric"
+                  value={segmentMetric} onValueChange={(value) => setSegmentMetric(value as LtvMetricKey)}
+                  options={LTV_METRICS} />
+              </div>
+            )}
+
             <div className="flex items-center gap-2 text-xs text-gray-500">
               オプトアウト
               <LtvSelect label="オプトアウトでの絞り込み" testId="select-optout"
@@ -334,17 +343,9 @@ export default function LtvPage() {
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>初回購入月別のLTV</div>
                     <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-                      棒＝平均LTV（左軸） / 折れ線＝定期件数（右軸）
+                      棒＝平均{isSplit ? LTV_METRICS.find((metric) => metric.value === segmentMetric)?.label : "LTV"}（左軸） / 折れ線＝定期件数（右軸）
                     </div>
                   </div>
-                  {isSplit && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      棒に出す指標
-                      <LtvSelect label="棒グラフに出す指標" testId="select-segment-metric"
-                        value={segmentMetric} onValueChange={(value) => setSegmentMetric(value as LtvMetricKey)}
-                        options={LTV_METRICS} />
-                    </div>
-                  )}
                 </div>
                 {chartData.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
