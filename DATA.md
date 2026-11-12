@@ -56,6 +56,32 @@
 ダッシュボードでは期間合計の KPI と期間別推移のみを出す。データは 2025/12/31 以降しか無い
 （BQ 側のクエリが `imported_date >= 2026-01-01` 起点で、そこから1日引いた日付を採用しているため）。
 
+### `ltv_subscriptions`（定期購入ごとの購入商品と LTV）
+
+FB広告経由の定期購入1件＝1行。出典は Google Sheet `10wmBYd-oWJOMkKCtmu98SeHu5ulV6o02tYd_eqZsf_8`
+（LTV集計-Sicks共有）の **`RAW_定期ID別購入商品_LTV95_180_365`** タブ。
+同スプシの `定期ID別購入商品_LTV95_180_365`（BigQuery直結の Connected Sheet）は値取得APIで読めないため、
+その値コピーであるこの RAW タブを正とする。**列はヘッダー名で引く**（位置ではない）。
+
+ユニークキー: `subs_order_code`。顧客は複数の定期を持ちうるので**顧客単位ではない**。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| subs_order_code | text | 定期購入番号（PK） |
+| customer_code | text | 顧客番号。`newsletter_optouts.customer_code` と突き合わせる |
+| first_order_month | date | 初回購入月（月初日に正規化） |
+| first_product | text | 初回購入の商品ラベル |
+| ad_group_name | text | 広告グループ名 |
+| subs_status | text | サブスク状態 |
+| product_2 / product_3 / product_4 | text | 2〜4回目の商品ラベル |
+| ltv95 / ltv180 / ltv365 | numeric | 初回購入日から95/180/365日以内の利益合計 |
+| selling_url | text | 販売URL |
+| offer_name | text | オファー名（1〜4回目の組み合わせの呼び名） |
+| synced_at | timestamptz | 同期時刻 |
+
+元データは BigQuery `gcp-abema-ecf-oral` で、**`ad_url_group_name LIKE '%FB広告%'` かつ 2024-06-01 以降**の
+`発送完了` 受注のみ。LTV は売上ではなく **`v_profit.total_profit`（利益）の合計**である点に注意。
+
 ### `efo_access_cv`（EFO アクセス/CV）
 
 ユニークキー: `date, ad_code, profile_name`。
@@ -169,6 +195,7 @@ Clarity スクロール深度:
 |---|---|---|---|
 | newsletter_rows | Google Sheet `1zITxm8...` `calc` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期。読み出しはキャッシュ優先 |
 | newsletter_optouts | Google Sheet `1zITxm8...` `20260101以降のオプトアウトリスト` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期 |
+| ltv_subscriptions | Google Sheet `10wmBYd...` `RAW_定期ID別購入商品_LTV95_180_365` | API（cache→Supabase→Sheets）+ 手動 `/ltv/sync` | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
 | clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 11:30**（cron、前日分。2026-10-14に07:30から変更） |
@@ -204,6 +231,42 @@ select to_char(optout_date, 'YYYY/MM') as ym, count(*) as optouts
 from newsletter_optouts
 group by 1
 order by 1 desc;
+
+-- ltv_subscriptions の作成（service_role キーでは DDL を実行できないため SQL Editor で手動実行）
+create table if not exists ltv_subscriptions (
+  subs_order_code   text        primary key,
+  customer_code     text        not null,
+  first_order_month date,
+  first_product     text,
+  ad_group_name     text,
+  subs_status       text,
+  product_2         text,
+  product_3         text,
+  product_4         text,
+  ltv95             numeric     not null default 0,
+  ltv180            numeric     not null default 0,
+  ltv365            numeric     not null default 0,
+  selling_url       text,
+  offer_name        text,
+  synced_at         timestamptz not null default now()
+);
+create index if not exists ltv_subscriptions_customer_idx
+  on ltv_subscriptions (customer_code);
+create index if not exists ltv_subscriptions_month_idx
+  on ltv_subscriptions (first_order_month);
+create index if not exists ltv_subscriptions_offer_idx
+  on ltv_subscriptions (offer_name);
+
+-- 初回購入月 × オプトアウト有無 の平均LTV180
+select to_char(l.first_order_month, 'YYYY/MM') as ym,
+       (o.customer_code is not null)           as opted_out,
+       count(*)                                as subs,
+       round(avg(l.ltv180), 0)                 as avg_ltv180
+from ltv_subscriptions l
+left join (select distinct customer_code from newsletter_optouts) o
+  on o.customer_code = l.customer_code
+group by 1, 2
+order by 1 desc, 2;
 
 -- ECforce 広告 URL 別の直近アクセス/CV
 select ad_url, ad_date, access_count, cv_count
