@@ -324,7 +324,8 @@ export function computeMatrixData(
     }));
   }
 
-  if (metrics.includes("optoutCount") && optoutByPeriod) {
+  // optoutByPeriod が渡されたときだけオプトアウト行を足す（指標選択とは独立）。
+  if (optoutByPeriod) {
     const values: Record<string, number> = {};
     for (const [period, count] of Object.entries(optoutByPeriod)) {
       // 配信が1件も無い期間でもオプトアウトは発生するので、列（期間）側も足しておく。

@@ -84,8 +84,9 @@ marketing-dashboard/
 - `newsletter-sheets.ts` — Replit Connectors 経由で Sheet `1zITxm8...` の `calc!A2:L` を取得しパース。
 - `newsletter-supabase.ts` — `newsletter_rows` へ 500 件バッチ upsert（ユニークキーで重複除去・後勝ち）/ 全件 fetch。
 - `newsletter-aggregate.ts` — day/week/month/scenario/template 集計、比較(before/after)マージ、マトリクス生成。
-  `MatrixMetric` に `optoutCount` を含むが、**配信行からは計算できない**。各系列では埋めず、
-  `computeMatrixData` の `optoutByPeriod` 引数から `OPTOUT_SERIES_KEY`（`オプトアウト（全体）`）という専用系列を1本足す。
+  `MatrixMetric` に `optoutCount` を含むが、**配信行からは計算できず `metrics` では指定できない**。
+  `computeMatrixData` に `optoutByPeriod` が渡されたときだけ `OPTOUT_SERIES_KEY`（`オプトアウト（全体）`）という
+  専用系列を1本足す。ルート側のスイッチは `metrics` ではなく `includeOptout=true`。
 - `newsletter-optout-sheets.ts` — Sheet `1zITxm8...` の `20260101以降のオプトアウトリスト!A2:B` を取得。`YYYY/MM/DD`→ISOへ正規化し、日付か顧客番号が欠けた行は捨てる。
 - `newsletter-optout-supabase.ts` — `newsletter_optouts` へ 500 件バッチ upsert（`optout_date,customer_code` で重複除去）/ 全件 fetch。
 - `newsletter-optout-aggregate.ts` — day/week/month 集計と期間比較マージ。**期間ラベルの流儀が2つあるので混同しない**。

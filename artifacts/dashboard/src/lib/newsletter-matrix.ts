@@ -21,6 +21,19 @@ export function matrixDimensionColumns(dimensions: MatrixDimension[]) {
 export const matrixIdentityWidth = (dimensions: MatrixDimension[]) =>
   matrixDimensionColumns(dimensions).reduce((sum, column) => sum + column.width, 0);
 
+/**
+ * サーバ側 newsletter-aggregate.ts の OPTOUT_SERIES_KEY と同じ文字列。
+ * オプトアウトはシナリオ/テンプレートに紐づかないので「指標」としては扱わず、
+ * この専用系列を1行足すかどうかで管理する。
+ */
+export const OPTOUT_SERIES_KEY = "オプトアウト（全体）";
+export const OPTOUT_METRIC = "optoutCount";
+export const isOptoutSeries = (series: Pick<Series, "key">) => series.key === OPTOUT_SERIES_KEY;
+
+/** オプトアウト行はオプトアウト数だけを持つ。他の系列は選択中の指標をそのまま並べる。 */
+export const seriesMetrics = (series: Pick<Series, "key">, selected: string[]) =>
+  isOptoutSeries(series) ? [OPTOUT_METRIC] : selected;
+
 /** Include type as scenarios and templates can share both name and subject. */
 export const matrixSeriesId = (series: Pick<Series, "type" | "key" | "subject" | "groupKey">) =>
   series.groupKey ?? JSON.stringify([series.type, series.key, series.subject]);

@@ -52,7 +52,7 @@ import DateRangePicker, { type DateRange } from "@/components/DateRangePicker";
 import NewsletterMatrixColumns from "@/components/NewsletterMatrixColumns";
 import NewsletterMatrixIdentity from "@/components/NewsletterMatrixIdentity";
 import { buildNewsletterPeriodChart } from "@/lib/newsletter-period-chart";
-import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
+import { matrixSeriesId, matrixSeriesLabel, matrixMetricKey, mergeMatrixSeries, matrixIdentityWidth, seriesMetrics, OPTOUT_METRIC, MATRIX_DIMENSIONS, DEFAULT_MATRIX_DIMENSIONS, type MatrixDimension } from "@/lib/newsletter-matrix";
 import { timePeriod, focusRange, formatChartRate, formatChartValueLabel, formatNewsletterPercent as formatPercent, formatNewsletterDecimal, recentNewsletterDateRange, newsletterSeriesUsesBars, CHART_METRICS, type ChartMetric } from "@/lib/newsletter-chart";
 
 type GroupBy = GetNewsletterDataGroupBy;
@@ -88,6 +88,7 @@ interface Preset {
   matrixMetrics?: string[];
   matrixMetricLayout?: "rows" | "columns";
   matrixShowChart?: boolean;
+  matrixShowOptoutRow?: boolean;
   matrixDimensions?: MatrixDimension[];
   focusPeriods?: number | "all";
   dateFrom?: string;
@@ -768,6 +769,8 @@ function MatrixView({
   setMetricLayout,
   showChart,
   setShowChart,
+  showOptoutRow,
+  setShowOptoutRow,
   dimensions,
   onDimensionsChange,
 }: {
@@ -789,13 +792,15 @@ function MatrixView({
   setMetricLayout: (layout: "rows" | "columns") => void;
   showChart: boolean;
   setShowChart: React.Dispatch<React.SetStateAction<boolean>>;
+  showOptoutRow: boolean;
+  setShowOptoutRow: React.Dispatch<React.SetStateAction<boolean>>;
   dimensions: MatrixDimension[];
   onDimensionsChange: (dimensions: MatrixDimension[]) => void;
 }) {
-  // オプトアウトはシナリオ/テンプレに紐づかない全体指標なので、選択が無くても単独で描画できる。
-  const hasOptoutMetric = selectedMetrics.includes("optoutCount");
-  const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0 || hasOptoutMetric;
-  const hasMetrics = selectedMetrics.length > 0;
+  // オプトアウトは専用の1行。シナリオ/テンプレ未選択でも、この行だけなら描画できる。
+  const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0 || showOptoutRow;
+  // 指標を1つも選ばずオプトアウト行だけ見る使い方も許す。
+  const hasMetrics = selectedMetrics.length > 0 || showOptoutRow;
   const isCompare = compareMode === "change" && !!selectedCampaign;
   const splitDate = selectedCampaign?.startDate ?? null;
   const identityWidth = matrixIdentityWidth(dimensions);
@@ -804,6 +809,7 @@ function MatrixView({
     timeGroupBy,
     anchorDate: isCompare ? selectedCampaign?.startDate : undefined,
     metrics: selectedMetrics.join(","),
+    includeOptout: showOptoutRow ? ("true" as const) : undefined,
     dimensions: dimensions.join(","),
     scenarios: selectedScenarios.join("|"),
     templates: selectedTemplates.join("|"),
@@ -855,7 +861,8 @@ function MatrixView({
 
   const scenarioOpts = availableScenarios.map((s) => ({ value: s, label: s }));
   const templateOpts = availableTemplates.map((t) => ({ value: t, label: t }));
-  const metricOpts = MATRIX_METRICS.map((m) => ({ value: m.value, label: m.label }));
+  // オプトアウトは指標ではなく「行を足すかどうか」で管理するので、指標の選択肢には出さない。
+  const metricOpts = MATRIX_METRICS.filter((m) => m.value !== OPTOUT_METRIC).map((m) => ({ value: m.value, label: m.label }));
 
   return (
     <div className="flex flex-col gap-4 md:gap-5">
@@ -892,6 +899,14 @@ function MatrixView({
           className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
           {showChart ? "グラフを非表示" : "グラフを表示"}
         </button>
+        <button type="button" aria-pressed={showOptoutRow}
+          onClick={() => setShowOptoutRow((shown) => !shown)}
+          title="オプトアウトはシナリオ・テンプレートに紐づかないため、全体の1行として足し引きします"
+          className={`rounded-lg border px-3 py-2 text-xs font-medium ${showOptoutRow
+            ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
+          {showOptoutRow ? "オプトアウト行を外す" : "オプトアウト行を足す"}
+        </button>
         <div role="group" aria-label="指標の配置" className="ml-auto flex items-center gap-1 rounded-lg bg-gray-100 p-1 text-xs">
           {([{ value: "rows", label: "指標を行に表示" }, { value: "columns", label: "指標を列に表示" }] as const).map((layout) => (
             <button key={layout.value} type="button" aria-pressed={metricLayout === layout.value}
@@ -906,7 +921,7 @@ function MatrixView({
       {!hasSelections ? (
         <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
           style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
-          シナリオまたはテンプレを選択してください（オプトアウト数は選択なしでも表示できます）
+          シナリオまたはテンプレを選択してください（「オプトアウト行を足す」だけでも表示できます）
         </div>
       ) : !hasMetrics ? (
         <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
@@ -947,10 +962,12 @@ function MatrixView({
           {/* ── Merged chart (all series × metrics) ── */}
           {showChart && (() => {
             const LINE_DASHES = ["", "5 5", "2 4", "8 3 2 3", "1 3"];
-            const hasRate = selectedMetrics.some(
+            // オプトアウト行の分も含めた指標集合で左右軸を決める（件数なのに率側の軸に乗るのを防ぐ）。
+            const chartMetricKeys = showOptoutRow ? [...selectedMetrics, OPTOUT_METRIC] : selectedMetrics;
+            const hasRate = chartMetricKeys.some(
               (mk) => MATRIX_METRICS.find((m) => m.value === mk)?.isRate
             );
-            const hasCount = selectedMetrics.some(
+            const hasCount = chartMetricKeys.some(
               (mk) => !MATRIX_METRICS.find((m) => m.value === mk)?.isRate
             );
             const isMixed = hasRate && hasCount;
@@ -962,7 +979,7 @@ function MatrixView({
             const mergedChartData = timePeriods.map((period) => {
               const pt: Record<string, string | number | null> = { period };
               for (const s of series) {
-                for (const mk of selectedMetrics) {
+                for (const mk of seriesMetrics(s, selectedMetrics)) {
                   pt[matrixMetricKey(s, mk)] = s.metricValues[mk as keyof typeof s.metricValues]?.[period] ?? null;
                 }
               }
@@ -995,7 +1012,7 @@ function MatrixView({
                         }}
                       />
                       {series.flatMap((s, si) =>
-                        selectedMetrics.map((mk, mi) => {
+                        seriesMetrics(s, selectedMetrics).map((mk, mi) => {
                           const key = matrixMetricKey(s, mk);
                           const name = `${matrixSeriesLabel(s)} / ${MATRIX_METRICS.find((m) => m.value === mk)?.label ?? mk}`;
                           const color = SERIES_COLORS[si % SERIES_COLORS.length];
@@ -1031,7 +1048,7 @@ function MatrixView({
                 {/* chart legend */}
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 pt-3" style={{ borderTop: "1px solid #F3F4F6" }}>
                   {series.flatMap((s, si) =>
-                    selectedMetrics.map((mk, mi) => {
+                    seriesMetrics(s, selectedMetrics).map((mk, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === mk) ?? MATRIX_METRICS[0];
                       return (
                         <div key={matrixMetricKey(s, mk)} className="flex items-center gap-1.5 text-xs" style={{ color: "#374151" }}>
@@ -1069,7 +1086,8 @@ function MatrixView({
             </div>
             <div className="overflow-x-auto">
               {metricLayout === "columns" ? (
-                <NewsletterMatrixColumns series={series} periods={timePeriods} metrics={selectedMetrics} dimensions={dimensions}
+                <NewsletterMatrixColumns series={series} periods={timePeriods}
+                  metrics={showOptoutRow ? [...selectedMetrics, OPTOUT_METRIC] : selectedMetrics} dimensions={dimensions}
                   splitPeriod={isCompare && splitDate ? timePeriod(splitDate, timeGroupBy, splitDate) : undefined} />
               ) : (
               <table className="text-xs border-collapse" style={{ width: "max-content", minWidth: "100%" }}>
@@ -1116,8 +1134,9 @@ function MatrixView({
                   </tr>
                 </thead>
                 <tbody>
-                  {series.flatMap((s, si) =>
-                    selectedMetrics.map((metricKey, mi) => {
+                  {series.flatMap((s, si) => {
+                    const rowMetrics = seriesMetrics(s, selectedMetrics);
+                    return rowMetrics.map((metricKey, mi) => {
                       const mDef = MATRIX_METRICS.find((m) => m.value === metricKey) ?? MATRIX_METRICS[0];
                       const vals      = s.metricValues[metricKey as keyof typeof s.metricValues] ?? {};
                       const afterVals = vals as Record<string, number>;
@@ -1138,7 +1157,7 @@ function MatrixView({
                       return (
                         <tr key={`${matrixSeriesId(s)}-${metricKey}`} style={{ borderTop: rowBorderTop, background: rowBg }}>
                           {isFirstMetric && (
-                            <NewsletterMatrixIdentity dimensions={dimensions} series={s} rowSpan={selectedMetrics.length} background={rowBg} />
+                            <NewsletterMatrixIdentity dimensions={dimensions} series={s} rowSpan={rowMetrics.length} background={rowBg} />
                           )}
                           <td className="px-3 py-2 whitespace-nowrap"
                             style={{ position: "sticky", left: identityWidth, zIndex: 2, background: rowBg, color: "#6B7280", borderRight: isCompare ? "2px solid #E5E7EB" : "1px solid #F3F4F6" }}>
@@ -1178,8 +1197,8 @@ function MatrixView({
                           )}
                         </tr>
                       );
-                    })
-                  )}
+                    });
+                  })}
                 </tbody>
               </table>
               )}
@@ -1215,6 +1234,7 @@ export default function Dashboard() {
   const [matrixMetrics, setMatrixMetrics] = useState<string[]>(["deliveryCount"]);
   const [matrixMetricLayout, setMatrixMetricLayout] = useState<"rows" | "columns">("rows");
   const [matrixShowChart, setMatrixShowChart] = useState(true);
+  const [matrixShowOptoutRow, setMatrixShowOptoutRow] = useState(false);
   const [matrixDimensions, setMatrixDimensions] = useState<MatrixDimension[]>(DEFAULT_MATRIX_DIMENSIONS);
   const { data: campaignsData } = useListCampaigns();
   const { data: templatesData } = useGetNewsletterTemplates();
@@ -1226,9 +1246,14 @@ export default function Dashboard() {
   const requestFrom = [dateRange?.from.replace(/\//g, "-"), focusBounds?.from].filter((s): s is string => !!s).sort().at(-1);
   const requestTo = [dateRange?.to.replace(/\//g, "-"), focusBounds?.to].filter((s): s is string => !!s).sort()[0];
   const effectiveDateRange = requestFrom && requestTo ? { from: requestFrom, to: requestTo } : dateRange;
-  const visibleMetrics = CHART_METRICS.filter((metric) => chartMetric === "default"
+  // Campaign mode is a timeline aligned to its start date, independent of category tabs.
+  const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" || ["day", "week", "month"].includes(groupBy) ? timeGroupBy : groupBy;
+  // オプトアウトは日別/週別/月別でしか期間ラベルを揃えられない（シナリオ別・テンプレ別には内訳が無い）。
+  const optoutMetricAvailable = ["day", "week", "month"].includes(effectiveGroupBy);
+  const activeChartMetric = chartMetric === OPTOUT_METRIC && !optoutMetricAvailable ? "default" : chartMetric;
+  const visibleMetrics = CHART_METRICS.filter((metric) => activeChartMetric === "default"
     ? (groupBy === "day" ? metric.value === "deliveryCount" : ["deliveryCount", "openRate", "clickRate"].includes(metric.value))
-    : metric.value === chartMetric);
+    : metric.value === activeChartMetric);
   const hasCountMetric = visibleMetrics.some((metric) => !metric.isRate);
   const hasRateMetric = visibleMetrics.some((metric) => metric.isRate);
 
@@ -1248,8 +1273,6 @@ export default function Dashboard() {
     }
   }, [compareMode]);
 
-  // Campaign mode is a timeline aligned to its start date, independent of category tabs.
-  const effectiveGroupBy: GroupBy = compareMode === "change" || groupBy === "matrix" || ["day", "week", "month"].includes(groupBy) ? timeGroupBy : groupBy;
   // Follow the selected tab even when comparison forces daily aggregation.
   const activeTabValue: TabMode = groupBy;
 
@@ -1399,9 +1422,11 @@ export default function Dashboard() {
     setGroupBy(p.groupBy);
     setTabGranularities((current) => ({ ...current, [p.groupBy]: p.timeGroupBy ?? (p.groupBy === "matrix" ? "month" : p.groupBy === "week" ? "week" : p.groupBy === "month" ? "month" : "day") }));
     setChartMetric(p.chartMetric ?? "default");
-    setMatrixMetrics(p.matrixMetrics?.filter((key) => CHART_METRICS.some((metric) => metric.value === key)) ?? ["deliveryCount"]);
+    // オプトアウトは指標ではなく行トグルに移したので、旧プリセットの値は落とす。
+    setMatrixMetrics(p.matrixMetrics?.filter((key) => key !== OPTOUT_METRIC && CHART_METRICS.some((metric) => metric.value === key)) ?? ["deliveryCount"]);
     setMatrixMetricLayout(p.matrixMetricLayout ?? "rows");
     setMatrixShowChart(p.matrixShowChart ?? true);
+    setMatrixShowOptoutRow(p.matrixShowOptoutRow ?? false);
     setMatrixDimensions(p.matrixDimensions?.filter((value) => MATRIX_DIMENSIONS.some((dimension) => dimension.value === value))
       ?? (p.templates?.length && !(p.scenarios?.length || p.segments?.length) ? ["subject", "template"] : DEFAULT_MATRIX_DIMENSIONS));
     setFocusPeriods(p.focusPeriods ?? 2);
@@ -1423,6 +1448,7 @@ export default function Dashboard() {
       matrixMetrics,
       matrixMetricLayout,
       matrixShowChart,
+      matrixShowOptoutRow,
       matrixDimensions,
       focusPeriods,
       dateFrom: dateRange?.from,
@@ -1665,6 +1691,8 @@ export default function Dashboard() {
               setMetricLayout={(layout) => { setMatrixMetricLayout(layout); setActivePresetId(null); }}
               showChart={matrixShowChart}
               setShowChart={(visible) => { setMatrixShowChart(visible); setActivePresetId(null); }}
+              showOptoutRow={matrixShowOptoutRow}
+              setShowOptoutRow={(shown) => { setMatrixShowOptoutRow(shown); setActivePresetId(null); }}
               dimensions={matrixDimensions}
               onDimensionsChange={(values) => { setMatrixDimensions(values); setActivePresetId(null); }}
             />
@@ -1734,9 +1762,10 @@ export default function Dashboard() {
                   <label className="flex items-center gap-2 text-xs text-gray-500">
                     表示指標
                     <select aria-label="グラフの表示指標" data-testid="chart-metric" className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                      value={chartMetric} onChange={(event) => { setChartMetric(event.target.value as ChartMetric | "default"); setActivePresetId(null); }}>
+                      value={activeChartMetric} onChange={(event) => { setChartMetric(event.target.value as ChartMetric | "default"); setActivePresetId(null); }}>
                       <option value="default">{groupBy === "day" ? "標準（配信数）" : "標準（配信数・開封率・クリック率）"}</option>
-                      {CHART_METRICS.map((metric) => <option key={metric.value} value={metric.value}>{metric.label}のみ</option>)}
+                      {CHART_METRICS.filter((metric) => metric.value !== OPTOUT_METRIC || optoutMetricAvailable)
+                        .map((metric) => <option key={metric.value} value={metric.value}>{metric.label}のみ</option>)}
                     </select>
                   </label>
                 </div>

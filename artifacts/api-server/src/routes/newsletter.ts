@@ -296,7 +296,8 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     }
 
     const validTime = ["day", "week", "month"];
-    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount", "optoutCount"];
+    // optoutCount は「指標」ではなく includeOptout（行の足し引き）で制御する。
+    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount"];
     const validDimensions = ["scenario", "subject", "template"] as const;
     const dimensions = q.dimensions === undefined ? undefined : q.dimensions.split(",").map((value) => value.trim()).filter(Boolean);
     if (dimensions?.some((dimension) => !validDimensions.some((valid) => valid === dimension))) {
@@ -315,9 +316,10 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
-    // オプトアウトは配信行に紐づかないので、マトリクスでは専用の1系列として並べる。
+    // オプトアウトは配信行に紐づかないので、マトリクスでは専用の1系列（1行）として並べる。
+    const includeOptout = q.includeOptout === "true";
     let optoutByPeriod: Record<string, number> | undefined;
-    if (metrics.includes("optoutCount")) {
+    if (includeOptout) {
       try {
         const { rows: optoutRows } = await getOptoutRows(req);
         optoutByPeriod = optoutCountsByPeriod(filterByDate(optoutRows, q.dateFrom, q.dateTo), timeGroupBy, q.anchorDate);
@@ -330,6 +332,10 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     // オプトアウトは全体指標なので単独（選択なし）でも表示できる必要があり、
     // ここで全行を渡すと全シナリオ×件名が展開されて表が破綻する。
     const seriesRows = scenarios.length === 0 && templates.length === 0 ? [] : rows;
+    if (!includeOptout && seriesRows.length === 0) {
+      res.json({ timePeriods: [], series: [], metrics });
+      return;
+    }
 
     const data = computeMatrixData(seriesRows, scenarios, templates, timeGroupBy, metrics, q.anchorDate, dimensions as ("scenario" | "subject" | "template")[] | undefined, optoutByPeriod);
     res.json(data);
