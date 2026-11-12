@@ -8,6 +8,8 @@ interface Props {
   onChange: (values: string[]) => void;
   placeholder?: string;
   accentColor?: string;
+  /** 候補が1件も無いときの文言。読み込み中や取得失敗を黙って「見つかりません」にしないため。 */
+  emptyMessage?: string;
 }
 
 export default function MultiSelectCombobox({
@@ -16,6 +18,7 @@ export default function MultiSelectCombobox({
   onChange,
   placeholder = "全体",
   accentColor = "#6366F1",
+  emptyMessage,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -161,7 +164,9 @@ export default function MultiSelectCombobox({
           {/* Options list */}
           <div className="overflow-y-auto flex-1">
             {filtered.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-center" style={{ color: "#9CA3AF" }}>見つかりません</div>
+              <div className="px-4 py-3 text-xs text-center" style={{ color: "#9CA3AF" }}>
+                {options.length === 0 ? (emptyMessage ?? "候補がありません") : "見つかりません"}
+              </div>
             ) : (
               <>
                 {/* Select all / clear */}
