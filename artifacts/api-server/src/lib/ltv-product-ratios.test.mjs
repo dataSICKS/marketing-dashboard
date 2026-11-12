@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateLtvProductRatios, brushCountLabel } from "./ltv-product-ratios.ts";
+import { calculateLtvProductRatios, brushCountLabel, calculateMonthlyLtvProductBreakdowns, calculateLtvProductBreakdowns } from "./ltv-product-ratios.ts";
 import { filterLtvRows, toothpasteStatus, TOOTHPASTE_LABELS } from "./ltv-aggregate.ts";
 
 const row = (firstProduct, product2 = "", product3 = "", product4 = "") => ({
@@ -126,4 +126,42 @@ test("count-based ratios independently regroup each purchase and preserve totals
   assert.equal(result.all.reduce((sum, i) => sum + i.count, 0), 4);
   const filtered = filterLtvRows(rows, { toothpaste2: "yes" }, new Set());
   assert.equal(calculateLtvProductRatios(filtered, brushCountLabel).subscriptionCount, 1);
+});
+
+const toothpasteLabel = (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)];
+
+test("monthly composition uses first-purchase cohorts and a separate denominator for every month", () => {
+  const rows = [
+    { ...row(",大人2本", "歯磨き剤,大人2本"), firstOrderMonth: "2026-02-01" },
+    row("大人2本"), row("大人4本"), row("大人4本"),
+  ];
+  const months = calculateMonthlyLtvProductBreakdowns(rows, toothpasteLabel);
+  assert.deepEqual(months.map((m) => m.month), ["2026/01", "2026/02"]);
+  assert.equal(months[0].productRatios.initial.find((i) => i.product === "大人2本").ratio, 1 / 3);
+  assert.equal(months[1].productRatios.initial.find((i) => i.product === "大人2本").ratio, 1);
+  assert.equal(months[1].productRatios.totalPurchaseCount, 2);
+  assert.equal(months[1].productRatios.toothpasteAll.find((i) => i.product === "歯磨き剤あり").ratio, 1 / 2);
+  assert.equal(months[1].productRatios.brushCountAll.find((i) => i.product === "大人2本").ratio, 1);
+  const total = calculateLtvProductBreakdowns(rows, toothpasteLabel);
+  for (const key of ["initial", "all", "toothpasteInitial", "toothpasteAll", "brushCountInitial", "brushCountAll"]) {
+    for (const item of total[key]) {
+      assert.equal(months.reduce((n, m) => n + (m.productRatios[key].find((i) => i.product === item.product)?.count ?? 0), 0), item.count);
+    }
+  }
+});
+
+test("monthly composition honors filters and explicitly retains undated records without inventing purchases", () => {
+  const rows = [row("大人2本", "歯磨き剤"), { ...row("こども2本"), firstOrderMonth: "2026-02-01" },
+    { ...row(""), firstOrderMonth: null }];
+  const filtered = filterLtvRows(rows, { monthFrom: "2026-02-01", monthTo: "2026-02-01" }, new Set());
+  const months = calculateMonthlyLtvProductBreakdowns(filtered, toothpasteLabel);
+  assert.deepEqual(months.map((m) => m.month), ["2026/02"]);
+  assert.equal(months[0].productRatios.initial[0].product, "こども2本");
+  const unknown = calculateMonthlyLtvProductBreakdowns(rows, toothpasteLabel).at(-1);
+  assert.equal(unknown.month, "不明");
+  assert.equal(unknown.productRatios.missingFirstProductCount, 1);
+  assert.equal(unknown.productRatios.totalPurchaseCount, 1);
+  assert.deepEqual(calculateMonthlyLtvProductBreakdowns([], toothpasteLabel), []);
+  const segment = filterLtvRows(rows, { toothpaste2: "yes" }, new Set());
+  assert.equal(calculateMonthlyLtvProductBreakdowns(segment, toothpasteLabel)[0].productRatios.subscriptionCount, 1);
 });

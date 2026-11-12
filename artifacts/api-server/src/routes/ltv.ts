@@ -18,7 +18,7 @@ import {
   type ToothpasteAxis,
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
-import { calculateLtvProductRatios, brushCountLabel } from "../lib/ltv-product-ratios.js";
+import { calculateLtvProductBreakdowns, calculateMonthlyLtvProductBreakdowns } from "../lib/ltv-product-ratios.js";
 
 const router: IRouter = Router();
 
@@ -147,19 +147,13 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     const effectiveSplitBy = !optoutAvailable && splitBy === "optout" ? "none" : splitBy;
     const items = aggregateLtv(filtered, effectiveSplitBy, optedOut, timeGroupBy);
     const segments = [...new Set(items.map((item) => item.segment))];
-    const toothpasteRatios = calculateLtvProductRatios(filtered, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
-    const brushRatios = calculateLtvProductRatios(filtered, brushCountLabel);
+    const toothpasteLabel = (product: string) => TOOTHPASTE_LABELS[toothpasteStatus(product)];
 
     res.json({
       splitBy: effectiveSplitBy,
       items,
-      productRatios: {
-        ...calculateLtvProductRatios(filtered),
-        toothpasteInitial: toothpasteRatios.initial,
-        toothpasteAll: toothpasteRatios.all,
-        brushCountInitial: brushRatios.initial,
-        brushCountAll: brushRatios.all,
-      },
+      productRatios: calculateLtvProductBreakdowns(filtered, toothpasteLabel),
+      productRatioMonths: calculateMonthlyLtvProductBreakdowns(filtered, toothpasteLabel),
       segments,
       summary: summarizeLtv(filtered),
       subscriptionCount: filtered.length,

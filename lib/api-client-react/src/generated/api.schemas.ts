@@ -171,6 +171,12 @@ export interface LtvProductRatios {
   brushCountAll: LtvProductRatioItem[];
 }
 
+export interface LtvProductRatioMonth {
+  /** First-purchase cohort month in YYYY/MM format, or 不明 for undated rows */
+  month: string;
+  productRatios: LtvProductRatios;
+}
+
 export type LtvDataResponseSplitBy =
   (typeof LtvDataResponseSplitBy)[keyof typeof LtvDataResponseSplitBy];
 
@@ -191,6 +197,7 @@ export interface LtvDataResponse {
   splitBy: LtvDataResponseSplitBy;
   items: LtvMetrics[];
   productRatios?: LtvProductRatios;
+  productRatioMonths?: LtvProductRatioMonth[];
   segments: string[];
   summary: LtvSummary;
   subscriptionCount?: number;

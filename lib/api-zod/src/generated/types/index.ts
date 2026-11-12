@@ -63,6 +63,7 @@ export * from "./ltvDataResponseSplitBy";
 export * from "./ltvFiltersResponse";
 export * from "./ltvMetrics";
 export * from "./ltvProductRatioItem";
+export * from "./ltvProductRatioMonth";
 export * from "./ltvProductRatios";
 export * from "./ltvSummary";
 export * from "./ltvSyncResult";

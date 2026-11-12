@@ -1,16 +1,19 @@
 import { useState } from "react";
-import type { LtvProductRatios as ProductRatios } from "@workspace/api-client-react";
+import type { LtvProductRatios as ProductRatios, LtvProductRatioMonth } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber } from "@/lib/format";
 import LtvSelect from "@/components/LtvSelect";
+import LtvProductRatioMonths from "@/components/LtvProductRatioMonths";
 
 interface Props {
   data: ProductRatios | undefined;
   periodLabel: string;
+  months: LtvProductRatioMonth[] | undefined;
 }
 
-export default function LtvProductRatios({ data, periodLabel }: Props) {
+export default function LtvProductRatios({ data, periodLabel, months }: Props) {
   const [mode, setMode] = useState("initial");
+  const [isMonthly, setIsMonthly] = useState(true);
   const [breakdown, setBreakdown] = useState("product");
   const isToothpaste = breakdown === "toothpaste";
   const isBrushCount = breakdown === "brushCount";
@@ -21,6 +24,9 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
     ? (isAll ? data?.toothpasteAll : data?.toothpasteInitial)
     : (isAll ? data?.all : data?.initial)) ?? [];
   const total = isAll ? data?.totalPurchaseCount : data?.subscriptionCount;
+  const itemKey = isBrushCount ? (isAll ? "brushCountAll" : "brushCountInitial")
+    : isToothpaste ? (isAll ? "toothpasteAll" : "toothpasteInitial") : (isAll ? "all" : "initial");
+  const rowLabel = isBrushCount ? "大人・こどもの本数構成" : isToothpaste ? "歯磨き剤の有無" : "商品";
 
   return (
     <Tabs value={mode} onValueChange={setMode}
@@ -29,6 +35,16 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 md:px-6">
         <h2 className="text-sm font-bold text-gray-900">商品購入比率</h2>
         <div className="flex flex-wrap items-center gap-3">
+          <div role="group" aria-label="商品購入比率の集計表示" className="flex gap-1 rounded-lg bg-gray-100 p-1">
+            {[{ monthly: true, label: "月別推移" }, { monthly: false, label: "期間合算" }].map((view) => (
+              <button key={view.label} type="button" aria-pressed={isMonthly === view.monthly}
+                onClick={() => setIsMonthly(view.monthly)}
+                data-testid={view.monthly ? "button-product-ratios-monthly" : "button-product-ratios-total"}
+                className={`rounded-md px-3 py-1 text-xs ${isMonthly === view.monthly ? "bg-white font-semibold text-gray-900 shadow-sm" : "text-gray-500"}`}>
+                {view.label}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             内訳
             <LtvSelect label="商品購入比率の内訳" testId="select-product-ratio-breakdown"
@@ -45,10 +61,17 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
       <TabsContent value={mode} className="mt-0">
         <div className="space-y-1 px-4 py-3 text-xs leading-5 text-gray-500 md:px-6">
           <p>対象の初回購入月：{periodLabel}（上部の絞り込み条件を適用）</p>
+          {isMonthly && (
+            <p className="font-medium text-gray-700">
+              横軸は初回購入月です。各月のセルは件数と、その月の{isAll ? "初回〜4回目の購入記録合計" : "定期購入件数"}を分母にした構成比です。表は横にスクロールできます。
+              {isAll && "2〜4回目も、その定期の初回購入月にまとめます（各回の購入日別ではありません）。直近の初回購入月では後続回に未到達の定期が多く、構成比に影響する場合があります。"}
+            </p>
+          )}
           {data && (
             <p data-testid="product-ratio-denominator">
               {isAll ? "初回〜4回目の購入記録 合計" : "対象の定期購入"}
-              <strong className="mx-1 text-gray-800">{formatNumber(total)}</strong>件を分母にした構成比
+              <strong className="mx-1 text-gray-800">{formatNumber(total)}</strong>
+              {isMonthly ? "件（期間全体の件数。構成比は各月で計算）" : "件を分母にした構成比"}
             </p>
           )}
           <p>
@@ -64,14 +87,16 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
           {isBrushCount && (
             <p>本数構成ごとの購入件数・構成比です（歯ブラシ総本数の比率ではありません）。スパイラル等を大人・こどもの本数には加算しません。本数不明は別区分です。</p>
           )}
-          {isAll && (
+          {isAll && !isMonthly && (
             <p>各購入回の％はその回の記録件数を分母にします。右端の構成比は初回〜4回目の合計が分母です。2〜4回目の空欄は購入記録に数えません。</p>
           )}
           {!!data?.missingFirstProductCount && (
             <p className="text-amber-700">初回商品名が未設定：{formatNumber(data.missingFirstProductCount)}件（集計に含む）</p>
           )}
         </div>
-        {!data ? (
+        {isMonthly ? (
+          <LtvProductRatioMonths months={months} itemKey={itemKey} isAll={isAll} rowLabel={rowLabel} />
+        ) : !data ? (
           <p className="px-4 py-8 text-center text-xs text-red-500" role="alert">商品購入比率のデータを取得できませんでした。</p>
         ) : !items.length ? (
           <p className="px-4 py-8 text-center text-xs text-gray-400">指定条件に該当する購入記録がありません。</p>

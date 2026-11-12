@@ -74,3 +74,30 @@ export function calculateLtvProductRatios(rows: readonly LtvRow[], groupLabel: (
     all: toItems(all, totalPurchaseCount),
   };
 }
+
+export function calculateLtvProductBreakdowns(rows: readonly LtvRow[], toothpasteLabel: (product: string) => string) {
+  const toothpaste = calculateLtvProductRatios(rows, toothpasteLabel);
+  const brushes = calculateLtvProductRatios(rows, brushCountLabel);
+  return {
+    ...calculateLtvProductRatios(rows),
+    toothpasteInitial: toothpaste.initial,
+    toothpasteAll: toothpaste.all,
+    brushCountInitial: brushes.initial,
+    brushCountAll: brushes.all,
+  };
+}
+
+/** Partition filtered subscriptions by first-purchase cohort, not by repeat-purchase date. */
+export function calculateMonthlyLtvProductBreakdowns(rows: readonly LtvRow[], toothpasteLabel: (product: string) => string) {
+  const months = new Map<string, LtvRow[]>();
+  for (const row of rows) {
+    const month = row.firstOrderMonth?.match(/^(\d{4})-(\d{2})/);
+    const key = month ? `${month[1]}/${month[2]}` : "不明";
+    const cohort = months.get(key) ?? [];
+    cohort.push(row);
+    months.set(key, cohort);
+  }
+  return [...months.entries()]
+    .sort(([a], [b]) => a === "不明" ? 1 : b === "不明" ? -1 : a.localeCompare(b))
+    .map(([month, cohort]) => ({ month, productRatios: calculateLtvProductBreakdowns(cohort, toothpasteLabel) }));
+}

@@ -1260,6 +1260,15 @@ components:
           description: Purchases grouped by adult and child brush counts per stage, ignoring toothpaste presence
           items:
             $ref: "#/components/schemas/LtvProductRatioItem"
+    LtvProductRatioMonth:
+      type: object
+      required: [month, productRatios]
+      properties:
+        month:
+          type: string
+          description: First-purchase cohort month in YYYY/MM format, or 不明 for undated rows
+        productRatios:
+          $ref: "#/components/schemas/LtvProductRatios"
     LtvDataResponse:
       type: object
       properties:
@@ -1272,6 +1281,10 @@ components:
             $ref: "#/components/schemas/LtvMetrics"
         productRatios:
           $ref: "#/components/schemas/LtvProductRatios"
+        productRatioMonths:
+          type: array
+          items:
+            $ref: "#/components/schemas/LtvProductRatioMonth"
         segments:
           type: array
           items:

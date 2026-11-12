@@ -403,7 +403,7 @@ export default function LtvPage() {
                 )}
               </div>
 
-              <LtvProductRatios data={data?.productRatios} periodLabel={tablePeriodLabel} />
+              <LtvProductRatios data={data?.productRatios} months={data?.productRatioMonths} periodLabel={tablePeriodLabel} />
 
               {/* ── Table ── */}
               <Tabs value={tableTimeGroupBy} onValueChange={(value) => setTableTimeGroupBy(value as GetLtvDataTimeGroupBy)}
