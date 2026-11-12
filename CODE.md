@@ -84,9 +84,14 @@ marketing-dashboard/
 - `newsletter-sheets.ts` — Replit Connectors 経由で Sheet `1zITxm8...` の `calc!A2:L` を取得しパース。
 - `newsletter-supabase.ts` — `newsletter_rows` へ 500 件バッチ upsert（ユニークキーで重複除去・後勝ち）/ 全件 fetch。
 - `newsletter-aggregate.ts` — day/week/month/scenario/template 集計、比較(before/after)マージ、マトリクス生成。
+  `MatrixMetric` に `optoutCount` を含むが、**配信行からは計算できない**。各系列では埋めず、
+  `computeMatrixData` の `optoutByPeriod` 引数から `OPTOUT_SERIES_KEY`（`オプトアウト（全体）`）という専用系列を1本足す。
 - `newsletter-optout-sheets.ts` — Sheet `1zITxm8...` の `20260101以降のオプトアウトリスト!A2:B` を取得。`YYYY/MM/DD`→ISOへ正規化し、日付か顧客番号が欠けた行は捨てる。
 - `newsletter-optout-supabase.ts` — `newsletter_optouts` へ 500 件バッチ upsert（`optout_date,customer_code` で重複除去）/ 全件 fetch。
-- `newsletter-optout-aggregate.ts` — day/week/month 集計と期間比較マージ。**週ラベルは calc シートの「配信月週」表記（`9月2W`）に合わせて月初から7日区切りで算出**するため、既存グラフとX軸が揃う。
+- `newsletter-optout-aggregate.ts` — day/week/month 集計と期間比較マージ。**期間ラベルの流儀が2つあるので混同しない**。
+  - `periodLabel` … calc シートの「配信月週」表記（週＝`9月2W`、月初から7日区切り）。`GET /newsletter/optout` の `items` 用。
+  - `optoutCountsByPeriod` … `newsletter-aggregate.ts` の `newsletterPeriod` をそのまま使う（週＝月曜日の日付）。
+    オプトアウトを**指標の1つ**としてトレンド/マトリクスに重ねるときはこちら。ラベルが一致しないと突き合わせできない。
 - `newsletter-cache.ts` — プロセス内キャッシュ（get/set）。
 - `efo-sheets.ts` / `efo-supabase.ts` / `efo-aggregate.ts` / `efo-preset-supabase.ts` — EFO 版の Sheets/DB/集計/プリセット。Sheet `1gibjDJns9...` の `raw_efo_access` / `raw_efo_cv` を読む。
 - `campaigns-supabase.ts` — `campaigns` の CRUD。

@@ -974,6 +974,9 @@ components:
           type: number
         cvCount:
           type: number
+        optoutCount:
+          type: ["number", "null"]
+          description: "期間内のオプトアウト件数。groupBy が day/week/month のときだけ値が入る（シナリオ/テンプレート別の内訳は元データに無い）"
         openRate:
           type: number
           description: Open rate (openCount / deliveryCount)
@@ -1074,7 +1077,7 @@ components:
 
     MatrixMetric:
       type: string
-      enum: [deliveryCount, openCount, clickCount, openRate, clickRate, cvr, cvCount]
+      enum: [deliveryCount, openCount, clickCount, openRate, clickRate, cvr, cvCount, optoutCount]
 
     MatrixMetricValues:
       type: object

@@ -30,6 +30,13 @@ export interface NewsletterMetrics {
   prevOpenRate: number | null;
   prevClickRate: number | null;
   prevCvr: number | null;
+  /**
+   * 期間内のオプトアウト件数。配信データ（calcシート）には無く newsletter_optouts から
+   * 期間ラベルで突き合わせて埋める。シナリオ/テンプレート別の内訳は元データに無いため、
+   * groupBy が day/week/month のときだけ値が入り、それ以外は null。
+   */
+  optoutCount?: number | null;
+  prevOptoutCount?: number | null;
 }
 
 /** オプトアウト1件（1顧客×1日）。シート「20260101以降のオプトアウトリスト」由来。 */

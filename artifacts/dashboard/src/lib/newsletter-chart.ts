@@ -18,6 +18,7 @@ export const CHART_METRICS = [
   { value: "clickRate", label: "クリック率", isRate: true, color: "#34D399" },
   { value: "cvr", label: "CVR", isRate: true, color: "#A855F7" },
   { value: "cvCount", label: "CV数", isRate: false, color: "#F97316" },
+  { value: "optoutCount", label: "オプトアウト数", isRate: false, color: "#EF4444" },
 ] as const;
 export type ChartMetric = typeof CHART_METRICS[number]["value"];
 const decimalFormatter = new Intl.NumberFormat("ja-JP", {

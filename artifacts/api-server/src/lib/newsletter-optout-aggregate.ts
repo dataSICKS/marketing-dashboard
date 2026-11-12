@@ -1,4 +1,5 @@
 import type { OptoutRow, OptoutMetrics } from "./newsletter-types.js";
+import { newsletterPeriod, type TimeGroupBy } from "./newsletter-aggregate.js";
 
 export type OptoutGroupBy = "day" | "week" | "month";
 
@@ -69,4 +70,23 @@ export function earliestDate(rows: OptoutRow[]): string | null {
     if (min === null || r.optoutDate < min) min = r.optoutDate;
   }
   return min;
+}
+
+/**
+ * 配信データとまったく同じ期間ラベルでオプトアウトを数える。
+ * オプトアウトを「指標の1つ」としてトレンド/マトリクスに重ねるには、
+ * ラベルが aggregateRows（newsletterPeriod）と一致していないと突き合わせできない。
+ * periodLabel（週＝「9月2W」）とは別物なので混同しないこと。
+ */
+export function optoutCountsByPeriod(
+  rows: OptoutRow[],
+  grain: TimeGroupBy,
+  anchorDate?: string,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const label = newsletterPeriod(row.optoutDate, grain, anchorDate);
+    counts[label] = (counts[label] ?? 0) + 1;
+  }
+  return counts;
 }

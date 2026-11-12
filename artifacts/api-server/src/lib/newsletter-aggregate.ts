@@ -194,7 +194,10 @@ export function mergeComparisonMetrics(
 }
 
 // ─── Matrix ────────────────────────────────────────────────────────
-export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openRate" | "clickRate" | "cvr" | "cvCount";
+export type MatrixMetric = "deliveryCount" | "openCount" | "clickCount" | "openRate" | "clickRate" | "cvr" | "cvCount" | "optoutCount";
+
+/** オプトアウトは配信行に紐づかないため、専用の1系列としてマトリクスに並べる。 */
+export const OPTOUT_SERIES_KEY = "オプトアウト（全体）";
 export type MatrixDimension = "scenario" | "subject" | "template";
 
 export interface MatrixSeriesRow {
@@ -223,6 +226,8 @@ function extractMetric(m: NewsletterMetrics, metric: MatrixMetric): number {
     case "clickRate": return m.clickRate;
     case "cvr": return m.cvr;
     case "cvCount": return m.cvCount;
+    // optoutCount は配信行から計算できない（専用系列で別途埋める）。
+    case "optoutCount": return 0;
     default: return m.deliveryCount;
   }
 }
@@ -235,6 +240,7 @@ export function computeMatrixData(
   metrics: MatrixMetric[],
   anchorDate?: string,
   dimensions?: MatrixDimension[],
+  optoutByPeriod?: Record<string, number>,
 ): MatrixData {
   const allPeriods = new Set<string>();
   const rowsForScenarios = templates.length > 0
@@ -249,6 +255,9 @@ export function computeMatrixData(
     for (const item of agg) allPeriods.add(item.label);
     const metricValues: Partial<Record<MatrixMetric, Record<string, number>>> = {};
     for (const m of metrics) {
+      // オプトアウトはシナリオ/テンプレート別に分解できない。各系列に全体値を入れると
+      // どの行も同じ数字になって誤読されるので、専用系列（OPTOUT_SERIES_KEY）だけが持つ。
+      if (m === "optoutCount") continue;
       metricValues[m] = {};
       for (const item of agg) {
         metricValues[m]![item.label] = extractMetric(item, m);
@@ -313,6 +322,32 @@ export function computeMatrixData(
       groupKey,
       dimensionValues: group.values,
     }));
+  }
+
+  if (metrics.includes("optoutCount") && optoutByPeriod) {
+    const values: Record<string, number> = {};
+    for (const [period, count] of Object.entries(optoutByPeriod)) {
+      // 配信が1件も無い期間でもオプトアウトは発生するので、列（期間）側も足しておく。
+      allPeriods.add(period);
+      values[period] = count;
+    }
+    series = [...series, {
+      key: OPTOUT_SERIES_KEY,
+      subject: null,
+      type: "scenario",
+      segments: [],
+      latestSegment: null,
+      periodSegments: {},
+      metricValues: { optoutCount: values },
+      ...(dimensions === undefined ? {} : {
+        groupKey: JSON.stringify([["optout", OPTOUT_SERIES_KEY]]),
+        dimensionValues: Object.fromEntries(
+          (["scenario", "subject", "template"] as const)
+            .filter((dimension) => dimensions.includes(dimension))
+            .map((dimension, index) => [dimension, index === 0 ? OPTOUT_SERIES_KEY : null]),
+        ),
+      }),
+    }];
   }
 
   const timePeriods = Array.from(allPeriods).sort();

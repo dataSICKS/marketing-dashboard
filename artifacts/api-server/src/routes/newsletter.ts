@@ -19,10 +19,11 @@ import {
   filterByDate,
   mergeOptoutComparison,
   earliestDate,
+  optoutCountsByPeriod,
   type OptoutGroupBy,
 } from "../lib/newsletter-optout-aggregate.js";
 import { GetNewsletterDataQueryParams } from "@workspace/api-zod";
-import type { NewsletterRow, OptoutRow } from "../lib/newsletter-types.js";
+import type { NewsletterRow, NewsletterMetrics, OptoutRow } from "../lib/newsletter-types.js";
 import { normalizeNewsletterDate } from "../lib/newsletter-date.js";
 
 const router: IRouter = Router();
@@ -134,6 +135,23 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
 
     const { rows: allRows, syncedAt } = await getRows(req);
 
+    // オプトアウトを「指標の1つ」としてトレンドに重ねる。
+    // 期間ラベルが一致する day/week/month のときだけ値を入れる。シナリオ別/テンプレ別は
+    // 元データ（顧客番号＋解除日のみ）に内訳が無く、各行へ全体値を入れると誤読されるため埋めない。
+    const optoutGrain = groupBy === "day" || groupBy === "week" || groupBy === "month" ? groupBy : null;
+    let optoutByPeriod: Record<string, number> = {};
+    if (optoutGrain) {
+      try {
+        const { rows: optoutRows } = await getOptoutRows(req);
+        optoutByPeriod = optoutCountsByPeriod(filterByDate(optoutRows, dateFrom, dateTo), optoutGrain, anchorDate);
+      } catch (err) {
+        // オプトアウトが取れなくても配信データの表示は止めない。
+        req.log.error({ err }, "Failed to attach opt-out metric");
+      }
+    }
+    const withOptout = (list: NewsletterMetrics[]): NewsletterMetrics[] =>
+      optoutGrain ? list.map((item) => ({ ...item, optoutCount: optoutByPeriod[item.label] ?? 0 })) : list;
+
     const availableScenarios = getUniqueScenarioNames(allRows);
 
     // Parse pipe-separated filters. Values within one filter are ORed;
@@ -174,7 +192,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
         summary = mergeComparisonMetrics([summary], [computeSummary(prevRows)])[0]!;
       }
 
-      res.json({ groupBy, items, scenarioGroups: [], summary, lastSyncedAt: syncedAt, availableScenarios });
+      res.json({ groupBy, items: withOptout(items), scenarioGroups: [], summary, lastSyncedAt: syncedAt, availableScenarios });
       return;
     }
 
@@ -204,7 +222,7 @@ router.get("/newsletter/data", async (req, res): Promise<void> => {
       summary = mergeComparisonMetrics([summary], [computeSummary(prevCombined)])[0]!;
     }
 
-    res.json({ groupBy, items, scenarioGroups, summary, lastSyncedAt: syncedAt, availableScenarios });
+    res.json({ groupBy, items: withOptout(items), scenarioGroups, summary, lastSyncedAt: syncedAt, availableScenarios });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch newsletter data");
     res.status(500).json({ error: "データ取得に失敗しました" });
@@ -278,7 +296,7 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     }
 
     const validTime = ["day", "week", "month"];
-    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount"];
+    const validMetric = ["deliveryCount", "openCount", "clickCount", "openRate", "clickRate", "cvr", "cvCount", "optoutCount"];
     const validDimensions = ["scenario", "subject", "template"] as const;
     const dimensions = q.dimensions === undefined ? undefined : q.dimensions.split(",").map((value) => value.trim()).filter(Boolean);
     if (dimensions?.some((dimension) => !validDimensions.some((valid) => valid === dimension))) {
@@ -297,7 +315,23 @@ router.get("/newsletter/matrix", async (req, res): Promise<void> => {
     if (q.dateFrom) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) >= q.dateFrom!);
     if (q.dateTo) rows = rows.filter((r) => toIsoMtx(r.deliveryDate) <= q.dateTo!);
 
-    const data = computeMatrixData(rows, scenarios, templates, timeGroupBy, metrics, q.anchorDate, dimensions as ("scenario" | "subject" | "template")[] | undefined);
+    // オプトアウトは配信行に紐づかないので、マトリクスでは専用の1系列として並べる。
+    let optoutByPeriod: Record<string, number> | undefined;
+    if (metrics.includes("optoutCount")) {
+      try {
+        const { rows: optoutRows } = await getOptoutRows(req);
+        optoutByPeriod = optoutCountsByPeriod(filterByDate(optoutRows, q.dateFrom, q.dateTo), timeGroupBy, q.anchorDate);
+      } catch (err) {
+        req.log.error({ err }, "Failed to attach opt-out metric to matrix");
+      }
+    }
+
+    // シナリオもテンプレも未選択なら配信側の系列は作らない。
+    // オプトアウトは全体指標なので単独（選択なし）でも表示できる必要があり、
+    // ここで全行を渡すと全シナリオ×件名が展開されて表が破綻する。
+    const seriesRows = scenarios.length === 0 && templates.length === 0 ? [] : rows;
+
+    const data = computeMatrixData(seriesRows, scenarios, templates, timeGroupBy, metrics, q.anchorDate, dimensions as ("scenario" | "subject" | "template")[] | undefined, optoutByPeriod);
     res.json(data);
   } catch (err) {
     req.log.error({ err }, "Failed to compute matrix data");

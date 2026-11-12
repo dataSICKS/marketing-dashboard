@@ -67,7 +67,6 @@ const BEFORE_COLOR = "#60A5FA";
 const AFTER_COLOR = "#F472B6";
 const CHANGE_COLOR = "#A855F7";
 const CAMPAIGN_COLORS = ["#F97316", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#14B8A6"];
-const OPTOUT_COLOR = "#EF4444";
 const SERIES_COLORS = ["#6366F1", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#EF4444", "#84CC16"];
 
 const MATRIX_METRICS = CHART_METRICS;
@@ -793,7 +792,9 @@ function MatrixView({
   dimensions: MatrixDimension[];
   onDimensionsChange: (dimensions: MatrixDimension[]) => void;
 }) {
-  const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0;
+  // オプトアウトはシナリオ/テンプレに紐づかない全体指標なので、選択が無くても単独で描画できる。
+  const hasOptoutMetric = selectedMetrics.includes("optoutCount");
+  const hasSelections = selectedScenarios.length > 0 || selectedTemplates.length > 0 || hasOptoutMetric;
   const hasMetrics = selectedMetrics.length > 0;
   const isCompare = compareMode === "change" && !!selectedCampaign;
   const splitDate = selectedCampaign?.startDate ?? null;
@@ -905,7 +906,7 @@ function MatrixView({
       {!hasSelections ? (
         <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
           style={{ border: "1px solid #EBEBEB", color: "#9CA3AF" }}>
-          シナリオまたはテンプレを選択してください
+          シナリオまたはテンプレを選択してください（オプトアウト数は選択なしでも表示できます）
         </div>
       ) : !hasMetrics ? (
         <div className="bg-white rounded-xl p-10 flex items-center justify-center text-sm"
@@ -1292,11 +1293,10 @@ export default function Dashboard() {
     compareFrom: params.compareFrom,
     compareTo: params.compareTo,
   };
-  const { data: optoutData, isLoading: optoutLoading } = useGetNewsletterOptout(optoutParams, {
+  const { data: optoutData } = useGetNewsletterOptout(optoutParams, {
     query: { queryKey: getGetNewsletterOptoutQueryKey(optoutParams) },
   });
   const optoutSummary = optoutData?.summary;
-  const optoutItems = optoutData?.items ?? [];
 
   // Auto-select first campaign when entering change mode
   useEffect(() => {
@@ -1336,7 +1336,7 @@ export default function Dashboard() {
   // Keep the campaign marker visible even if its first bucket has no exports.
   const anchorKey = anchorDate ? timePeriod(anchorDate, timeGroupBy, anchorDate) : undefined;
   const chartItems = anchorKey && !baseChartItems.some((item) => item.chartKey === anchorKey)
-    ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openCount: null, clickCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null }]
+    ? [...baseChartItems, { label: anchorKey, chartKey: anchorKey, deliveryCount: null, openCount: null, clickCount: null, openRate: null, clickRate: null, cvr: null, cvCount: null, optoutCount: null }]
       .sort((a, b) => a.chartKey.localeCompare(b.chartKey))
     : baseChartItems;
   const scenarioGroups: NewsletterScenarioGroup[] = (tableData?.scenarioGroups ?? []) as NewsletterScenarioGroup[];
@@ -1646,7 +1646,6 @@ export default function Dashboard() {
             </span>
           </div>
           {groupBy === "matrix" ? (
-            <>
             <MatrixView
               availableScenarios={availableScenarios}
               availableTemplates={availableTemplates}
@@ -1669,15 +1668,6 @@ export default function Dashboard() {
               dimensions={matrixDimensions}
               onDimensionsChange={(values) => { setMatrixDimensions(values); setActivePresetId(null); }}
             />
-            {/* ── Opt-out trend（マトリクスでも常に表示） ── */}
-            <OptoutTrendCard
-              items={optoutItems}
-              summary={optoutSummary}
-              loading={optoutLoading}
-              dataFrom={optoutData?.dataFrom}
-              showComparison={showComparison}
-            />
-            </>
           ) : isLoading || (compareMode === "change" && phaseLoading) ? (
             <LoadingSkeleton />
           ) : isError || (compareMode === "change" && phaseError) ? (
@@ -1867,15 +1857,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* ── Opt-out trend ── */}
-              <OptoutTrendCard
-                items={optoutItems}
-                summary={optoutSummary}
-                loading={optoutLoading}
-                dataFrom={optoutData?.dataFrom}
-                showComparison={showComparison}
-              />
-
               {/* ── Tables ── */}
               <div className="bg-white rounded-xl overflow-hidden"
                 style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }} data-testid="card-table">
@@ -1902,70 +1883,6 @@ export default function Dashboard() {
       </main>
 
     </>
-  );
-}
-
-// ─── Opt-out trend card ───────────────────────────────────────────
-function OptoutTrendCard({
-  items, summary, loading, dataFrom, showComparison,
-}: {
-  items: { label: string; optoutCount: number; prevOptoutCount?: number | null }[];
-  summary?: { optoutCount: number; prevOptoutCount?: number | null };
-  loading: boolean;
-  dataFrom?: string | null;
-  showComparison: boolean;
-}) {
-  return (
-    <div
-      className="bg-white rounded-xl p-4 md:p-6"
-      style={{ border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-      data-testid="card-optout-chart"
-    >
-      <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
-        <div>
-          <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>オプトアウト推移</div>
-          <div className="text-xs mt-0.5 hidden sm:block" style={{ color: "#9CA3AF" }}>
-            メルマガ購読をオン→オフにした顧客数。シナリオ・テンプレートの絞り込みは対象外（解除経路のデータが無いため）
-            {dataFrom ? ` · ${dataFrom.replace(/-/g, "/")} 以降が対象` : ""}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs" style={{ color: "#9CA3AF" }}>期間合計</span>
-          <span className="text-lg font-bold tabular-nums" style={{ color: "#1A1A1A" }}>
-            {formatNumber(summary?.optoutCount)}
-          </span>
-          <span className="text-xs" style={{ color: "#9CA3AF" }}>件</span>
-          {showComparison && summary?.optoutCount != null && (
-            <DiffBadge current={summary.optoutCount} prev={summary.prevOptoutCount} invertColor />
-          )}
-        </div>
-      </div>
-      {loading ? (
-        <Skeleton className="h-48 w-full" />
-      ) : items.length === 0 ? (
-        <div className="h-48 flex items-center justify-center text-sm" style={{ color: "#bbb" }}>
-          データがありません
-        </div>
-      ) : (
-        <div style={{ height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={items} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-              <XAxis
-                dataKey="label" stroke="#D1D5DB" fontSize={10} tickLine={false}
-                axisLine={false} tickMargin={6} interval="preserveStartEnd"
-              />
-              <YAxis stroke="#D1D5DB" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB" }}
-                formatter={(v: number) => [formatNumber(v), "オプトアウト"]}
-              />
-              <Bar dataKey="optoutCount" name="オプトアウト" fill={OPTOUT_COLOR} radius={[3, 3, 0, 0]} maxBarSize={28} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
   );
 }
 
