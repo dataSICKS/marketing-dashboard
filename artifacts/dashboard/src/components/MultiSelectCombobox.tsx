@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, X, Check } from "lucide-react";
 
@@ -11,6 +11,8 @@ interface Props {
   /** 候補が1件も無いときの文言。読み込み中や取得失敗を黙って「見つかりません」にしないため。 */
   emptyMessage?: string;
 }
+
+const POPOVER_MAX_HEIGHT = 320;
 
 export default function MultiSelectCombobox({
   options,
@@ -33,28 +35,73 @@ export default function MultiSelectCombobox({
     return options.filter((o) => o.toLowerCase().includes(q));
   }, [options, search]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (
-        triggerRef.current && !triggerRef.current.contains(t) &&
-        popoverRef.current && !popoverRef.current.contains(t)
-      ) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+  const close = useCallback(() => {
+    setOpen(false);
+    setSearch("");
   }, []);
 
-  function openDropdown() {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const popupWidth = Math.max(rect.width, 260);
-      const left = Math.min(rect.left, window.innerWidth - popupWidth - 8);
-      setPos({ top: rect.bottom + 4, left: Math.max(8, left), width: rect.width });
+  /** トリガーの位置に合わせてポップオーバーを置く。下に入らなければ上に出す。 */
+  const reposition = useCallback(() => {
+    const node = triggerRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const popupWidth = Math.max(rect.width, 260);
+    const left = Math.min(rect.left, window.innerWidth - popupWidth - 8);
+    const below = window.innerHeight - rect.bottom;
+    // 下に 320px 入らず、かつ上の方が広いなら上側に出す（画面外に描画されて「消えた」ように見えるのを防ぐ）
+    const flip = below < POPOVER_MAX_HEIGHT && rect.top > below;
+    const top = flip
+      ? Math.max(8, rect.top - Math.min(POPOVER_MAX_HEIGHT, rect.top - 8) - 4)
+      : rect.bottom + 4;
+    setPos({ top, left: Math.max(8, left), width: rect.width });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const isInside = (event: Event) => {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      const target = event.target as Node | null;
+      for (const node of [triggerRef.current, popoverRef.current]) {
+        if (!node) continue;
+        if (path.includes(node)) return true;
+        if (target && node.contains(target)) return true;
+      }
+      return false;
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isInside(event)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+
+    // 開く操作そのものがこのリスナーに届いて即座に閉じるのを防ぐため、次のタスクから購読する。
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onPointerDown, true);
+    }, 0);
+    document.addEventListener("keydown", onKeyDown);
+    // スクロールや画面サイズ変更で position:fixed のポップオーバーだけ取り残されないようにする。
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open, close, reposition]);
+
+  /** トリガーは開く専用ではなくトグル。閉じられずに固まるのを防ぐ。 */
+  function toggleDropdown() {
+    if (open) {
+      close();
+      return;
     }
+    reposition();
     setOpen(true);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
@@ -83,7 +130,7 @@ export default function MultiSelectCombobox({
     <div ref={triggerRef} className="w-full">
       {/* Trigger */}
       <div
-        onClick={openDropdown}
+        onClick={toggleDropdown}
         className="w-full min-h-[34px] text-xs px-2 py-1.5 rounded-md cursor-pointer flex items-start gap-1 flex-wrap"
         style={{
           border: `1px solid ${open ? accentColor : "#E5E7EB"}`,
@@ -135,7 +182,7 @@ export default function MultiSelectCombobox({
             width: Math.max(pos.width, 260),
             zIndex: 9999,
             border: "1px solid #E5E7EB",
-            maxHeight: 320,
+            maxHeight: POPOVER_MAX_HEIGHT,
             display: "flex",
             flexDirection: "column",
           }}
