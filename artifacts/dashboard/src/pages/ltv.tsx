@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { RefreshCw, Info } from "lucide-react";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
+import LtvSelect from "@/components/LtvSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatDate } from "@/lib/format";
 
@@ -181,40 +182,30 @@ export default function LtvPage() {
           {/* ── Controls ── */}
           <div className="bg-white rounded-xl px-4 md:px-5 py-3 md:py-4 flex flex-wrap items-center gap-2 md:gap-3"
             style={{ border: "1px solid #EBEBEB" }} data-testid="ltv-controls">
-            <label className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               初回購入月
-              <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                aria-label="初回購入月の開始" data-testid="select-month-from"
-                value={monthFrom ?? ""} onChange={(e) => setMonthFrom(e.target.value || undefined)}>
-                <option value="">最初から</option>
-                {months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}
-              </select>
+              <LtvSelect label="初回購入月の開始" testId="select-month-from"
+                value={monthFrom ?? "all"} onValueChange={(value) => setMonthFrom(value === "all" ? undefined : value)}
+                options={[{ value: "all", label: "最初から" }, ...months.map((m) => ({ value: m, label: monthText(m) }))]} />
               〜
-              <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                aria-label="初回購入月の終了" data-testid="select-month-to"
-                value={monthTo ?? ""} onChange={(e) => setMonthTo(e.target.value || undefined)}>
-                <option value="">最後まで</option>
-                {months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}
-              </select>
-            </label>
+              <LtvSelect label="初回購入月の終了" testId="select-month-to"
+                value={monthTo ?? "all"} onValueChange={(value) => setMonthTo(value === "all" ? undefined : value)}
+                options={[{ value: "all", label: "最後まで" }, ...months.map((m) => ({ value: m, label: monthText(m) }))]} />
+            </div>
 
-            <label className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               内訳
-              <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                aria-label="内訳の軸" data-testid="select-split"
-                value={splitBy} onChange={(e) => setSplitBy(e.target.value as GetLtvDataSplitBy)}>
-                {SPLIT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </label>
+              <LtvSelect label="内訳の軸" testId="select-split"
+                value={splitBy} onValueChange={(value) => setSplitBy(value as GetLtvDataSplitBy)}
+                options={SPLIT_OPTIONS} />
+            </div>
 
-            <label className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               オプトアウト
-              <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                aria-label="オプトアウトでの絞り込み" data-testid="select-optout"
-                value={optout} onChange={(e) => setOptout(e.target.value as OptoutFilter)}>
-                {OPTOUT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </label>
+              <LtvSelect label="オプトアウトでの絞り込み" testId="select-optout"
+                value={optout} onValueChange={(value) => setOptout(value as OptoutFilter)}
+                options={OPTOUT_OPTIONS} />
+            </div>
 
             <div className="flex items-center gap-2 text-xs text-gray-500">
               オファー
@@ -287,14 +278,12 @@ export default function LtvPage() {
                     </div>
                   </div>
                   {isSplit && (
-                    <label className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
                       棒に出す指標
-                      <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
-                        aria-label="棒グラフに出す指標" data-testid="select-segment-metric"
-                        value={segmentMetric} onChange={(e) => setSegmentMetric(e.target.value as LtvMetricKey)}>
-                        {LTV_METRICS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
-                    </label>
+                      <LtvSelect label="棒グラフに出す指標" testId="select-segment-metric"
+                        value={segmentMetric} onValueChange={(value) => setSegmentMetric(value as LtvMetricKey)}
+                        options={LTV_METRICS} />
+                    </div>
                   )}
                 </div>
                 {chartData.length === 0 ? (
