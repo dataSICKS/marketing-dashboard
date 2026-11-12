@@ -112,7 +112,8 @@ export default function LtvPage() {
   const [firstProducts, setFirstProducts] = useState<string[]>([]);
   const [subsStatuses, setSubsStatuses] = useState<string[]>([]);
   const [adGroups, setAdGroups] = useState<string[]>([]);
-  const [segmentMetric, setSegmentMetric] = useState<LtvMetricKey>("ltv180");
+  const [chartMetric, setChartMetric] = useState<LtvMetricKey | "all">("all");
+  const segmentMetric = chartMetric === "all" ? "ltv180" : chartMetric;
 
   const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters();
 
@@ -235,14 +236,27 @@ export default function LtvPage() {
                 options={SPLIT_OPTIONS} />
             </div>
 
-            {splitBy !== "none" && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                表示するLTV
-                <LtvSelect label="セグメント別に表示するLTV" testId="select-segment-metric"
-                  value={segmentMetric} onValueChange={(value) => setSegmentMetric(value as LtvMetricKey)}
-                  options={LTV_METRICS} />
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500"
+              role="group" aria-label="グラフに表示するLTV" data-testid="select-segment-metric">
+              <span>表示するLTV</span>
+              {[
+                ...(splitBy === "none" ? [{ value: "all" as const, label: "すべて" }] : []),
+                ...LTV_METRICS,
+              ].map((metric) => {
+                const selected = (splitBy === "none" ? chartMetric : segmentMetric) === metric.value;
+                return (
+                  <button key={metric.value} type="button"
+                    aria-pressed={selected}
+                    data-testid={`button-chart-${metric.value}`}
+                    onClick={() => setChartMetric(metric.value)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-amber-500 ${
+                      selected ? "border-amber-400 bg-amber-50 text-amber-800" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}>
+                    {metric.label}
+                  </button>
+                );
+              })}
+            </div>
 
             <div className="flex items-center gap-2 text-xs text-gray-500">
               オプトアウト
@@ -343,7 +357,7 @@ export default function LtvPage() {
                   <div>
                     <div className="text-sm font-bold" style={{ color: "#1A1A1A" }}>初回購入月別のLTV</div>
                     <div className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-                      棒＝平均{isSplit ? LTV_METRICS.find((metric) => metric.value === segmentMetric)?.label : "LTV"}（左軸） / 折れ線＝定期件数（右軸）
+                      棒＝平均{isSplit || chartMetric !== "all" ? LTV_METRICS.find((metric) => metric.value === segmentMetric)?.label : "LTV"}（左軸） / 折れ線＝定期件数（右軸）
                     </div>
                   </div>
                 </div>
@@ -374,7 +388,7 @@ export default function LtvPage() {
                             <Bar key={segment} yAxisId="left" dataKey={`seg__${segment}`} name={segment}
                               fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]} maxBarSize={28} radius={[3, 3, 0, 0]} />
                           ))
-                          : LTV_METRICS.map((metric) => (
+                          : LTV_METRICS.filter((metric) => chartMetric === "all" || metric.value === chartMetric).map((metric) => (
                             <Bar key={metric.value} yAxisId="left" dataKey={metric.value} name={metric.label}
                               fill={metric.color} maxBarSize={22} radius={[3, 3, 0, 0]}>
                               <LabelList dataKey={metric.value} position="top" offset={6} fontSize={9}
