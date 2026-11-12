@@ -1,8 +1,6 @@
-import type { LtvProductRatioMonth, LtvProductRatios } from "@workspace/api-client-react";
+import type { LtvProductRatioMonth } from "@workspace/api-client-react";
 import { formatNumber } from "@/lib/format";
-
-export type ProductRatioItemsKey = keyof Pick<LtvProductRatios,
-  "initial" | "all" | "toothpasteInitial" | "toothpasteAll" | "brushCountInitial" | "brushCountAll">;
+import type { ProductRatioItemsKey } from "@/lib/ltv-product-ratio-chart";
 
 export default function LtvProductRatioMonths({ months, itemKey, isAll, rowLabel }: {
   months: LtvProductRatioMonth[] | undefined;

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber } from "@/lib/format";
 import LtvSelect from "@/components/LtvSelect";
 import LtvProductRatioMonths from "@/components/LtvProductRatioMonths";
+import LtvProductRatioChart from "@/components/LtvProductRatioChart";
 
 interface Props {
   data: ProductRatios | undefined;
@@ -94,6 +95,7 @@ export default function LtvProductRatios({ data, periodLabel, months }: Props) {
             <p className="text-amber-700">初回商品名が未設定：{formatNumber(data.missingFirstProductCount)}件（集計に含む）</p>
           )}
         </div>
+        <LtvProductRatioChart months={months} data={data} itemKey={itemKey} isAll={isAll} isMonthly={isMonthly} />
         {isMonthly ? (
           <LtvProductRatioMonths months={months} itemKey={itemKey} isAll={isAll} rowLabel={rowLabel} />
         ) : !data ? (
