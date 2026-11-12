@@ -18,7 +18,7 @@ import {
   type ToothpasteAxis,
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
-import { calculateLtvProductRatios } from "../lib/ltv-product-ratios.js";
+import { calculateLtvProductRatios, brushCountLabel } from "../lib/ltv-product-ratios.js";
 
 const router: IRouter = Router();
 
@@ -148,6 +148,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     const items = aggregateLtv(filtered, effectiveSplitBy, optedOut, timeGroupBy);
     const segments = [...new Set(items.map((item) => item.segment))];
     const toothpasteRatios = calculateLtvProductRatios(filtered, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
+    const brushRatios = calculateLtvProductRatios(filtered, brushCountLabel);
 
     res.json({
       splitBy: effectiveSplitBy,
@@ -156,6 +157,8 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
         ...calculateLtvProductRatios(filtered),
         toothpasteInitial: toothpasteRatios.initial,
         toothpasteAll: toothpasteRatios.all,
+        brushCountInitial: brushRatios.initial,
+        brushCountAll: brushRatios.all,
       },
       segments,
       summary: summarizeLtv(filtered),

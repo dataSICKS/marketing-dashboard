@@ -521,6 +521,12 @@ export const getLtvDataResponseProductRatiosToothpasteInitialItemStageCountsMax 
 export const getLtvDataResponseProductRatiosToothpasteAllItemStageCountsMin = 4;
 export const getLtvDataResponseProductRatiosToothpasteAllItemStageCountsMax = 4;
 
+export const getLtvDataResponseProductRatiosBrushCountInitialItemStageCountsMin = 4;
+export const getLtvDataResponseProductRatiosBrushCountInitialItemStageCountsMax = 4;
+
+export const getLtvDataResponseProductRatiosBrushCountAllItemStageCountsMin = 4;
+export const getLtvDataResponseProductRatiosBrushCountAllItemStageCountsMax = 4;
+
 export const GetLtvDataResponse = zod.object({
   splitBy: zod.enum([
     "none",
@@ -660,6 +666,62 @@ export const GetLtvDataResponse = zod.object({
         )
         .describe(
           "Purchases grouped independently at each stage by toothpaste presence; blank repeats excluded",
+        ),
+      brushCountInitial: zod
+        .array(
+          zod.object({
+            product: zod
+              .string()
+              .describe(
+                "Source product label; combinations are not split into individual SKUs",
+              ),
+            count: zod.number(),
+            ratio: zod
+              .number()
+              .describe("Count divided by the relevant total, on a 0–1 scale"),
+            stageCounts: zod
+              .array(zod.number())
+              .min(
+                getLtvDataResponseProductRatiosBrushCountInitialItemStageCountsMin,
+              )
+              .max(
+                getLtvDataResponseProductRatiosBrushCountInitialItemStageCountsMax,
+              )
+              .describe(
+                "Counts for first, second, third, and fourth purchases",
+              ),
+          }),
+        )
+        .describe(
+          "First purchases grouped by adult and child brush counts, ignoring toothpaste presence",
+        ),
+      brushCountAll: zod
+        .array(
+          zod.object({
+            product: zod
+              .string()
+              .describe(
+                "Source product label; combinations are not split into individual SKUs",
+              ),
+            count: zod.number(),
+            ratio: zod
+              .number()
+              .describe("Count divided by the relevant total, on a 0–1 scale"),
+            stageCounts: zod
+              .array(zod.number())
+              .min(
+                getLtvDataResponseProductRatiosBrushCountAllItemStageCountsMin,
+              )
+              .max(
+                getLtvDataResponseProductRatiosBrushCountAllItemStageCountsMax,
+              )
+              .describe(
+                "Counts for first, second, third, and fourth purchases",
+              ),
+          }),
+        )
+        .describe(
+          "Purchases grouped by adult and child brush counts per stage, ignoring toothpaste presence",
         ),
     })
     .optional(),

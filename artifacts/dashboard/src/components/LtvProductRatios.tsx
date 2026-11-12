@@ -13,8 +13,11 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
   const [mode, setMode] = useState("initial");
   const [breakdown, setBreakdown] = useState("product");
   const isToothpaste = breakdown === "toothpaste";
+  const isBrushCount = breakdown === "brushCount";
   const isAll = mode === "all";
-  const items = (isToothpaste
+  const items = (isBrushCount
+    ? (isAll ? data?.brushCountAll : data?.brushCountInitial)
+    : isToothpaste
     ? (isAll ? data?.toothpasteAll : data?.toothpasteInitial)
     : (isAll ? data?.all : data?.initial)) ?? [];
   const total = isAll ? data?.totalPurchaseCount : data?.subscriptionCount;
@@ -30,7 +33,8 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
             内訳
             <LtvSelect label="商品購入比率の内訳" testId="select-product-ratio-breakdown"
               value={breakdown} onValueChange={setBreakdown}
-              options={[{ value: "product", label: "商品名別" }, { value: "toothpaste", label: "歯磨き剤の有無" }]} />
+              options={[{ value: "product", label: "商品名別" }, { value: "toothpaste", label: "歯磨き剤の有無" },
+                { value: "brushCount", label: "大人・こどもの本数別" }]} />
           </div>
         <TabsList aria-label="商品購入比率の対象">
           <TabsTrigger value="initial" className="text-xs" data-testid="tab-products-initial">初回のみ</TabsTrigger>
@@ -52,10 +56,15 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
               ? "同じ定期で同じ商品を複数回購入した場合も、購入回ごとに1件として集計します。2〜4回目の空欄は未記録のため除外しています。5回目以降は対象外です。"
               : "定期購入1件につき初回商品を1件として集計します。初回の商品名が空欄のものは「未設定」に含めています。"}
           </p>
-          <p>{isToothpaste
+          <p>{isBrushCount
+            ? "歯磨き剤の有無をまたいで、大人・こどもの本数構成が同じ購入を合算します。例：大人2本と大人2本＋歯磨き剤は「大人2本」。大人1本＋大人2本は「大人3本」。"
+            : isToothpaste
             ? "各購入回の商品名から「歯磨き剤あり／なし／不明」にまとめます。セット商品も歯磨き剤を含めば「あり」です。未設定などは「不明」とし、「なし」には含めません。"
-            : "元データの商品ラベル単位です。セット商品は分割せず、商品数量・売上金額・ユニーク顧客数の比率ではありません。"}</p>
-          {isToothpaste && isAll && (
+            : "元データの商品ラベル単位です。先頭・末尾などの空のカンマ要素は除いて合算します。セット商品は分割せず、商品数量・売上金額・ユニーク顧客数の比率ではありません。"}</p>
+          {isBrushCount && (
+            <p>本数構成ごとの購入件数・構成比です（歯ブラシ総本数の比率ではありません）。スパイラル等を大人・こどもの本数には加算しません。本数不明は別区分です。</p>
+          )}
+          {(isToothpaste || isBrushCount) && isAll && (
             <p>各購入回の％はその回の記録件数を分母にします。右端の構成比は初回〜4回目の合計が分母です。2〜4回目の空欄は購入記録に数えません。</p>
           )}
           {!!data?.missingFirstProductCount && (
@@ -68,10 +77,10 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
           <p className="px-4 py-8 text-center text-xs text-gray-400">指定条件に該当する購入記録がありません。</p>
         ) : (
           <div className="max-h-[420px] overflow-auto border-t border-gray-100">
-            <table className="w-full border-collapse text-xs" aria-label={isToothpaste ? "購入回別の歯磨き剤有無の構成比" : isAll ? "初回から4回目の商品購入構成比" : "初回商品の購入構成比"}>
+            <table className="w-full border-collapse text-xs" aria-label={isBrushCount ? "大人・こどもの本数構成別の購入比率" : isToothpaste ? "購入回別の歯磨き剤有無の構成比" : isAll ? "初回から4回目の商品購入構成比" : "初回商品の購入構成比"}>
               <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500">
                 <tr>
-                  <th scope="col" className="min-w-[180px] px-4 py-3 text-left font-medium md:px-6">{isToothpaste ? "歯磨き剤の有無" : "商品"}</th>
+                  <th scope="col" className="min-w-[180px] px-4 py-3 text-left font-medium md:px-6">{isBrushCount ? "大人・こどもの本数構成" : isToothpaste ? "歯磨き剤の有無" : "商品"}</th>
                   {isAll && ["初回", "2回目", "3回目", "4回目"].map((label, index) => (
                     <th key={label} scope="col" className="whitespace-nowrap px-3 py-3 text-right font-medium">
                       {label}<span className="mt-1 block text-[10px] font-normal">計 {formatNumber(data.stageCounts[index])}件</span>
@@ -88,7 +97,7 @@ export default function LtvProductRatios({ data, periodLabel }: Props) {
                     {isAll && item.stageCounts.map((count, index) => (
                       <td key={index} className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-600">
                         {formatNumber(count)}
-                        {isToothpaste && (
+                        {(isToothpaste || isBrushCount) && (
                           <span className="mt-1 block text-[10px] text-amber-700">
                             {data.stageCounts[index] > 0 ? `${(count / data.stageCounts[index] * 100).toFixed(1)}%` : "—"}
                           </span>

@@ -24,4 +24,8 @@ export interface LtvProductRatios {
   toothpasteInitial: LtvProductRatioItem[];
   /** Purchases grouped independently at each stage by toothpaste presence; blank repeats excluded */
   toothpasteAll: LtvProductRatioItem[];
+  /** First purchases grouped by adult and child brush counts, ignoring toothpaste presence */
+  brushCountInitial: LtvProductRatioItem[];
+  /** Purchases grouped by adult and child brush counts per stage, ignoring toothpaste presence */
+  brushCountAll: LtvProductRatioItem[];
 }

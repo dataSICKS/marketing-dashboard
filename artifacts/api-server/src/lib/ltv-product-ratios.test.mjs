@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateLtvProductRatios } from "./ltv-product-ratios.ts";
+import { calculateLtvProductRatios, brushCountLabel } from "./ltv-product-ratios.ts";
 import { filterLtvRows, toothpasteStatus, TOOTHPASTE_LABELS } from "./ltv-aggregate.ts";
 
 const row = (firstProduct, product2 = "", product3 = "", product4 = "") => ({
@@ -84,4 +84,46 @@ test("toothpaste composition groups product labels per purchase without changing
   const segment = calculateLtvProductRatios(filtered, (product) => TOOTHPASTE_LABELS[toothpasteStatus(product)]);
   assert.equal(segment.subscriptionCount, 1);
   assert.deepEqual(segment.all.find((i) => i.product === "歯磨き剤あり").stageCounts, [0, 1, 0, 0]);
+});
+
+test("empty comma entries merge with the same product without splitting combinations", () => {
+  const result = calculateLtvProductRatios([
+    row(",大人2本", "大人2本,"),
+    row("大人2本", " , 大人2本 , "),
+    row("，大人2本", ", ,"),
+    row("大人2本,歯磨き剤", "大人2本,,歯磨き剤,"),
+  ]);
+  assert.equal(result.initial.find((i) => i.product === "大人2本").count, 3);
+  assert.equal(result.all.find((i) => i.product === "大人2本").count, 5);
+  assert.equal(result.all.find((i) => i.product === "大人2本,歯磨き剤").count, 2);
+  assert.deepEqual(result.stageCounts, [4, 3, 0, 0]);
+  assert.ok(result.all.every((i) => !i.product.startsWith(",") && !i.product.endsWith(",")));
+});
+
+test("adult and child count labels ignore toothpaste, sum repeated quantities, and preserve unknowns", () => {
+  for (const name of ["大人2本", ",大人2本", "大人2本,Hareno歯磨き剤_1ヶ月ごと", "歯磨き粉, 大人２本,"]) {
+    assert.equal(brushCountLabel(name), "大人2本");
+  }
+  assert.equal(brushCountLabel("大人1本,大人2本"), "大人3本");
+  assert.equal(brushCountLabel("こども2本,大人2本,歯磨き剤"), "大人2本＋こども2本");
+  assert.equal(brushCountLabel("子供用２本,子ども1本,おとな用 4 本"), "大人4本＋こども3本");
+  assert.equal(brushCountLabel("スパイラル2本"), "その他（大人・こども表記なし）");
+  assert.equal(brushCountLabel("大人2本,スパイラル2本"), "大人2本");
+  assert.equal(brushCountLabel("未設定"), "不明（商品未記録）");
+  assert.equal(brushCountLabel("大人セット"), "不明（本数判定不可）");
+  assert.equal(brushCountLabel("大人2本,こども不明"), "不明（本数判定不可）");
+});
+
+test("count-based ratios independently regroup each purchase and preserve totals after filters", () => {
+  const rows = [row(",大人2本", "歯磨き剤,大人2本"), row("大人2本,歯磨き剤", "こども2本")];
+  const result = calculateLtvProductRatios(rows, brushCountLabel);
+  assert.equal(result.initial.length, 1);
+  assert.equal(result.initial[0].product, "大人2本");
+  assert.equal(result.initial[0].count, 2);
+  assert.equal(result.initial[0].ratio, 1);
+  assert.deepEqual(result.all.find((i) => i.product === "大人2本").stageCounts, [2, 1, 0, 0]);
+  assert.equal(result.totalPurchaseCount, 4);
+  assert.equal(result.all.reduce((sum, i) => sum + i.count, 0), 4);
+  const filtered = filterLtvRows(rows, { toothpaste2: "yes" }, new Set());
+  assert.equal(calculateLtvProductRatios(filtered, brushCountLabel).subscriptionCount, 1);
 });
