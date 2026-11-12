@@ -417,6 +417,12 @@ export const GetLtvFiltersResponse = zod.object({
   adGroups: zod.array(zod.string()),
   monthMin: zod.string().nullish(),
   monthMax: zod.string().nullish(),
+  rowCount: zod
+    .number()
+    .optional()
+    .describe(
+      "Number of rows currently loaded (0 means the table has not been synced yet)",
+    ),
 });
 
 /**
@@ -500,6 +506,13 @@ export const GetLtvDataResponse = zod.object({
   optoutAvailable: zod.boolean().optional(),
   optoutDataFrom: zod.string().optional(),
   monthMin: zod.string().nullish(),
+  monthMax: zod.string().nullish(),
+  loadedRowCount: zod
+    .number()
+    .optional()
+    .describe(
+      "Rows loaded before filtering; 0 means the table has not been synced yet",
+    ),
   lastSyncedAt: zod.string().nullish(),
 });
 

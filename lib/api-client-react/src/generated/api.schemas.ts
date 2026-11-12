@@ -110,6 +110,8 @@ export interface LtvFiltersResponse {
   monthMin?: string | null;
   /** @nullable */
   monthMax?: string | null;
+  /** Number of rows currently loaded (0 means the table has not been synced yet) */
+  rowCount?: number;
 }
 
 export interface LtvMetrics {
@@ -158,6 +160,10 @@ export interface LtvDataResponse {
   optoutDataFrom?: string;
   /** @nullable */
   monthMin?: string | null;
+  /** @nullable */
+  monthMax?: string | null;
+  /** Rows loaded before filtering; 0 means the table has not been synced yet */
+  loadedRowCount?: number;
   /** @nullable */
   lastSyncedAt?: string | null;
 }

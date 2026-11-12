@@ -15,4 +15,6 @@ export interface LtvFiltersResponse {
   monthMin?: string | null;
   /** @nullable */
   monthMax?: string | null;
+  /** Number of rows currently loaded (0 means the table has not been synced yet) */
+  rowCount?: number;
 }
