@@ -11,6 +11,7 @@ API 呼び出しは `@workspace/api-client-react` の生成 React Query フッ�
 | ラベル | パス | 画面 |
 |---|---|---|
 | メルマガ分析 | `/` | dashboard.tsx |
+| LTV分析 | `/ltv` | ltv.tsx |
 | CVRレポート | `/efo` | efo.tsx |
 | 施策カレンダー | `/campaigns` | campaigns.tsx |
 | 設定 | `/settings` | settings.tsx |
@@ -44,7 +45,26 @@ API 呼び出しは `@workspace/api-client-react` の生成 React Query フッ�
 - **プリセット**: フィルタ条件を保存/復元（`localStorage` キー `nl_presets`）。
 - 手動「スプレッドシートから更新」（`POST /newsletter/sync`）＋画面表示時に自動取得。
 
-### 2. CVRレポート（`/efo`, efo.tsx）
+### 2. LTV分析（`/ltv`, ltv.tsx）
+
+定期購入1件あたりの LTV を初回購入月別に見る。
+**スプレッドシート「LTV集計-Sicks共有」の `LTVレポート` タブの表とグラフを画面化したもの**で、
+数字の定義（平均・円・LTV95/180/365）はそちらに合わせている。
+
+- **絞り込み**: 初回購入月（開始/終了の月セレクト）/ オファー / 初回商品 / サブスク状態 / 広告グループ
+  （いずれも `MultiSelectCombobox`）/ **オプトアウト**（すべて・した顧客のみ・していない顧客のみ）。
+- **内訳（`splitBy`）**: なし / **オプトアウト有無** / オファー / 初回商品 / サブスク状態 / 広告グループ。
+- **KPI カード**: 定期件数（サブに顧客数）/ 平均LTV95 / 平均LTV180 / 平均LTV365。
+- **チャート**: `ComposedChart`。
+  - 内訳なし … LTV95(`#4285F4`) / LTV180(`#EA4335`) / LTV365(`#FBBC04`) の棒3本（シートと同じ配色）。
+  - 内訳あり … 選んだ1指標を系列ごとの棒で並べる（「棒に出す指標」セレクト。既定 LTV180）。
+  - 件数は**右軸**の折れ線（`#34A853`）。元シートは件数も金額と同じ軸だが、絞り込むと桁が離れて潰れるため分けている。
+- **テーブル**: 初回購入月 ×（内訳）× 件数 / LTV95 / LTV180 / LTV365。シートの表と同じ並び。
+- **注記（常時表示）**: ①LTVは売上でなく利益の定期1件あたり平均 ②365日経っていない月はLTV365が小さく出る
+  ③オプトアウトのデータは2025/12/31以降しか無く、それ以前の月は「オプトアウトなし」に寄る。
+- 手動「スプレッドシートから更新」（`POST /ltv/sync`）。
+
+### 3. CVRレポート（`/efo`, efo.tsx）
 
 EFO（ECforce Smart Dialog）の A/B 2 軸比較 + Clarity スクロール深度。
 
@@ -60,13 +80,13 @@ EFO（ECforce Smart Dialog）の A/B 2 軸比較 + Clarity スクロール深度
   - Recharts 縦チャート（Y 軸=スクロール深度 5%→100%、X 軸=訪問者数）。Desktop=`CLARITY_DESKTOP`、Mobile=`CLARITY_MOBILE` の 2 線。
   - PV サマリ（Desktop PV / Mobile PV）をチャート上部に表示。データ無し日は「データなし」表示。
 
-### 3. 施策カレンダー（`/campaigns`, campaigns.tsx）
+### 4. 施策カレンダー（`/campaigns`, campaigns.tsx）
 
 - 施策（`campaigns` テーブル）の一覧・追加・編集・削除。
 - フォーム: タイトル（必須）/ 開始日 / 終了日 / カテゴリ（トグル選択）/ メモ。
 - カテゴリは `CAMPAIGN_CATEGORIES` に応じた色スタイル。
 
-### 4. 設定（`/settings`, settings.tsx）
+### 5. 設定（`/settings`, settings.tsx）
 
 - **Clarity 対象 URL（`clarityTargetUrls`）** の複数入力（追加/削除、`Plus`/`X` アイコン）。保存で `PUT /settings`。
   - これが CVR レポートの Clarity パネルで表示する広告コードのホワイトリストになる。

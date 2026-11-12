@@ -35,7 +35,7 @@ marketing-dashboard/
 │   │   └── src/
 │   │       ├── index.ts        # PORT 検証 → listen
 │   │       ├── app.ts          # express + cors + pino-http、router を /api にマウント
-│   │       ├── routes/         # health / newsletter / efo / clarity / campaigns / settings
+│   │       ├── routes/         # health / newsletter / ltv / efo / clarity / campaigns / settings
 │   │       └── lib/            # *-sheets(Sheets取得) / *-supabase(DB) / *-aggregate(集計)
 │   │                           # newsletter-cache(インメモリ) / settings-storage / logger
 │   ├── dashboard/              # [TS] React + Vite フロント
@@ -58,7 +58,7 @@ marketing-dashboard/
 
 - `src/index.ts` — `PORT` 環境変数必須（未設定/不正なら throw）。`app.listen`。
 - `src/app.ts` — `cors()` 全許可、`express.json()`、`pino-http`。全ルータを `/api` プレフィックスにマウント。
-- `src/routes/index.ts` — health/newsletter/efo/clarity/campaigns/settings を束ねる。
+- `src/routes/index.ts` — health/newsletter/ltv/efo/clarity/campaigns/settings を束ねる。
 
 ### routes（すべて `/api` 配下）
 
@@ -94,6 +94,11 @@ marketing-dashboard/
   - `optoutCountsByPeriod` … `newsletter-aggregate.ts` の `newsletterPeriod` をそのまま使う（週＝月曜日の日付）。
     オプトアウトを**指標の1つ**としてトレンド/マトリクスに重ねるときはこちら。ラベルが一致しないと突き合わせできない。
 - `newsletter-cache.ts` — プロセス内キャッシュ（get/set）。
+- `newsletter-optout-source.ts` — オプトアウト行の取得口（cache→Supabase→Sheets）。**メルマガ分析とLTV分析の両方から使う**ためルートではなく lib に置く。
+- `ltv-sheets.ts` / `ltv-supabase.ts` / `ltv-cache.ts` / `ltv-aggregate.ts` — LTV分析。
+  シートは `RAW_定期ID別購入商品_LTV95_180_365` を**ヘッダー名で**読む（BQのSELECTに列が増えても壊れないように）。
+  集計は初回購入月 × 内訳（`LtvSplitBy`）で、**定期1件あたりの平均**を円単位に丸める。
+  オプトアウト軸は `customer_code` で `newsletter_optouts` と突き合わせる。
 - `efo-sheets.ts` / `efo-supabase.ts` / `efo-aggregate.ts` / `efo-preset-supabase.ts` — EFO 版の Sheets/DB/集計/プリセット。Sheet `1gibjDJns9...` の `raw_efo_access` / `raw_efo_cv` を読む。
 - `campaigns-supabase.ts` — `campaigns` の CRUD。
 - `settings-storage.ts` — Storage バケット `app-settings` の `config.json` を読み書き。バケット無ければ作成。旧フォーマット `clarityTargetUrl`(単数)→`clarityTargetUrls`(複数) を移行。

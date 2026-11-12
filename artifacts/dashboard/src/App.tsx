@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
+import LtvPage from "@/pages/ltv";
 import EfoPage from "@/pages/efo";
 import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
@@ -24,6 +25,7 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/ltv" component={LtvPage} />
         <Route path="/efo" component={EfoPage} />
         <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/settings" component={SettingsPage} />

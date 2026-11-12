@@ -10,10 +10,11 @@ import {
   type GroupBy,
   type MatrixMetric,
 } from "../lib/newsletter-aggregate.js";
-import { getCache, setCache, getOptoutCache, setOptoutCache } from "../lib/newsletter-cache.js";
+import { getCache, setCache, setOptoutCache } from "../lib/newsletter-cache.js";
+import { loadOptoutRows } from "../lib/newsletter-optout-source.js";
 import { upsertRows, fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
 import { fetchOptoutSheet } from "../lib/newsletter-optout-sheets.js";
-import { upsertOptoutRows, fetchOptoutsFromSupabase } from "../lib/newsletter-optout-supabase.js";
+import { upsertOptoutRows } from "../lib/newsletter-optout-supabase.js";
 import {
   aggregateOptouts,
   filterByDate,
@@ -62,23 +63,9 @@ async function getRows(req: { log: { info: (...a: unknown[]) => void; error: (..
   };
 }
 
-async function getOptoutRows(req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: OptoutRow[]; syncedAt: string | null }> {
-  let cached = getOptoutCache();
-  if (!cached) {
-    const { rows: supabaseRows, syncedAt: supabaseSyncedAt } = await fetchOptoutsFromSupabase();
-    if (supabaseRows.length > 0 && supabaseSyncedAt) {
-      setOptoutCache(supabaseRows, supabaseSyncedAt);
-      cached = { rows: supabaseRows, syncedAt: supabaseSyncedAt };
-    } else {
-      req.log.info("Opt-out table empty, fetching from Google Sheets");
-      const rows = await fetchOptoutSheet();
-      const syncedAt = new Date().toISOString();
-      if (rows.length > 0) await upsertOptoutRows(rows, syncedAt);
-      setOptoutCache(rows, syncedAt);
-      cached = { rows, syncedAt };
-    }
-  }
-  return cached;
+/** キャッシュ→Supabase→Sheets のフォールバックは lib 側（LTV分析からも使うため）。 */
+async function getOptoutRows(_req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: OptoutRow[]; syncedAt: string | null }> {
+  return loadOptoutRows();
 }
 
 router.post("/newsletter/sync", async (req, res): Promise<void> => {

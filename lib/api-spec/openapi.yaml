@@ -259,6 +259,123 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ltv/sync:
+    post:
+      operationId: syncLtv
+      tags: [ltv]
+      summary: Sync LTV data from Google Sheets
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LtvSyncResult"
+        "500":
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ltv/filters:
+    get:
+      operationId: getLtvFilters
+      tags: [ltv]
+      summary: Get available LTV filter values
+      responses:
+        "200":
+          description: Filter values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LtvFiltersResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ltv/data:
+    get:
+      operationId: getLtvData
+      tags: [ltv]
+      summary: Get LTV by first-order month
+      description: Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+      parameters:
+        - name: monthFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: First-order month lower bound (YYYY-MM-DD, month start)
+        - name: monthTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: First-order month upper bound (YYYY-MM-DD, month start)
+        - name: splitBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [none, optout, offer, firstProduct, subsStatus, adGroup]
+            default: none
+          description: Breakdown axis
+        - name: optout
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, yes, no]
+            default: all
+          description: Restrict to customers who did or did not opt out
+        - name: offers
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Pipe-separated offer names
+        - name: firstProducts
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Pipe-separated first-purchase product labels
+        - name: subsStatuses
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Pipe-separated subscription statuses
+        - name: adGroups
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: Pipe-separated ad group names
+      responses:
+        "200":
+          description: LTV data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LtvDataResponse"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /newsletter/matrix:
     get:
       operationId: getNewsletterMatrix
@@ -953,6 +1070,129 @@ components:
       required:
         - groupBy
         - items
+        - summary
+
+    LtvSyncResult:
+      type: object
+      properties:
+        rowCount:
+          type: number
+        syncedAt:
+          type: string
+      required:
+        - rowCount
+        - syncedAt
+
+    LtvFiltersResponse:
+      type: object
+      properties:
+        offers:
+          type: array
+          items:
+            type: string
+        firstProducts:
+          type: array
+          items:
+            type: string
+        subsStatuses:
+          type: array
+          items:
+            type: string
+        adGroups:
+          type: array
+          items:
+            type: string
+        monthMin:
+          type: ["string", "null"]
+        monthMax:
+          type: ["string", "null"]
+      required:
+        - offers
+        - firstProducts
+        - subsStatuses
+        - adGroups
+
+    LtvMetrics:
+      type: object
+      properties:
+        label:
+          type: string
+          description: First-order month (YYYY/MM)
+        segment:
+          type: string
+          description: Breakdown value; the literal 全体 when splitBy is none
+        count:
+          type: number
+          description: Number of subscriptions
+        ltv95:
+          type: number
+          description: Average profit per subscription within 95 days
+        ltv180:
+          type: number
+        ltv365:
+          type: number
+      required:
+        - label
+        - segment
+        - count
+        - ltv95
+        - ltv180
+        - ltv365
+
+    LtvSummary:
+      type: object
+      properties:
+        count:
+          type: number
+        ltv95:
+          type: number
+        ltv180:
+          type: number
+        ltv365:
+          type: number
+      required:
+        - count
+        - ltv95
+        - ltv180
+        - ltv365
+
+    LtvDataResponse:
+      type: object
+      properties:
+        splitBy:
+          type: string
+          enum: [none, optout, offer, firstProduct, subsStatus, adGroup]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LtvMetrics"
+        segments:
+          type: array
+          items:
+            type: string
+        summary:
+          $ref: "#/components/schemas/LtvSummary"
+        subscriptionCount:
+          type: number
+        customerCount:
+          type: number
+        matured365Through:
+          type: string
+          description: Months after this one (YYYY/MM) cannot have a full 365-day window yet
+        matured180Through:
+          type: string
+        optoutAvailable:
+          type: boolean
+        optoutDataFrom:
+          type: string
+        monthMin:
+          type: ["string", "null"]
+        lastSyncedAt:
+          type: ["string", "null"]
+      required:
+        - splitBy
+        - items
+        - segments
         - summary
 
     NewsletterMetrics:
