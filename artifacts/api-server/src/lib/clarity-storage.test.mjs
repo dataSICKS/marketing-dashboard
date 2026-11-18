@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { listAllClarityFiles, parseClarityFilename, buildClarityCoverage } from "./clarity-storage.ts";
+import { listAllClarityFiles, parseClarityFilename, buildClarityCoverage, dedupeClarityFiles } from "./clarity-storage.ts";
 import { storedSettings } from "./settings-contract.ts";
 
 test("paginate root/date listings beyond 200, preserving the last page", async () => {
@@ -27,6 +27,26 @@ test("filename identity distinguishes parent and child advertising codes", () =>
   assert.equal(parseClarityFilename(`${parent}_child01_Mobile_scroll_yesterday.csv`).adCode, `${parent}_child01`);
   assert.notEqual(parseClarityFilename(`${parent}_child01_Mobile_scroll_yesterday.csv`).adCode, parent);
   assert.equal(parseClarityFilename(`${parent}_Desktop_scroll_2026-10-26.png`), null);
+});
+
+test("duplicate exports for the same device collapse to one file", () => {
+  // 2026-07-20 に実際に起きた重複（_scroll_yesterday と _scroll_<日付> が同じ内容で並ぶ）
+  const files = [
+    { name: "mid_1_a_Mobile_scroll_yesterday.csv" },
+    { name: "mid_1_a_Mobile_scroll_2026-07-20.csv" },
+    { name: "mid_1_a_Desktop_scroll_yesterday.csv" },
+    { name: "mid_1_b_Mobile_scroll_yesterday.csv" },
+  ];
+  const kept = dedupeClarityFiles(files, "2026-07-20");
+  assert.equal(kept.length, 3);
+  // 日付サフィックス付き（取り込み側の正式名）を残す
+  assert.ok(kept.some((f) => f.name === "mid_1_a_Mobile_scroll_2026-07-20.csv"));
+  assert.ok(!kept.some((f) => f.name === "mid_1_a_Mobile_scroll_yesterday.csv"));
+  // 重複していないものはそのまま残る
+  assert.ok(kept.some((f) => f.name === "mid_1_a_Desktop_scroll_yesterday.csv"));
+  assert.ok(kept.some((f) => f.name === "mid_1_b_Mobile_scroll_yesterday.csv"));
+  // 正式名が無ければ残っている方を使う
+  assert.equal(dedupeClarityFiles([{ name: "x_Mobile_scroll_yesterday.csv" }], "2026-07-21").length, 1);
 });
 
 test("coverage includes registered zero-file codes, older exports and per-device counts", () => {
