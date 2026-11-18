@@ -23,7 +23,8 @@ from datetime import date, timedelta
 import requests
 from playwright.sync_api import sync_playwright
 
-from export import CL, SB, admin_target_urls, download_one_checked, upload_to_supabase
+from export import (CL, SB, admin_target_urls, download_one_checked, upload_to_supabase,
+                    storage_object_name, prune_old_objects)
 from admin_settings import list_storage_names
 
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
@@ -114,12 +115,18 @@ def main():
                     continue
                 if not files:
                     n_nodata += 1
+                uploaded = []
                 for fp in files:
                     n_files += 1
-                    if upload_to_supabase(fp, ds):
+                    # 命名は export.py と必ず揃える（揃えないと同じ日に2ファイル残って二重計上になる）
+                    obj_name = storage_object_name(adcode, device, ds, fp.suffix)
+                    if upload_to_supabase(fp, ds, obj_name):
                         n_up += 1
+                        uploaded.append(obj_name)
                     else:
                         n_failed += 1
+                if uploaded:
+                    prune_old_objects(ds, adcode, device, uploaded)
                 time.sleep(1)
         ctx.close()
     print(f"\n完了: 取得 {n_files} ファイル / アップロード {n_up} / "

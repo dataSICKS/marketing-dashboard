@@ -20,7 +20,8 @@ from datetime import date, timedelta
 import requests
 from playwright.sync_api import sync_playwright
 
-from export import CL, SB, HERE, download_one, upload_to_supabase
+from export import (CL, SB, HERE, download_one, upload_to_supabase,
+                    storage_object_name, prune_old_objects)
 from backfill_admin import admin_target_urls, _headers, FNAME_RE
 
 DEVICES = CL.get("devices", ["Desktop", "Mobile"])
@@ -98,8 +99,15 @@ def main():
                     tag = "差し替え" if not dry_run else "要差し替え(dry)"
                     print(f"    ⚠ {short}/{dev}: 保存PV={spv} < 再取得PV={fpv} → {tag}", flush=True)
                     if not dry_run:
+                        # 命名は export.py と必ず揃える。以前ここだけ `_scroll_<日付>` で保存して
+                        # cron の `_scroll_yesterday` と二重に残り、PVが二重計上された。
+                        uploaded = []
                         for fp in files:
-                            upload_to_supabase(fp, ds)
+                            obj_name = storage_object_name(adc, dev, ds, fp.suffix)  # short は表示用。保存名は完全な広告コード
+                            if upload_to_supabase(fp, ds, obj_name):
+                                uploaded.append(obj_name)
+                        if uploaded:
+                            prune_old_objects(ds, adc, dev, uploaded)
                     fixed.append((ds, short, dev, spv, fpv))
                 else:
                     print(f"    {short}/{dev}: 保存PV={spv} 再取得PV={fpv} → OK", flush=True)

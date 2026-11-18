@@ -198,7 +198,7 @@ Clarity スクロール深度:
 | ltv_subscriptions | Google Sheet `10wmBYd...` `RAW_定期ID別購入商品_LTV95_180_365` | API（cache→Supabase→Sheets）+ 手動 `/ltv/sync` | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
-| clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 11:30**（cron、前日分。2026-10-14に07:30から変更） |
+| clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 08:00**（launchd、前日分＋当日分。2026-11-18に cron 11:30 から変更） |
 | campaigns / efo_presets | ダッシュボード操作 | API CRUD | 随時 |
 | app-settings/config.json | 設定ページ | API `/settings` PUT | 随時 |
 

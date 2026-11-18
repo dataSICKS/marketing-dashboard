@@ -103,7 +103,11 @@ EFO（ECforce Smart Dialog）の A/B 2 軸比較 + Clarity スクロール深度
 - `components/ui/*` — shadcn/ui 一式（button, card, table, tabs, popover, calendar, chart, sidebar, toast/sonner 等）。
 - `components/Layout.tsx` — サイドバー＋メイン枠。
 - `components/DateRangePicker.tsx` / `EfoDateRangePicker.tsx` — 期間選択。
-- `components/MultiSelectCombobox.tsx` — 複数選択フィルタ。
+- `components/MultiSelectCombobox.tsx` — 複数選択フィルタ（検索付き）。`document.body` への portal で描画する。
+  開閉は **pointerdown をキャプチャで監視し、トリガー／ポップオーバーの外のときだけ閉じる**。
+  リスナーは開いている間だけ、しかも**次のタスクで**購読する（開く操作そのものが届いて即閉じるのを防ぐため）。
+  トリガーはトグル、Escape で閉じる、スクロール・リサイズで位置を追従、
+  下に入らなければ上側に出す（画面外に描かれて「消えた」ように見えるのを防ぐ）。
 - `hooks/use-mobile.tsx`, `hooks/use-toast.ts`。
 - `lib/format.ts` — `formatNumber` / `formatPercent` 等。
 

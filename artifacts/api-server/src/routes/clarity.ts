@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateClarityScrollDays, isEmptyClarityExport, parseClarityCsv } from "../lib/clarity-scroll.js";
-import { buildClarityCoverage, listAllClarityFiles, parseClarityFilename, type ClarityInventoryDay } from "../lib/clarity-storage.js";
+import { buildClarityCoverage, dedupeClarityFiles, listAllClarityFiles, parseClarityFilename, type ClarityInventoryDay } from "../lib/clarity-storage.js";
 import { getSettings } from "../lib/settings-storage.js";
 
 const router: IRouter = Router();
@@ -89,8 +89,9 @@ async function fetchScrollForDate(
 ): Promise<{ device: string; pageViews: number | null; points: { depth: number; visitors: number }[]; emptyExport?: boolean }[]> {
   const files = await listFiles(supabase, date);
 
-  const deviceFiles = (files ?? [])
-    .filter((f) => f.name.startsWith(adCode + "_") && f.name.endsWith(".csv"))
+  // 同じデバイスのCSVが2つ残っているとPVが二重計上になるので、先に1つへ畳む。
+  const deviceFiles = dedupeClarityFiles((files ?? []).filter((f) => f.name.endsWith(".csv")), date)
+    .filter((f) => f.name.startsWith(adCode + "_"))
     .map((f) => {
       const parsed = parseClarityFilename(f.name);
       return parsed?.adCode === adCode ? { ...parsed, filename: f.name } : null;

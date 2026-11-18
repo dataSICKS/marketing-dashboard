@@ -7,6 +7,30 @@ export function parseClarityFilename(name: string) {
   return match ? { adCode: match[1], device: match[2] as "Desktop" | "Mobile" } : null;
 }
 
+/**
+ * 同じ (adCode, device) のCSVが複数あるとき1つだけ残す。
+ *
+ * 取得経路が違うと `_scroll_yesterday.csv` と `_scroll_2026-07-20.csv` のように
+ * **中身が同じファイルが2つ残る**ことがあり、そのまま合算するとPVが二重計上になる
+ * （実際 2026-07-20 の mid_1_a/mid_1_b Mobile で発生していた）。
+ * 取り込み側では保存名を `_scroll_{日付}` に固定して再発を止めているが、
+ * 過去に残った分と、今後の想定外の重複に備えて読み取り側でも1つに畳む。
+ *
+ * 優先順位は「日付サフィックス付き（取り込み側の正式名）」→ 名前順で先頭。
+ */
+export function dedupeClarityFiles<T extends { name: string }>(files: T[], date: string): T[] {
+  const picked = new Map<string, T>();
+  const canonical = (name: string) => name.includes(`_scroll_${date}.`);
+  for (const file of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
+    const parsed = parseClarityFilename(file.name);
+    if (!parsed) continue;
+    const key = `${parsed.adCode}|${parsed.device}`;
+    const current = picked.get(key);
+    if (!current || (!canonical(current.name) && canonical(file.name))) picked.set(key, file);
+  }
+  return [...picked.values()];
+}
+
 export async function listAllClarityFiles(list: ListPage, prefix: string) {
   const files: StorageFile[] = [];
   const limit = 200;
