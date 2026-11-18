@@ -103,7 +103,7 @@ def main():
                         # cron の `_scroll_yesterday` と二重に残り、PVが二重計上された。
                         uploaded = []
                         for fp in files:
-                            obj_name = storage_object_name(adc, dev, fp.suffix)  # short は表示用。保存名は完全な広告コード
+                            obj_name = storage_object_name(adc, dev, ds, fp.suffix)  # short は表示用。保存名は完全な広告コード
                             if upload_to_supabase(fp, ds, obj_name):
                                 uploaded.append(obj_name)
                         if uploaded:

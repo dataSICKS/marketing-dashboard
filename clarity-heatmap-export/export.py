@@ -249,13 +249,17 @@ def target_adcodes():
     return admin
 
 
-def storage_object_name(adcode, device, suffix):
+def storage_object_name(adcode, device, date_str, ext):
     """
-    Storage 上のファイル名。**取得経路（前日/当日/指定日/backfill）によらず同じ名前**にする。
+    Storage 上のファイル名。**取得経路（前日/当日/指定日/backfill/audit）によらず同じ名前**にする。
     ダッシュボードは `{adCode}_*` の CSV を全部足すので、同じ日・同じデバイスのファイルが
-    2つ残ると二重計上になる。名前を固定して必ず上書きさせる。
+    2つ残ると二重計上になる。名前を日付で固定して必ず上書きさせる。
+
+    サフィックスを落として `_scroll.csv` にはしないこと。
+    ダッシュボード側 `clarity-storage.ts` の `parseClarityFilename` が
+    `_scroll_<何か>.csv` を前提にしており、`_scroll.csv` は**読み飛ばされる**。
     """
-    return f"{adcode}_{device}_scroll{suffix}"
+    return f"{adcode}_{device}_scroll_{date_str}{ext}"
 
 
 def prune_old_objects(date_str, adcode, device, keep):
@@ -359,7 +363,7 @@ def main():
                     uploaded = []
                     for fp in files:
                         n_files += 1
-                        obj_name = storage_object_name(adcode, device, fp.suffix)
+                        obj_name = storage_object_name(adcode, device, label_date, fp.suffix)
                         if upload_to_supabase(fp, label_date, obj_name):
                             n_up += 1
                             uploaded.append(obj_name)

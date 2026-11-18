@@ -119,7 +119,7 @@ def main():
                 for fp in files:
                     n_files += 1
                     # 命名は export.py と必ず揃える（揃えないと同じ日に2ファイル残って二重計上になる）
-                    obj_name = storage_object_name(adcode, device, fp.suffix)
+                    obj_name = storage_object_name(adcode, device, ds, fp.suffix)
                     if upload_to_supabase(fp, ds, obj_name):
                         n_up += 1
                         uploaded.append(obj_name)
