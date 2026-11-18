@@ -249,12 +249,58 @@ def target_adcodes():
     return admin
 
 
-def upload_to_supabase(path, date_str):
+def storage_object_name(adcode, device, suffix):
+    """
+    Storage 上のファイル名。**取得経路（前日/当日/指定日/backfill）によらず同じ名前**にする。
+    ダッシュボードは `{adCode}_*` の CSV を全部足すので、同じ日・同じデバイスのファイルが
+    2つ残ると二重計上になる。名前を固定して必ず上書きさせる。
+    """
+    return f"{adcode}_{device}_scroll{suffix}"
+
+
+def prune_old_objects(date_str, adcode, device, keep):
+    """
+    同じ (日付, 広告コード, デバイス) の**旧命名のファイル**を消す。
+    `_scroll_yesterday.csv` や `_scroll_2026-11-16.csv` が残っていると二重計上になるため。
+    """
+    base = SB["url"].rstrip("/")
+    bucket = SB["storage_bucket"]
+    key = SB["service_role_key"]
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    try:
+        r = requests.post(f"{base}/storage/v1/object/list/{bucket}",
+                          headers=headers,
+                          json={"prefix": date_str, "limit": 1000, "offset": 0},
+                          timeout=60)
+        if r.status_code != 200:
+            return
+        names = [x.get("name", "") for x in r.json()]
+    except Exception as e:
+        print(f"    重複チェックをスキップ（一覧取得に失敗: {e}）", flush=True)
+        return
+
+    head = f"{adcode}_{device}_scroll"
+    stale = [n for n in names
+             if n.startswith(head) and n not in keep
+             and (n.endswith(".csv") or n.endswith(".png"))]
+    if not stale:
+        return
+    try:
+        requests.delete(f"{base}/storage/v1/object/{bucket}",
+                        headers=headers,
+                        json={"prefixes": [f"{date_str}/{n}" for n in stale]},
+                        timeout=60)
+        print(f"    旧ファイルを削除: {', '.join(stale)}", flush=True)
+    except Exception as e:
+        print(f"    旧ファイルの削除に失敗（二重計上の可能性あり）: {e}", flush=True)
+
+
+def upload_to_supabase(path, date_str, obj_name=None):
     """Supabase Storage バケットへアップロード（{date}/{filename}）。"""
     base = SB["url"].rstrip("/")
     bucket = SB["storage_bucket"]
     key = SB["service_role_key"]
-    obj = f"{date_str}/{path.name}"
+    obj = f"{date_str}/{obj_name or path.name}"
     ct = "text/csv" if path.suffix == ".csv" else "image/png"
     r = requests.post(
         f"{base}/storage/v1/object/{bucket}/{obj}",
@@ -267,12 +313,31 @@ def upload_to_supabase(path, date_str):
     return True
 
 
+def resolve_run_dates(date_str, with_today):
+    """
+    この実行で取りに行く日のリスト。`(date_param, label_date, 注記)` を返す。
+
+    日付を指定したときはその日だけ。指定が無ければ前日＋当日。
+    **当日分は実行時点までの途中経過**で、翌日の「前日」取得で同じ名前に上書きされて確定する。
+    """
+    if date_str:
+        return [(date_str, date_str, "指定")]
+    yesterday = (datetime.now(JST) - timedelta(days=1)).strftime("%Y-%m-%d")
+    runs = [(None, yesterday, "前日/Yesterday")]
+    if with_today:
+        today = datetime.now(JST).strftime("%Y-%m-%d")
+        runs.append((today, today, "当日・実行時点までの途中経過"))
+    return runs
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    flags = [a for a in sys.argv[1:] if a.startswith("-")]
     date_str = args[0] if args else None
-    label_date = date_str or (datetime.now(JST) - timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"対象日: {label_date}（{'指定' if date_str else '前日/Yesterday'}）", flush=True)
+    # 当日分が不要なとき（検証など）は --no-today で止められる
+    with_today = "--no-today" not in flags
 
+    runs = resolve_run_dates(date_str, with_today)
     n_files, n_up = 0, 0
     targets = target_adcodes()
     failures = 0
@@ -281,20 +346,27 @@ def main():
             user_data_dir=str(HERE / "chrome_profile"), headless=True,
             accept_downloads=True)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        for adcode in targets:
-            for device in CL["devices"]:
-                try:
-                    files = download_one_checked(page, adcode, device, date_str)
-                except Exception as e:
-                    print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
-                    failures += 1
-                    files = []
-                for fp in files:
-                    n_files += 1
-                    if upload_to_supabase(fp, label_date):
-                        n_up += 1
-                    else:
+        for date_param, label_date, note in runs:
+            print(f"\n対象日: {label_date}（{note}）", flush=True)
+            for adcode in targets:
+                for device in CL["devices"]:
+                    try:
+                        files = download_one_checked(page, adcode, device, date_param)
+                    except Exception as e:
+                        print(f"    [{adcode}/{device}] エラー: {e}", flush=True)
                         failures += 1
+                        files = []
+                    uploaded = []
+                    for fp in files:
+                        n_files += 1
+                        obj_name = storage_object_name(adcode, device, fp.suffix)
+                        if upload_to_supabase(fp, label_date, obj_name):
+                            n_up += 1
+                            uploaded.append(obj_name)
+                        else:
+                            failures += 1
+                    if uploaded:
+                        prune_old_objects(label_date, adcode, device, uploaded)
         ctx.close()
     print(f"\n完了: 取得 {n_files} ファイル / アップロード {n_up} ファイル", flush=True)
     if failures:
