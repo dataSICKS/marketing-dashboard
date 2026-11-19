@@ -96,6 +96,113 @@ export interface NewsletterOptoutResponse {
   lastSyncedAt?: string | null;
 }
 
+export type LtvSyncResultPerDataset = { [key: string]: number };
+
+export interface LtvSyncResult {
+  rowCount: number;
+  perDataset?: LtvSyncResultPerDataset;
+  syncedAt: string;
+}
+
+export type LtvDatasetOptionValue =
+  (typeof LtvDatasetOptionValue)[keyof typeof LtvDatasetOptionValue];
+
+export const LtvDatasetOptionValue = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export interface LtvDatasetOption {
+  value: LtvDatasetOptionValue;
+  label: string;
+}
+
+export type LtvFiltersResponseDataset =
+  (typeof LtvFiltersResponseDataset)[keyof typeof LtvFiltersResponseDataset];
+
+export const LtvFiltersResponseDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export interface LtvFiltersResponse {
+  offers: string[];
+  firstProducts: string[];
+  subsStatuses: string[];
+  adGroups: string[];
+  /** @nullable */
+  monthMin?: string | null;
+  /** @nullable */
+  monthMax?: string | null;
+  /** Number of rows currently loaded (0 means the table has not been synced yet) */
+  rowCount?: number;
+  dataset?: LtvFiltersResponseDataset;
+  datasets?: LtvDatasetOption[];
+}
+
+export interface LtvMetrics {
+  /** First-order month (YYYY/MM) */
+  label: string;
+  /** Breakdown value; the literal 全体 when splitBy is none */
+  segment: string;
+  /** Number of subscriptions */
+  count: number;
+  /** Average profit per subscription within 95 days */
+  ltv95: number;
+  ltv180: number;
+  ltv365: number;
+}
+
+export interface LtvSummary {
+  count: number;
+  ltv95: number;
+  ltv180: number;
+  ltv365: number;
+}
+
+export type LtvDataResponseDataset =
+  (typeof LtvDataResponseDataset)[keyof typeof LtvDataResponseDataset];
+
+export const LtvDataResponseDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export type LtvDataResponseSplitBy =
+  (typeof LtvDataResponseSplitBy)[keyof typeof LtvDataResponseSplitBy];
+
+export const LtvDataResponseSplitBy = {
+  none: "none",
+  optout: "optout",
+  offer: "offer",
+  firstProduct: "firstProduct",
+  subsStatus: "subsStatus",
+  adGroup: "adGroup",
+} as const;
+
+export interface LtvDataResponse {
+  dataset?: LtvDataResponseDataset;
+  splitBy: LtvDataResponseSplitBy;
+  items: LtvMetrics[];
+  segments: string[];
+  summary: LtvSummary;
+  subscriptionCount?: number;
+  customerCount?: number;
+  /** Months after this one (YYYY/MM) cannot have a full 365-day window yet */
+  matured365Through?: string;
+  matured180Through?: string;
+  optoutAvailable?: boolean;
+  optoutDataFrom?: string;
+  /** @nullable */
+  monthMin?: string | null;
+  /** @nullable */
+  monthMax?: string | null;
+  /** Rows loaded before filtering; 0 means the table has not been synced yet */
+  loadedRowCount?: number;
+  /** @nullable */
+  lastSyncedAt?: string | null;
+}
+
 export interface NewsletterMetrics {
   /** Group label (date, week, month, or template name) */
   label: string;
@@ -117,6 +224,11 @@ export interface NewsletterMetrics {
   openCount: number;
   clickCount: number;
   cvCount: number;
+  /**
+   * 期間内のオプトアウト件数。groupBy が day/week/month のときだけ値が入る（シナリオ/テンプレート別の内訳は元データに無い）
+   * @nullable
+   */
+  optoutCount?: number | null;
   /** Open rate (openCount / deliveryCount) */
   openRate: number;
   /** Click rate among opens (clickCount / openCount); zero when openCount is zero */
@@ -172,6 +284,9 @@ export interface NewsletterTemplatesResponse {
   templates: string[];
 }
 
+/**
+ * optoutCount は metrics では指定できず（includeOptout を使う）、オプトアウト行の metricValues のキーとしてだけ現れる
+ */
 export type MatrixMetric = (typeof MatrixMetric)[keyof typeof MatrixMetric];
 
 export const MatrixMetric = {
@@ -182,6 +297,7 @@ export const MatrixMetric = {
   clickRate: "clickRate",
   cvr: "cvr",
   cvCount: "cvCount",
+  optoutCount: "optoutCount",
 } as const;
 
 export interface MatrixMetricValues {
@@ -600,6 +716,107 @@ export const GetNewsletterOptoutGroupBy = {
   month: "month",
 } as const;
 
+export type SyncLtvParams = {
+  /**
+   * 省略すると両方のデータセットを取り込む
+   */
+  dataset?: SyncLtvDataset;
+};
+
+export type SyncLtvDataset =
+  (typeof SyncLtvDataset)[keyof typeof SyncLtvDataset];
+
+export const SyncLtvDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export type GetLtvFiltersParams = {
+  dataset?: GetLtvFiltersDataset;
+};
+
+export type GetLtvFiltersDataset =
+  (typeof GetLtvFiltersDataset)[keyof typeof GetLtvFiltersDataset];
+
+export const GetLtvFiltersDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export type GetLtvDataParams = {
+  /**
+   * fb = FB広告経由・2024/06以降 / all = 全経路・2026/01以降
+   */
+  dataset?: GetLtvDataDataset;
+  /**
+   * First-order month lower bound (YYYY-MM-DD, month start)
+   * @nullable
+   */
+  monthFrom?: string | null;
+  /**
+   * First-order month upper bound (YYYY-MM-DD, month start)
+   * @nullable
+   */
+  monthTo?: string | null;
+  /**
+   * Breakdown axis
+   */
+  splitBy?: GetLtvDataSplitBy;
+  /**
+   * Restrict to customers who did or did not opt out
+   */
+  optout?: GetLtvDataOptout;
+  /**
+   * Pipe-separated offer names
+   * @nullable
+   */
+  offers?: string | null;
+  /**
+   * Pipe-separated first-purchase product labels
+   * @nullable
+   */
+  firstProducts?: string | null;
+  /**
+   * Pipe-separated subscription statuses
+   * @nullable
+   */
+  subsStatuses?: string | null;
+  /**
+   * Pipe-separated ad group names
+   * @nullable
+   */
+  adGroups?: string | null;
+};
+
+export type GetLtvDataDataset =
+  (typeof GetLtvDataDataset)[keyof typeof GetLtvDataDataset];
+
+export const GetLtvDataDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export type GetLtvDataSplitBy =
+  (typeof GetLtvDataSplitBy)[keyof typeof GetLtvDataSplitBy];
+
+export const GetLtvDataSplitBy = {
+  none: "none",
+  optout: "optout",
+  offer: "offer",
+  firstProduct: "firstProduct",
+  subsStatus: "subsStatus",
+  adGroup: "adGroup",
+} as const;
+
+export type GetLtvDataOptout =
+  (typeof GetLtvDataOptout)[keyof typeof GetLtvDataOptout];
+
+export const GetLtvDataOptout = {
+  all: "all",
+  yes: "yes",
+  no: "no",
+} as const;
+
 export type GetNewsletterMatrixParams = {
   /**
    * Comma-separated grouping dimensions (scenario, subject, template); an empty string groups all matching deliveries into a total
@@ -615,6 +832,10 @@ export type GetNewsletterMatrixParams = {
    * Comma-separated metrics
    */
   metrics?: string;
+  /**
+   * 指定すると「オプトアウト（全体）」専用系列を 1 行追加する。オプトアウトはシナリオ/テンプレートに紐づかないため metrics では指定できない
+   */
+  includeOptout?: GetNewsletterMatrixIncludeOptout;
   /**
    * Pipe-separated scenario names
    */
@@ -634,6 +855,13 @@ export const GetNewsletterMatrixTimeGroupBy = {
   day: "day",
   week: "week",
   month: "month",
+} as const;
+
+export type GetNewsletterMatrixIncludeOptout =
+  (typeof GetNewsletterMatrixIncludeOptout)[keyof typeof GetNewsletterMatrixIncludeOptout];
+
+export const GetNewsletterMatrixIncludeOptout = {
+  true: "true",
 } as const;
 
 export type GetClarityFilesParams = {

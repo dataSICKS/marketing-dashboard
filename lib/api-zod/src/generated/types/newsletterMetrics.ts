@@ -27,6 +27,11 @@ export interface NewsletterMetrics {
   openCount: number;
   clickCount: number;
   cvCount: number;
+  /**
+   * 期間内のオプトアウト件数。groupBy が day/week/month のときだけ値が入る（シナリオ/テンプレート別の内訳は元データに無い）
+   * @nullable
+   */
+  optoutCount?: number | null;
   /** Open rate (openCount / deliveryCount) */
   openRate: number;
   /** Click rate among opens (clickCount / openCount); zero when openCount is zero */

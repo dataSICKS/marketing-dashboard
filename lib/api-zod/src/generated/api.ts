@@ -112,6 +112,12 @@ export const GetNewsletterDataResponse = zod.object({
       openCount: zod.number(),
       clickCount: zod.number(),
       cvCount: zod.number(),
+      optoutCount: zod
+        .number()
+        .nullish()
+        .describe(
+          "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+        ),
       openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
       clickRate: zod
         .number()
@@ -158,6 +164,12 @@ export const GetNewsletterDataResponse = zod.object({
             openCount: zod.number(),
             clickCount: zod.number(),
             cvCount: zod.number(),
+            optoutCount: zod
+              .number()
+              .nullish()
+              .describe(
+                "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+              ),
             openRate: zod
               .number()
               .describe("Open rate (openCount \/ deliveryCount)"),
@@ -209,6 +221,12 @@ export const GetNewsletterDataResponse = zod.object({
           openCount: zod.number(),
           clickCount: zod.number(),
           cvCount: zod.number(),
+          optoutCount: zod
+            .number()
+            .nullish()
+            .describe(
+              "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+            ),
           openRate: zod
             .number()
             .describe("Open rate (openCount \/ deliveryCount)"),
@@ -257,6 +275,12 @@ export const GetNewsletterDataResponse = zod.object({
     openCount: zod.number(),
     clickCount: zod.number(),
     cvCount: zod.number(),
+    optoutCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "期間内のオプトアウト件数。groupBy が day\/week\/month のときだけ値が入る（シナリオ\/テンプレート別の内訳は元データに無い）",
+      ),
     openRate: zod.number().describe("Open rate (openCount \/ deliveryCount)"),
     clickRate: zod
       .number()
@@ -376,6 +400,152 @@ export const GetNewsletterOptoutResponse = zod.object({
 });
 
 /**
+ * @summary Sync LTV data from Google Sheets
+ */
+export const SyncLtvQueryParams = zod.object({
+  dataset: zod
+    .enum(["fb", "all"])
+    .optional()
+    .describe("省略すると両方のデータセットを取り込む"),
+});
+
+export const SyncLtvResponse = zod.object({
+  rowCount: zod.number(),
+  perDataset: zod.record(zod.string(), zod.number()).optional(),
+  syncedAt: zod.string(),
+});
+
+/**
+ * @summary Get available LTV filter values
+ */
+export const getLtvFiltersQueryDatasetDefault = `fb`;
+
+export const GetLtvFiltersQueryParams = zod.object({
+  dataset: zod.enum(["fb", "all"]).default(getLtvFiltersQueryDatasetDefault),
+});
+
+export const GetLtvFiltersResponse = zod.object({
+  offers: zod.array(zod.string()),
+  firstProducts: zod.array(zod.string()),
+  subsStatuses: zod.array(zod.string()),
+  adGroups: zod.array(zod.string()),
+  monthMin: zod.string().nullish(),
+  monthMax: zod.string().nullish(),
+  rowCount: zod
+    .number()
+    .optional()
+    .describe(
+      "Number of rows currently loaded (0 means the table has not been synced yet)",
+    ),
+  dataset: zod.enum(["fb", "all"]).optional(),
+  datasets: zod
+    .array(
+      zod.object({
+        value: zod.enum(["fb", "all"]),
+        label: zod.string(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+ * @summary Get LTV by first-order month
+ */
+export const getLtvDataQueryDatasetDefault = `fb`;
+export const getLtvDataQuerySplitByDefault = `none`;
+export const getLtvDataQueryOptoutDefault = `all`;
+
+export const GetLtvDataQueryParams = zod.object({
+  dataset: zod
+    .enum(["fb", "all"])
+    .default(getLtvDataQueryDatasetDefault)
+    .describe("fb = FB広告経由・2024\/06以降 \/ all = 全経路・2026\/01以降"),
+  monthFrom: zod.coerce
+    .string()
+    .nullish()
+    .describe("First-order month lower bound (YYYY-MM-DD, month start)"),
+  monthTo: zod.coerce
+    .string()
+    .nullish()
+    .describe("First-order month upper bound (YYYY-MM-DD, month start)"),
+  splitBy: zod
+    .enum(["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup"])
+    .default(getLtvDataQuerySplitByDefault)
+    .describe("Breakdown axis"),
+  optout: zod
+    .enum(["all", "yes", "no"])
+    .default(getLtvDataQueryOptoutDefault)
+    .describe("Restrict to customers who did or did not opt out"),
+  offers: zod.coerce.string().nullish().describe("Pipe-separated offer names"),
+  firstProducts: zod.coerce
+    .string()
+    .nullish()
+    .describe("Pipe-separated first-purchase product labels"),
+  subsStatuses: zod.coerce
+    .string()
+    .nullish()
+    .describe("Pipe-separated subscription statuses"),
+  adGroups: zod.coerce
+    .string()
+    .nullish()
+    .describe("Pipe-separated ad group names"),
+});
+
+export const GetLtvDataResponse = zod.object({
+  dataset: zod.enum(["fb", "all"]).optional(),
+  splitBy: zod.enum([
+    "none",
+    "optout",
+    "offer",
+    "firstProduct",
+    "subsStatus",
+    "adGroup",
+  ]),
+  items: zod.array(
+    zod.object({
+      label: zod.string().describe("First-order month (YYYY\/MM)"),
+      segment: zod
+        .string()
+        .describe("Breakdown value; the literal 全体 when splitBy is none"),
+      count: zod.number().describe("Number of subscriptions"),
+      ltv95: zod
+        .number()
+        .describe("Average profit per subscription within 95 days"),
+      ltv180: zod.number(),
+      ltv365: zod.number(),
+    }),
+  ),
+  segments: zod.array(zod.string()),
+  summary: zod.object({
+    count: zod.number(),
+    ltv95: zod.number(),
+    ltv180: zod.number(),
+    ltv365: zod.number(),
+  }),
+  subscriptionCount: zod.number().optional(),
+  customerCount: zod.number().optional(),
+  matured365Through: zod
+    .string()
+    .optional()
+    .describe(
+      "Months after this one (YYYY\/MM) cannot have a full 365-day window yet",
+    ),
+  matured180Through: zod.string().optional(),
+  optoutAvailable: zod.boolean().optional(),
+  optoutDataFrom: zod.string().optional(),
+  monthMin: zod.string().nullish(),
+  monthMax: zod.string().nullish(),
+  loadedRowCount: zod
+    .number()
+    .optional()
+    .describe(
+      "Rows loaded before filtering; 0 means the table has not been synced yet",
+    ),
+  lastSyncedAt: zod.string().nullish(),
+});
+
+/**
  * @summary Get newsletter comparison matrix
  */
 export const getNewsletterMatrixQueryAnchorDateRegExp = new RegExp(
@@ -399,6 +569,12 @@ export const GetNewsletterMatrixQueryParams = zod.object({
     .enum(["day", "week", "month"])
     .default(getNewsletterMatrixQueryTimeGroupByDefault),
   metrics: zod.coerce.string().optional().describe("Comma-separated metrics"),
+  includeOptout: zod
+    .enum(["true"])
+    .optional()
+    .describe(
+      "指定すると「オプトアウト（全体）」専用系列を 1 行追加する。オプトアウトはシナリオ\/テンプレートに紐づかないため metrics では指定できない",
+    ),
   scenarios: zod.coerce
     .string()
     .optional()
@@ -469,15 +645,20 @@ export const GetNewsletterMatrixResponse = zod.object({
     }),
   ),
   metrics: zod.array(
-    zod.enum([
-      "deliveryCount",
-      "openCount",
-      "clickCount",
-      "openRate",
-      "clickRate",
-      "cvr",
-      "cvCount",
-    ]),
+    zod
+      .enum([
+        "deliveryCount",
+        "openCount",
+        "clickCount",
+        "openRate",
+        "clickRate",
+        "cvr",
+        "cvCount",
+        "optoutCount",
+      ])
+      .describe(
+        "optoutCount は metrics では指定できず（includeOptout を使う）、オプトアウト行の metricValues のキーとしてだけ現れる",
+      ),
   ),
 });
 

@@ -37,11 +37,16 @@ import type {
   GetClarityScrollParams,
   GetEfoDataParams,
   GetEfoFiltersParams,
+  GetLtvDataParams,
+  GetLtvFiltersParams,
   GetNewsletterChangeEventsParams,
   GetNewsletterDataParams,
   GetNewsletterMatrixParams,
   GetNewsletterOptoutParams,
   HealthStatus,
+  LtvDataResponse,
+  LtvFiltersResponse,
+  LtvSyncResult,
   MatrixResponse,
   NewsletterChangeEventsResponse,
   NewsletterOptoutResponse,
@@ -49,6 +54,7 @@ import type {
   NewsletterSegmentsResponse,
   NewsletterSyncResult,
   NewsletterTemplatesResponse,
+  SyncLtvParams,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -683,6 +689,291 @@ export function useGetNewsletterOptout<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetNewsletterOptoutQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSyncLtvUrl = (params?: SyncLtvParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/sync?${stringifiedParams}`
+    : `/api/ltv/sync`;
+};
+
+/**
+ * @summary Sync LTV data from Google Sheets
+ */
+export const syncLtv = async (
+  params?: SyncLtvParams,
+  options?: RequestInit,
+): Promise<LtvSyncResult> => {
+  return customFetch<LtvSyncResult>(getSyncLtvUrl(params), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncLtvMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncLtv>>,
+    TError,
+    { params?: SyncLtvParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncLtv>>,
+  TError,
+  { params?: SyncLtvParams },
+  TContext
+> => {
+  const mutationKey = ["syncLtv"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncLtv>>,
+    { params?: SyncLtvParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return syncLtv(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncLtvMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncLtv>>
+>;
+
+export type SyncLtvMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Sync LTV data from Google Sheets
+ */
+export const useSyncLtv = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncLtv>>,
+    TError,
+    { params?: SyncLtvParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncLtv>>,
+  TError,
+  { params?: SyncLtvParams },
+  TContext
+> => {
+  return useMutation(getSyncLtvMutationOptions(options));
+};
+
+export const getGetLtvFiltersUrl = (params?: GetLtvFiltersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/filters?${stringifiedParams}`
+    : `/api/ltv/filters`;
+};
+
+/**
+ * @summary Get available LTV filter values
+ */
+export const getLtvFilters = async (
+  params?: GetLtvFiltersParams,
+  options?: RequestInit,
+): Promise<LtvFiltersResponse> => {
+  return customFetch<LtvFiltersResponse>(getGetLtvFiltersUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLtvFiltersQueryKey = (params?: GetLtvFiltersParams) => {
+  return [`/api/ltv/filters`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLtvFiltersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLtvFilters>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvFiltersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvFilters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLtvFiltersQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLtvFilters>>> = ({
+    signal,
+  }) => getLtvFilters(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLtvFilters>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLtvFiltersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLtvFilters>>
+>;
+export type GetLtvFiltersQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get available LTV filter values
+ */
+
+export function useGetLtvFilters<
+  TData = Awaited<ReturnType<typeof getLtvFilters>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvFiltersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvFilters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLtvFiltersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetLtvDataUrl = (params?: GetLtvDataParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/data?${stringifiedParams}`
+    : `/api/ltv/data`;
+};
+
+/**
+ * Average LTV95/180/365 per subscription, grouped by first-order month and an optional breakdown axis
+ * @summary Get LTV by first-order month
+ */
+export const getLtvData = async (
+  params?: GetLtvDataParams,
+  options?: RequestInit,
+): Promise<LtvDataResponse> => {
+  return customFetch<LtvDataResponse>(getGetLtvDataUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLtvDataQueryKey = (params?: GetLtvDataParams) => {
+  return [`/api/ltv/data`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLtvDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLtvData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLtvDataQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLtvData>>> = ({
+    signal,
+  }) => getLtvData(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLtvData>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLtvDataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLtvData>>
+>;
+export type GetLtvDataQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get LTV by first-order month
+ */
+
+export function useGetLtvData<
+  TData = Awaited<ReturnType<typeof getLtvData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLtvDataQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
