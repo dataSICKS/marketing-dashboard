@@ -63,11 +63,24 @@ FB広告経由の定期購入1件＝1行。出典は Google Sheet `10wmBYd-oWJOM
 同スプシの `定期ID別購入商品_LTV95_180_365`（BigQuery直結の Connected Sheet）は値取得APIで読めないため、
 その値コピーであるこの RAW タブを正とする。**列はヘッダー名で引く**（位置ではない）。
 
-ユニークキー: `subs_order_code`。顧客は複数の定期を持ちうるので**顧客単位ではない**。
+**2つのデータセットを持つ**（元のBigQueryクエリが対象範囲ごとに別タブになっているため）。
+
+| `dataset` | タブ | 範囲 |
+|---|---|---|
+| `fb` | `RAW_定期ID別購入商品_LTV95_180_365` | FB広告経由のみ・2024-06-01以降 |
+| `all` | `RAW_定期ID別購入商品_LTV95_180_365_全経路` | 全経路（広告グループ絞り込み無し）・**2026-01-01以降** |
+
+2つは**重なる**（2026年以降のFB広告分は両方に出る）ので、ユニークキーは `dataset, subs_order_code`。
+顧客は複数の定期を持ちうるので**顧客単位ではない**。
+`all` のタブには `初回購入商品フラグ` と `オファー名` の列が無いため、**オファー名は空**になる。
+
+**オプトアウトと掛け合わせるなら `all` を使う。** `newsletter_optouts` は 2025-12-31 以降しか無く、
+`fb`（2024-06〜）だとそれ以前の月が必ず「オプトアウトなし」に寄るが、`all` は 2026-01 以降なので期間が揃う。
 
 | 列 | 型 | 説明 |
 |---|---|---|
-| subs_order_code | text | 定期購入番号（PK） |
+| dataset | text | `fb` / `all`（PKの一部） |
+| subs_order_code | text | 定期購入番号（PKの一部） |
 | customer_code | text | 顧客番号。`newsletter_optouts.customer_code` と突き合わせる |
 | first_order_month | date | 初回購入月（月初日に正規化） |
 | first_product | text | 初回購入の商品ラベル |
@@ -195,7 +208,7 @@ Clarity スクロール深度:
 |---|---|---|---|
 | newsletter_rows | Google Sheet `1zITxm8...` `calc` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期。読み出しはキャッシュ優先 |
 | newsletter_optouts | Google Sheet `1zITxm8...` `20260101以降のオプトアウトリスト` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期 |
-| ltv_subscriptions | Google Sheet `10wmBYd...` `RAW_定期ID別購入商品_LTV95_180_365` | API（cache→Supabase→Sheets）+ 手動 `/ltv/sync` | Sheet 更新時に手動同期 |
+| ltv_subscriptions | Google Sheet `10wmBYd...` の `RAW_定期ID別購入商品_LTV95_180_365`（fb）と `..._全経路`（all） | 手動 `/ltv/sync` のみ（GETでは取り込まない） | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
 | clarity-heatmaps (Storage) | Microsoft Clarity（PROJECT_ID srj36555ho, 歯科衛生士LP） | `clarity-heatmap-export/export.py`（Playwright 永続プロファイル） | **日次 08:00**（launchd、前日分＋当日分。2026-11-18に cron 11:30 から変更） |
@@ -234,7 +247,8 @@ order by 1 desc;
 
 -- ltv_subscriptions の作成（service_role キーでは DDL を実行できないため SQL Editor で手動実行）
 create table if not exists ltv_subscriptions (
-  subs_order_code   text        primary key,
+  dataset           text        not null default 'fb',
+  subs_order_code   text        not null,
   customer_code     text        not null,
   first_order_month date,
   first_product     text,
@@ -248,8 +262,14 @@ create table if not exists ltv_subscriptions (
   ltv365            numeric     not null default 0,
   selling_url       text,
   offer_name        text,
-  synced_at         timestamptz not null default now()
+  synced_at         timestamptz not null default now(),
+  primary key (dataset, subs_order_code)
 );
+
+-- すでに素の ltv_subscriptions を作ってある場合はこちら（2026-11-20の変更）
+alter table ltv_subscriptions add column if not exists dataset text not null default 'fb';
+alter table ltv_subscriptions drop constraint if exists ltv_subscriptions_pkey;
+alter table ltv_subscriptions add primary key (dataset, subs_order_code);
 create index if not exists ltv_subscriptions_customer_idx
   on ltv_subscriptions (customer_code);
 create index if not exists ltv_subscriptions_month_idx

@@ -6,7 +6,7 @@ import {
   useSyncLtv,
   getGetLtvDataQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvDataSplitBy, LtvMetrics } from "@workspace/api-client-react";
+import type { GetLtvDataDataset, GetLtvDataSplitBy, LtvMetrics } from "@workspace/api-client-react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from "recharts";
@@ -75,6 +75,7 @@ const monthText = (iso: string) => iso.slice(0, 7).replace("-", "/");
 export default function LtvPage() {
   const queryClient = useQueryClient();
 
+  const [dataset, setDataset] = useState<GetLtvDataDataset>("fb");
   const [monthFrom, setMonthFrom] = useState<string | undefined>(undefined);
   const [monthTo, setMonthTo] = useState<string | undefined>(undefined);
   const [splitBy, setSplitBy] = useState<GetLtvDataSplitBy>("none");
@@ -85,7 +86,7 @@ export default function LtvPage() {
   const [adGroups, setAdGroups] = useState<string[]>([]);
   const [segmentMetric, setSegmentMetric] = useState<LtvMetricKey>("ltv180");
 
-  const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters();
+  const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters({ dataset });
 
   /** 候補が空のとき、読み込み中・取得失敗・未取り込みを黙って同じ見た目にしない。 */
   const comboEmptyMessage = filtersLoading ? "読み込み中..."
@@ -94,6 +95,7 @@ export default function LtvPage() {
     : "候補がありません";
 
   const params = {
+    dataset,
     monthFrom,
     monthTo,
     splitBy,
@@ -182,6 +184,23 @@ export default function LtvPage() {
           <div className="bg-white rounded-xl px-4 md:px-5 py-3 md:py-4 flex flex-wrap items-center gap-2 md:gap-3"
             style={{ border: "1px solid #EBEBEB" }} data-testid="ltv-controls">
             <label className="flex items-center gap-2 text-xs text-gray-500">
+              対象
+              <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
+                aria-label="対象データセット" data-testid="select-dataset"
+                value={dataset}
+                onChange={(e) => {
+                  setDataset(e.target.value as GetLtvDataDataset);
+                  // 対象が変わると選べる値も月の範囲も変わるので、絞り込みは持ち越さない
+                  setMonthFrom(undefined); setMonthTo(undefined);
+                  setOffers([]); setFirstProducts([]); setSubsStatuses([]); setAdGroups([]);
+                }}>
+                {(filters?.datasets ?? [{ value: "fb", label: "FB広告（2024/06〜）" }]).map((d) => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-gray-500">
               初回購入月
               <select className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
                 aria-label="初回購入月の開始" data-testid="select-month-from"
@@ -247,7 +266,10 @@ export default function LtvPage() {
               {immatureFrom && <> <strong>{immatureFrom}</strong> より後に初回購入した月は、まだ365日経っていないぶんLTV365が小さく出ます。</>}
               {data?.optoutAvailable === false
                 ? " オプトアウトのデータが取得できないため、内訳と絞り込みは無効です。"
-                : <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>しかないため、それ以前に初回購入した定期は実際に解除していても「オプトアウトなし」に入ります。</>}
+                : dataset === "all"
+                  ? <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>で、この「全経路」は2026/01以降が対象なので<strong>期間が揃っています</strong>（オプトアウト軸で比較するならこちら）。</>
+                  : <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>しかないため、それ以前に初回購入した定期は実際に解除していても「オプトアウトなし」に入ります。オプトアウト軸で見るなら「全経路（2026/01〜）」のほうが揃います。</>}
+              {dataset === "all" && <> 全経路のデータには<strong>オファー名が入っていない</strong>ため、オファーでの内訳・絞り込みは使えません。</>}
             </div>
           </div>
 
