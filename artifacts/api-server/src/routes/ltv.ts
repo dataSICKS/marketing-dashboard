@@ -19,6 +19,7 @@ import {
 } from "../lib/ltv-aggregate.js";
 import type { LtvRow } from "../lib/ltv-types.js";
 import { calculateLtvProductBreakdowns, calculateMonthlyLtvProductBreakdowns } from "../lib/ltv-product-ratios.js";
+import { createLtvOptoutRouter } from "./ltv-optout-analysis.js";
 
 const router: IRouter = Router();
 
@@ -209,5 +210,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     res.status(500).json({ error: "LTVデータの取得に失敗しました" });
   }
 });
+
+router.use(createLtvOptoutRouter((req) => getLtvRows(req, "all")));
 
 export default router;

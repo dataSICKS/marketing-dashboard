@@ -73,7 +73,7 @@ function SidebarContent({ collapsed, onToggleCollapse, onClose }: {
         )}
         {collapsed && <div className="h-7" />}
         {NAV_ITEMS.map(({ icon: Icon, label, href }) => {
-          const active = location === href;
+          const active = location === href || (href !== "/" && location.startsWith(`${href}/`));
           return (
             <Link
               key={href}

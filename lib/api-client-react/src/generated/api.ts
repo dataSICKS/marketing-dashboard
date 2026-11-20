@@ -39,6 +39,7 @@ import type {
   GetEfoFiltersParams,
   GetLtvDataParams,
   GetLtvFiltersParams,
+  GetLtvOptoutAnalysisParams,
   GetNewsletterChangeEventsParams,
   GetNewsletterDataParams,
   GetNewsletterMatrixParams,
@@ -46,6 +47,8 @@ import type {
   HealthStatus,
   LtvDataResponse,
   LtvFiltersResponse,
+  LtvOptoutAnalysis,
+  LtvOptoutRefreshResult,
   LtvSyncResult,
   MatrixResponse,
   NewsletterChangeEventsResponse,
@@ -696,6 +699,187 @@ export function useGetNewsletterOptout<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+export const getGetLtvOptoutAnalysisUrl = (
+  params?: GetLtvOptoutAnalysisParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/optout-analysis?${stringifiedParams}`
+    : `/api/ltv/optout-analysis`;
+};
+
+/**
+ * @summary Analyze opt-out timing by customer code across all-channel purchases and observed email history
+ */
+export const getLtvOptoutAnalysis = async (
+  params?: GetLtvOptoutAnalysisParams,
+  options?: RequestInit,
+): Promise<LtvOptoutAnalysis> => {
+  return customFetch<LtvOptoutAnalysis>(getGetLtvOptoutAnalysisUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLtvOptoutAnalysisQueryKey = (
+  params?: GetLtvOptoutAnalysisParams,
+) => {
+  return [`/api/ltv/optout-analysis`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLtvOptoutAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLtvOptoutAnalysis>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvOptoutAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvOptoutAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetLtvOptoutAnalysisQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLtvOptoutAnalysis>>
+  > = ({ signal }) =>
+    getLtvOptoutAnalysis(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLtvOptoutAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLtvOptoutAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLtvOptoutAnalysis>>
+>;
+export type GetLtvOptoutAnalysisQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Analyze opt-out timing by customer code across all-channel purchases and observed email history
+ */
+
+export function useGetLtvOptoutAnalysis<
+  TData = Awaited<ReturnType<typeof getLtvOptoutAnalysis>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLtvOptoutAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvOptoutAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLtvOptoutAnalysisQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getRefreshLtvOptoutAnalysisUrl = () => {
+  return `/api/ltv/optout-analysis/refresh`;
+};
+
+/**
+ * @summary Manually refresh read-only opt-out and mail snapshots; does not modify purchase data
+ */
+export const refreshLtvOptoutAnalysis = async (
+  options?: RequestInit,
+): Promise<LtvOptoutRefreshResult> => {
+  return customFetch<LtvOptoutRefreshResult>(getRefreshLtvOptoutAnalysisUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshLtvOptoutAnalysisMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refreshLtvOptoutAnalysis"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>,
+    void
+  > = () => {
+    return refreshLtvOptoutAnalysis(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshLtvOptoutAnalysisMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>
+>;
+
+export type RefreshLtvOptoutAnalysisMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Manually refresh read-only opt-out and mail snapshots; does not modify purchase data
+ */
+export const useRefreshLtvOptoutAnalysis = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshLtvOptoutAnalysis>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRefreshLtvOptoutAnalysisMutationOptions(options));
+};
 
 export const getSyncLtvUrl = (params?: SyncLtvParams) => {
   const normalizedParams = new URLSearchParams();

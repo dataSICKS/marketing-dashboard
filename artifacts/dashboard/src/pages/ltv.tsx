@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   useGetLtvData,
   useGetLtvFilters,
@@ -10,7 +11,7 @@ import type { GetLtvDataSplitBy, GetLtvDataTimeGroupBy, GetLtvDataToothpaste1, L
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from "recharts";
-import { RefreshCw, Info } from "lucide-react";
+import { RefreshCw, Info, ChevronRight } from "lucide-react";
 import MultiSelectCombobox from "@/components/MultiSelectCombobox";
 import LtvSelect from "@/components/LtvSelect";
 import LtvTableBlocks from "@/components/LtvTableBlocks";
@@ -153,6 +154,8 @@ export default function LtvPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/ltv/data"] });
         queryClient.invalidateQueries({ queryKey: ["/api/ltv/filters"] });
+        // 購入データが変わると解除タイミング分析の初回購入コホートも変わるため再取得させる
+        queryClient.invalidateQueries({ queryKey: ["/api/ltv/optout-analysis"] });
       },
     },
   });
@@ -199,6 +202,10 @@ export default function LtvPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          <Link href="/ltv/optouts" data-testid="link-optout-timing"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
+            解除タイミング分析<ChevronRight size={12} />
+          </Link>
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
             style={{ border: "1px solid #EBEBEB", color: "#6B7280", background: "#FAFAFA" }}>
             <span style={{ color: "#9CA3AF", fontSize: 11 }} data-testid="text-last-sync">

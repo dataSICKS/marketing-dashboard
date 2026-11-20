@@ -400,6 +400,149 @@ export const GetNewsletterOptoutResponse = zod.object({
 });
 
 /**
+ * @summary Analyze opt-out timing by customer code across all-channel purchases and observed email history
+ */
+export const getLtvOptoutAnalysisQueryPageDefault = 1;
+
+export const getLtvOptoutAnalysisQueryPageSizeDefault = 25;
+export const getLtvOptoutAnalysisQueryPageSizeMax = 100;
+
+export const GetLtvOptoutAnalysisQueryParams = zod.object({
+  monthFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("First observed purchase month lower bound YYYY-MM"),
+  monthTo: zod.coerce
+    .string()
+    .optional()
+    .describe("First observed purchase month upper bound YYYY-MM"),
+  optoutFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("Estimated opt-out date lower bound YYYY-MM-DD"),
+  optoutTo: zod.coerce
+    .string()
+    .optional()
+    .describe("Estimated opt-out date upper bound YYYY-MM-DD"),
+  customerCode: zod.coerce
+    .string()
+    .optional()
+    .describe("Customer code substring; preserves leading zeroes"),
+  page: zod.coerce
+    .number()
+    .min(1)
+    .default(getLtvOptoutAnalysisQueryPageDefault),
+  pageSize: zod.coerce
+    .number()
+    .min(1)
+    .max(getLtvOptoutAnalysisQueryPageSizeMax)
+    .default(getLtvOptoutAnalysisQueryPageSizeDefault),
+});
+
+export const GetLtvOptoutAnalysisResponse = zod.object({
+  sources: zod.object({
+    purchaseSyncedAt: zod.string().nullable(),
+    fetchedAt: zod.string(),
+    mailAvailable: zod.boolean(),
+    mailFrom: zod.string().nullable(),
+    mailTo: zod.string().nullable(),
+    optoutFrom: zod.string().nullable(),
+    optoutTo: zod.string().nullable(),
+    mailRows: zod.number(),
+    completedMailRows: zod.number(),
+    excludedMailRows: zod.number(),
+    duplicateMailRows: zod.number(),
+    invalidMailRows: zod.number(),
+    mailError: zod.string().nullable(),
+  }),
+  summary: zod.object({
+    purchaseCustomers: zod.number(),
+    optoutCustomers: zod.number(),
+    unmatchedOptoutCustomers: zod.number(),
+    unknownPurchaseMonthCustomers: zod.number(),
+    beforePurchaseOnlyCustomers: zod.number(),
+    matchedCustomers: zod
+      .number()
+      .describe("Matched customers before user filters"),
+    analyzedCustomers: zod
+      .number()
+      .describe(
+        "All filtered customers before pagination; distribution denominator",
+      ),
+    observedMailCustomers: zod
+      .number()
+      .describe(
+        "Customers with at least one recorded completed email strictly before the opt-out date",
+      ),
+    cumulativeUnknownCustomers: zod.number(),
+    sameDayMailCustomers: zod.number(),
+  }),
+  monthDistribution: zod.array(
+    zod.object({
+      monthIndex: zod
+        .number()
+        .min(1)
+        .describe(
+          "First purchase month is month 1; calendar month difference plus one",
+        ),
+      count: zod.number(),
+      share: zod
+        .number()
+        .describe(
+          "Fraction of filtered matched customers; not an opt-out risk rate",
+        ),
+    }),
+  ),
+  mailDistribution: zod.array(
+    zod.object({
+      observedCount: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null means no usable prior records; never an asserted lifetime zero",
+        ),
+      label: zod.string(),
+      count: zod.number(),
+      share: zod.number(),
+    }),
+  ),
+  customers: zod.array(
+    zod.object({
+      customerCode: zod.string(),
+      firstPurchaseMonth: zod.string(),
+      optoutDate: zod.string(),
+      monthIndex: zod.number(),
+      subscriptionCount: zod.number(),
+      observedBeforeCount: zod.number().nullable(),
+      sameDayCount: zod.number().nullable(),
+      cumulativeCount: zod
+        .number()
+        .nullable()
+        .describe("Always null with currently incomplete history"),
+      mailStatus: zod.enum([
+        "history_incomplete",
+        "same_day_only",
+        "outside_period",
+        "no_matching_history",
+        "unavailable",
+      ]),
+    }),
+  ),
+  page: zod.number(),
+  pageSize: zod.number(),
+  totalPages: zod.number(),
+  notes: zod.array(zod.string()),
+});
+
+/**
+ * @summary Manually refresh read-only opt-out and mail snapshots; does not modify purchase data
+ */
+export const RefreshLtvOptoutAnalysisResponse = zod.object({
+  fetchedAt: zod.string(),
+  mailAvailable: zod.boolean(),
+});
+
+/**
  * @summary Sync LTV data from Google Sheets
  */
 export const syncLtvQueryDatasetDefault = `all`;

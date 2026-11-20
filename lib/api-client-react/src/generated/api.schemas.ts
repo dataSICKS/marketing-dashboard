@@ -104,6 +104,112 @@ export interface LtvSyncResult {
   syncedAt: string;
 }
 
+export interface LtvOptoutRefreshResult {
+  fetchedAt: string;
+  mailAvailable: boolean;
+}
+
+export interface LtvOptoutSources {
+  /** @nullable */
+  purchaseSyncedAt: string | null;
+  fetchedAt: string;
+  mailAvailable: boolean;
+  /** @nullable */
+  mailFrom: string | null;
+  /** @nullable */
+  mailTo: string | null;
+  /** @nullable */
+  optoutFrom: string | null;
+  /** @nullable */
+  optoutTo: string | null;
+  mailRows: number;
+  completedMailRows: number;
+  excludedMailRows: number;
+  duplicateMailRows: number;
+  invalidMailRows: number;
+  /** @nullable */
+  mailError: string | null;
+}
+
+export interface LtvOptoutSummary {
+  purchaseCustomers: number;
+  optoutCustomers: number;
+  unmatchedOptoutCustomers: number;
+  unknownPurchaseMonthCustomers: number;
+  beforePurchaseOnlyCustomers: number;
+  /** Matched customers before user filters */
+  matchedCustomers: number;
+  /** All filtered customers before pagination; distribution denominator */
+  analyzedCustomers: number;
+  /** Customers with at least one recorded completed email strictly before the opt-out date */
+  observedMailCustomers: number;
+  cumulativeUnknownCustomers: number;
+  sameDayMailCustomers: number;
+}
+
+export interface LtvOptoutMonthBucket {
+  /**
+   * First purchase month is month 1; calendar month difference plus one
+   * @minimum 1
+   */
+  monthIndex: number;
+  count: number;
+  /** Fraction of filtered matched customers; not an opt-out risk rate */
+  share: number;
+}
+
+export interface LtvOptoutMailBucket {
+  /**
+   * Null means no usable prior records; never an asserted lifetime zero
+   * @nullable
+   */
+  observedCount: number | null;
+  label: string;
+  count: number;
+  share: number;
+}
+
+export type LtvOptoutCustomerMailStatus =
+  (typeof LtvOptoutCustomerMailStatus)[keyof typeof LtvOptoutCustomerMailStatus];
+
+export const LtvOptoutCustomerMailStatus = {
+  history_incomplete: "history_incomplete",
+  same_day_only: "same_day_only",
+  outside_period: "outside_period",
+  no_matching_history: "no_matching_history",
+  unavailable: "unavailable",
+} as const;
+
+export interface LtvOptoutCustomer {
+  customerCode: string;
+  firstPurchaseMonth: string;
+  optoutDate: string;
+  monthIndex: number;
+  subscriptionCount: number;
+  /** @nullable */
+  observedBeforeCount: number | null;
+  /** @nullable */
+  sameDayCount: number | null;
+  /**
+   * Always null with currently incomplete history
+   * @nullable
+   */
+  cumulativeCount: number | null;
+  mailStatus: LtvOptoutCustomerMailStatus;
+}
+
+export interface LtvOptoutAnalysis {
+  sources: LtvOptoutSources;
+  summary: LtvOptoutSummary;
+  monthDistribution: LtvOptoutMonthBucket[];
+  mailDistribution: LtvOptoutMailBucket[];
+  customers: LtvOptoutCustomer[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  notes: string[];
+}
+
 export type LtvDatasetOptionValue =
   (typeof LtvDatasetOptionValue)[keyof typeof LtvDatasetOptionValue];
 
@@ -766,6 +872,38 @@ export const GetNewsletterOptoutGroupBy = {
   week: "week",
   month: "month",
 } as const;
+
+export type GetLtvOptoutAnalysisParams = {
+  /**
+   * First observed purchase month lower bound YYYY-MM
+   */
+  monthFrom?: string;
+  /**
+   * First observed purchase month upper bound YYYY-MM
+   */
+  monthTo?: string;
+  /**
+   * Estimated opt-out date lower bound YYYY-MM-DD
+   */
+  optoutFrom?: string;
+  /**
+   * Estimated opt-out date upper bound YYYY-MM-DD
+   */
+  optoutTo?: string;
+  /**
+   * Customer code substring; preserves leading zeroes
+   */
+  customerCode?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
+};
 
 export type SyncLtvParams = {
   /**
