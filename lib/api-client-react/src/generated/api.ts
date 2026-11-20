@@ -19,12 +19,18 @@ import type {
 import type {
   AppSettings,
   AppSettingsInput,
+  AuthConfigResponse,
+  AuthMeResponse,
+  AuthNotConfigured,
+  BackupCodeVerifyResponse,
+  BackupCodesResponse,
   CampaignInput,
   CampaignListResponse,
   CampaignResponse,
   ClarityCoverageResponse,
   ClarityFilesResponse,
   ClarityScrollResponse,
+  CodeInput,
   EfoFilters,
   EfoPresetInput,
   EfoPresetListResponse,
@@ -45,6 +51,8 @@ import type {
   GetNewsletterMatrixParams,
   GetNewsletterOptoutParams,
   HealthStatus,
+  LogoutInput,
+  LogoutResult,
   LtvDataResponse,
   LtvFiltersResponse,
   LtvOptoutAnalysis,
@@ -58,6 +66,8 @@ import type {
   NewsletterSyncResult,
   NewsletterTemplatesResponse,
   SyncLtvParams,
+  TotpEnrollResponse,
+  TotpVerifyResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -144,6 +154,574 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+export const getGetAuthConfigUrl = () => {
+  return `/api/auth/config`;
+};
+
+/**
+ * Whether sign-in is configured, which env vars are missing, and which email domains may sign in. Available without signing in.
+ * @summary Sign-in configuration
+ */
+export const getAuthConfig = async (
+  options?: RequestInit,
+): Promise<AuthConfigResponse> => {
+  return customFetch<AuthConfigResponse>(getGetAuthConfigUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAuthConfigQueryKey = () => {
+  return [`/api/auth/config`] as const;
+};
+
+export const getGetAuthConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAuthConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAuthConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAuthConfigQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthConfig>>> = ({
+    signal,
+  }) => getAuthConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAuthConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAuthConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAuthConfig>>
+>;
+export type GetAuthConfigQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Sign-in configuration
+ */
+
+export function useGetAuthConfig<
+  TData = Awaited<ReturnType<typeof getAuthConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAuthConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAuthConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetAuthMeUrl = () => {
+  return `/api/auth/me`;
+};
+
+/**
+ * Returns the stage of the current session. Only the "active" stage may call the data endpoints.
+ * @summary Current sign-in state
+ */
+export const getAuthMe = async (
+  options?: RequestInit,
+): Promise<AuthMeResponse> => {
+  return customFetch<AuthMeResponse>(getGetAuthMeUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAuthMeQueryKey = () => {
+  return [`/api/auth/me`] as const;
+};
+
+export const getGetAuthMeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAuthMe>>,
+  TError = ErrorType<AuthNotConfigured>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getAuthMe>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAuthMeQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthMe>>> = ({
+    signal,
+  }) => getAuthMe({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAuthMe>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAuthMeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAuthMe>>
+>;
+export type GetAuthMeQueryError = ErrorType<AuthNotConfigured>;
+
+/**
+ * @summary Current sign-in state
+ */
+
+export function useGetAuthMe<
+  TData = Awaited<ReturnType<typeof getAuthMe>>,
+  TError = ErrorType<AuthNotConfigured>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getAuthMe>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAuthMeQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getEnrollTotpUrl = () => {
+  return `/api/auth/totp/enroll`;
+};
+
+/**
+ * Creates a provisional TOTP secret and returns the otpauth URI. Enrollment is only final once a code verifies.
+ * @summary Start authenticator enrollment
+ */
+export const enrollTotp = async (
+  options?: RequestInit,
+): Promise<TotpEnrollResponse> => {
+  return customFetch<TotpEnrollResponse>(getEnrollTotpUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getEnrollTotpMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof enrollTotp>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof enrollTotp>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["enrollTotp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof enrollTotp>>,
+    void
+  > = () => {
+    return enrollTotp(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EnrollTotpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof enrollTotp>>
+>;
+
+export type EnrollTotpMutationError = ErrorType<void>;
+
+/**
+ * @summary Start authenticator enrollment
+ */
+export const useEnrollTotp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof enrollTotp>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof enrollTotp>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getEnrollTotpMutationOptions(options));
+};
+
+export const getVerifyTotpUrl = () => {
+  return `/api/auth/totp/verify`;
+};
+
+/**
+ * Completes the second factor. On first enrollment the backup codes are returned once and never again.
+ * @summary Verify a 6-digit code
+ */
+export const verifyTotp = async (
+  codeInput: CodeInput,
+  options?: RequestInit,
+): Promise<TotpVerifyResponse> => {
+  return customFetch<TotpVerifyResponse>(getVerifyTotpUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(codeInput),
+  });
+};
+
+export const getVerifyTotpMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyTotp>>,
+    TError,
+    { data: BodyType<CodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyTotp>>,
+  TError,
+  { data: BodyType<CodeInput> },
+  TContext
+> => {
+  const mutationKey = ["verifyTotp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyTotp>>,
+    { data: BodyType<CodeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyTotp(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyTotpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyTotp>>
+>;
+export type VerifyTotpMutationBody = BodyType<CodeInput>;
+export type VerifyTotpMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a 6-digit code
+ */
+export const useVerifyTotp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyTotp>>,
+    TError,
+    { data: BodyType<CodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyTotp>>,
+  TError,
+  { data: BodyType<CodeInput> },
+  TContext
+> => {
+  return useMutation(getVerifyTotpMutationOptions(options));
+};
+
+export const getVerifyBackupCodeUrl = () => {
+  return `/api/auth/backup-code/verify`;
+};
+
+/**
+ * Single-use fallback when the authenticator is unavailable.
+ * @summary Verify a backup code
+ */
+export const verifyBackupCode = async (
+  codeInput: CodeInput,
+  options?: RequestInit,
+): Promise<BackupCodeVerifyResponse> => {
+  return customFetch<BackupCodeVerifyResponse>(getVerifyBackupCodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(codeInput),
+  });
+};
+
+export const getVerifyBackupCodeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBackupCode>>,
+    TError,
+    { data: BodyType<CodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyBackupCode>>,
+  TError,
+  { data: BodyType<CodeInput> },
+  TContext
+> => {
+  const mutationKey = ["verifyBackupCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyBackupCode>>,
+    { data: BodyType<CodeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyBackupCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyBackupCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyBackupCode>>
+>;
+export type VerifyBackupCodeMutationBody = BodyType<CodeInput>;
+export type VerifyBackupCodeMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a backup code
+ */
+export const useVerifyBackupCode = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBackupCode>>,
+    TError,
+    { data: BodyType<CodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyBackupCode>>,
+  TError,
+  { data: BodyType<CodeInput> },
+  TContext
+> => {
+  return useMutation(getVerifyBackupCodeMutationOptions(options));
+};
+
+export const getRegenerateBackupCodesUrl = () => {
+  return `/api/auth/backup-codes/regenerate`;
+};
+
+/**
+ * Replaces every existing backup code. Requires an active session.
+ * @summary Issue a new set of backup codes
+ */
+export const regenerateBackupCodes = async (
+  options?: RequestInit,
+): Promise<BackupCodesResponse> => {
+  return customFetch<BackupCodesResponse>(getRegenerateBackupCodesUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRegenerateBackupCodesMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateBackupCodes>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateBackupCodes>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["regenerateBackupCodes"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateBackupCodes>>,
+    void
+  > = () => {
+    return regenerateBackupCodes(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateBackupCodesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateBackupCodes>>
+>;
+
+export type RegenerateBackupCodesMutationError = ErrorType<void>;
+
+/**
+ * @summary Issue a new set of backup codes
+ */
+export const useRegenerateBackupCodes = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateBackupCodes>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateBackupCodes>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRegenerateBackupCodesMutationOptions(options));
+};
+
+export const getLogoutUrl = () => {
+  return `/api/auth/logout`;
+};
+
+/**
+ * @summary Sign out
+ */
+export const logout = async (
+  logoutInput?: LogoutInput,
+  options?: RequestInit,
+): Promise<LogoutResult> => {
+  return customFetch<LogoutResult>(getLogoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(logoutInput),
+  });
+};
+
+export const getLogoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logout>>,
+    TError,
+    { data?: BodyType<LogoutInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  { data?: BodyType<LogoutInput> },
+  TContext
+> => {
+  const mutationKey = ["logout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logout>>,
+    { data?: BodyType<LogoutInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return logout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logout>>
+>;
+export type LogoutMutationBody = BodyType<LogoutInput> | undefined;
+export type LogoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign out
+ */
+export const useLogout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logout>>,
+    TError,
+    { data?: BodyType<LogoutInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  { data?: BodyType<LogoutInput> },
+  TContext
+> => {
+  return useMutation(getLogoutMutationOptions(options));
+};
 
 export const getSyncNewsletterUrl = () => {
   return `/api/newsletter/sync`;

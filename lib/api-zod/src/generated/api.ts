@@ -16,6 +16,108 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * Whether sign-in is configured, which env vars are missing, and which email domains may sign in. Available without signing in.
+ * @summary Sign-in configuration
+ */
+export const GetAuthConfigResponse = zod.object({
+  configured: zod
+    .boolean()
+    .describe("True only when every required environment variable is present"),
+  missing: zod
+    .array(zod.string())
+    .describe("Names of the environment variables that are still missing"),
+  allowedDomains: zod
+    .array(zod.string())
+    .describe("Email domains that may sign in, matched exactly"),
+});
+
+/**
+ * Returns the stage of the current session. Only the "active" stage may call the data endpoints.
+ * @summary Current sign-in state
+ */
+export const GetAuthMeResponse = zod.object({
+  state: zod
+    .enum(["unauthenticated", "totp_setup", "totp_required", "active"])
+    .describe(
+      'Only \"active\" has passed both Google sign-in and the authenticator code',
+    ),
+  email: zod.string().nullish(),
+  name: zod.string().nullish(),
+  pictureUrl: zod.string().nullish(),
+  totpEnrolled: zod.boolean().optional(),
+  backupCodesRemaining: zod.number().nullish(),
+  lockedForSeconds: zod
+    .number()
+    .optional()
+    .describe("Seconds left on the lock after repeated failed codes"),
+});
+
+/**
+ * Creates a provisional TOTP secret and returns the otpauth URI. Enrollment is only final once a code verifies.
+ * @summary Start authenticator enrollment
+ */
+export const EnrollTotpResponse = zod.object({
+  secret: zod.string().describe("Base32 secret for manual entry"),
+  secretFormatted: zod
+    .string()
+    .describe("The same secret grouped in fours, for reading aloud or typing"),
+  otpauthUri: zod.string(),
+  issuer: zod.string(),
+  account: zod.string(),
+});
+
+/**
+ * Completes the second factor. On first enrollment the backup codes are returned once and never again.
+ * @summary Verify a 6-digit code
+ */
+export const VerifyTotpBody = zod.object({
+  code: zod.string(),
+});
+
+export const VerifyTotpResponse = zod.object({
+  state: zod.string(),
+  backupCodes: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Returned once, on first enrollment only"),
+});
+
+/**
+ * Single-use fallback when the authenticator is unavailable.
+ * @summary Verify a backup code
+ */
+export const VerifyBackupCodeBody = zod.object({
+  code: zod.string(),
+});
+
+export const VerifyBackupCodeResponse = zod.object({
+  state: zod.string(),
+  backupCodesRemaining: zod.number().optional(),
+});
+
+/**
+ * Replaces every existing backup code. Requires an active session.
+ * @summary Issue a new set of backup codes
+ */
+export const RegenerateBackupCodesResponse = zod.object({
+  backupCodes: zod.array(zod.string()),
+});
+
+/**
+ * @summary Sign out
+ */
+export const LogoutBody = zod.object({
+  all: zod
+    .boolean()
+    .optional()
+    .describe("Also revoke the sessions on the person's other devices"),
+});
+
+export const LogoutResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * Fetches latest data from the calc sheet and returns it
  * @summary Sync newsletter data from Google Sheets
  */

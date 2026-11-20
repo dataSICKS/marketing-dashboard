@@ -758,6 +758,91 @@ export interface AppSettingsInput {
   adCodes?: string[];
 }
 
+export interface AuthConfigResponse {
+  /** True only when every required environment variable is present */
+  configured: boolean;
+  /** Names of the environment variables that are still missing */
+  missing: string[];
+  /** Email domains that may sign in, matched exactly */
+  allowedDomains: string[];
+}
+
+export interface AuthNotConfigured {
+  error: string;
+  code: string;
+  missing?: string[];
+}
+
+/**
+ * Only "active" has passed both Google sign-in and the authenticator code
+ */
+export type AuthMeResponseState =
+  (typeof AuthMeResponseState)[keyof typeof AuthMeResponseState];
+
+export const AuthMeResponseState = {
+  unauthenticated: "unauthenticated",
+  totp_setup: "totp_setup",
+  totp_required: "totp_required",
+  active: "active",
+} as const;
+
+export interface AuthMeResponse {
+  /** Only "active" has passed both Google sign-in and the authenticator code */
+  state: AuthMeResponseState;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  pictureUrl?: string | null;
+  totpEnrolled?: boolean;
+  /** @nullable */
+  backupCodesRemaining?: number | null;
+  /** Seconds left on the lock after repeated failed codes */
+  lockedForSeconds?: number;
+}
+
+export interface TotpEnrollResponse {
+  /** Base32 secret for manual entry */
+  secret: string;
+  /** The same secret grouped in fours, for reading aloud or typing */
+  secretFormatted: string;
+  otpauthUri: string;
+  issuer: string;
+  account: string;
+}
+
+export interface CodeInput {
+  code: string;
+}
+
+export interface TotpVerifyResponse {
+  state: string;
+  /**
+   * Returned once, on first enrollment only
+   * @nullable
+   */
+  backupCodes?: string[] | null;
+}
+
+export interface BackupCodeVerifyResponse {
+  state: string;
+  backupCodesRemaining?: number;
+}
+
+export interface BackupCodesResponse {
+  backupCodes: string[];
+}
+
+export interface LogoutInput {
+  /** Also revoke the sessions on the person's other devices */
+  all?: boolean;
+}
+
+export interface LogoutResult {
+  ok: boolean;
+}
+
 export type GetNewsletterDataParams = {
   /**
    * Aggregation dimension

@@ -18,6 +18,27 @@ API 呼び出しは `@workspace/api-client-react` の生成 React Query フッ�
 
 ルーティングは wouter（`App.tsx`）。`base` は `import.meta.env.BASE_URL`。ダーク class は起動時に除去。
 
+## ログイン（`components/AuthGate.tsx`）
+
+ルータ全体を `AuthGate` で包んでいる。`GET /api/auth/me` の `state` で出し分ける。
+
+| state | 画面 |
+|---|---|
+| （未設定） | **認証が未設定です** — 不足している環境変数名を列挙。`/api/auth/config` は認証なしで返る |
+| `unauthenticated` | **ログイン** — 「Googleでログイン」1ボタン。許可ドメインを注記。`?auth_error=` が付いていれば日本語で理由を出す |
+| `totp_setup` | **認証アプリを登録** — セットアップキー（4文字区切り）＋6桁コード入力。スマホ向けに `otpauth://` リンクも出す |
+| （登録直後） | **バックアップコード** — 10本を表示。「保存しました」にチェックしないと進めない |
+| `totp_required` | **認証アプリのコード** — 6桁入力。「認証アプリが使えない」でバックアップコード入力に切替 |
+| `active` | ダッシュボード本体 |
+
+- **QRコードは出していない。** 依存パッケージを足せない制約（`--frozen-lockfile`）のため、
+  セットアップキーの手入力。QRを出すなら `qrcode` の追加と lockfile 更新が必要。
+- 5分ごとと画面復帰時に `/auth/me` を再確認する。開いたまま放置してセッションが切れたら
+  自動でログイン画面に戻る。
+- サイドバー下部に `components/AccountPanel.tsx`（ログイン中のメール・ログアウト・
+  バックアップコードの作り直し）。残り3本以下で警告を出す。
+- この出し分けは**体験のためのもの**。データの保護はサーバー側の `requireAuth`。
+
 ## 画面一覧
 
 ### 1. メルマガ分析（`/`, dashboard.tsx）

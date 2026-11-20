@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Google sign-in and authenticator (TOTP) operations
   - name: newsletter
     description: Newsletter report operations
   - name: efo
@@ -34,6 +36,141 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/config:
+    get:
+      operationId: getAuthConfig
+      tags: [auth]
+      summary: Sign-in configuration
+      description: Whether sign-in is configured, which env vars are missing, and which email domains may sign in. Available without signing in.
+      responses:
+        "200":
+          description: Sign-in configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthConfigResponse"
+
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      tags: [auth]
+      summary: Current sign-in state
+      description: Returns the stage of the current session. Only the "active" stage may call the data endpoints.
+      responses:
+        "200":
+          description: Current sign-in state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMeResponse"
+        "503":
+          description: Sign-in is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthNotConfigured"
+
+  /auth/totp/enroll:
+    post:
+      operationId: enrollTotp
+      tags: [auth]
+      summary: Start authenticator enrollment
+      description: Creates a provisional TOTP secret and returns the otpauth URI. Enrollment is only final once a code verifies.
+      responses:
+        "200":
+          description: Provisional secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpEnrollResponse"
+        "401":
+          description: Not signed in
+        "409":
+          description: Already enrolled
+
+  /auth/totp/verify:
+    post:
+      operationId: verifyTotp
+      tags: [auth]
+      summary: Verify a 6-digit code
+      description: Completes the second factor. On first enrollment the backup codes are returned once and never again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeInput"
+      responses:
+        "200":
+          description: Second factor completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpVerifyResponse"
+        "401":
+          description: Code did not match
+        "429":
+          description: Temporarily locked after repeated failures
+
+  /auth/backup-code/verify:
+    post:
+      operationId: verifyBackupCode
+      tags: [auth]
+      summary: Verify a backup code
+      description: Single-use fallback when the authenticator is unavailable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeInput"
+      responses:
+        "200":
+          description: Second factor completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupCodeVerifyResponse"
+        "401":
+          description: Code did not match
+        "429":
+          description: Temporarily locked after repeated failures
+
+  /auth/backup-codes/regenerate:
+    post:
+      operationId: regenerateBackupCodes
+      tags: [auth]
+      summary: Issue a new set of backup codes
+      description: Replaces every existing backup code. Requires an active session.
+      responses:
+        "200":
+          description: New backup codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupCodesResponse"
+        "401":
+          description: Not signed in
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutInput"
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResult"
 
   /newsletter/sync:
     post:
@@ -2233,3 +2370,124 @@ components:
           type: array
           items:
             type: string
+
+    AuthConfigResponse:
+      type: object
+      required: [configured, missing, allowedDomains]
+      properties:
+        configured:
+          type: boolean
+          description: True only when every required environment variable is present
+        missing:
+          type: array
+          description: Names of the environment variables that are still missing
+          items:
+            type: string
+        allowedDomains:
+          type: array
+          description: Email domains that may sign in, matched exactly
+          items:
+            type: string
+
+    AuthNotConfigured:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        missing:
+          type: array
+          items:
+            type: string
+
+    AuthMeResponse:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [unauthenticated, totp_setup, totp_required, active]
+          description: Only "active" has passed both Google sign-in and the authenticator code
+        email:
+          type: ["string", "null"]
+        name:
+          type: ["string", "null"]
+        pictureUrl:
+          type: ["string", "null"]
+        totpEnrolled:
+          type: boolean
+        backupCodesRemaining:
+          type: ["integer", "null"]
+        lockedForSeconds:
+          type: integer
+          description: Seconds left on the lock after repeated failed codes
+
+    TotpEnrollResponse:
+      type: object
+      required: [secret, secretFormatted, otpauthUri, issuer, account]
+      properties:
+        secret:
+          type: string
+          description: Base32 secret for manual entry
+        secretFormatted:
+          type: string
+          description: The same secret grouped in fours, for reading aloud or typing
+        otpauthUri:
+          type: string
+        issuer:
+          type: string
+        account:
+          type: string
+
+    CodeInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+
+    TotpVerifyResponse:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+        backupCodes:
+          type: ["array", "null"]
+          description: Returned once, on first enrollment only
+          items:
+            type: string
+
+    BackupCodeVerifyResponse:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+        backupCodesRemaining:
+          type: integer
+
+    BackupCodesResponse:
+      type: object
+      required: [backupCodes]
+      properties:
+        backupCodes:
+          type: array
+          items:
+            type: string
+
+    LogoutInput:
+      type: object
+      properties:
+        all:
+          type: boolean
+          description: Also revoke the sessions on the person's other devices
+
+    LogoutResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean

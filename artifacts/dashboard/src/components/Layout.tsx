@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { BarChart2, Mail, MousePointerClick, Settings, Menu, X, ChevronLeft, ChevronRight, CalendarDays, TrendingUp } from "lucide-react";
+import AccountPanel from "@/components/AccountPanel";
 
 const YELLOW = "#FBBF24";
 const YELLOW_LIGHT = "#FEF3C7";
@@ -123,6 +124,8 @@ function SidebarContent({ collapsed, onToggleCollapse, onClose }: {
           );
         })()}
       </nav>
+
+      <AccountPanel collapsed={collapsed} />
     </div>
   );
 }

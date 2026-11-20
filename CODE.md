@@ -57,14 +57,25 @@ marketing-dashboard/
 ## API サーバー モジュール解説
 
 - `src/index.ts` — `PORT` 環境変数必須（未設定/不正なら throw）。`app.listen`。
-- `src/app.ts` — `cors()` 全許可、`express.json()`、`pino-http`。全ルータを `/api` プレフィックスにマウント。
-- `src/routes/index.ts` — health/newsletter/ltv/efo/clarity/campaigns/settings を束ねる。
+- `src/app.ts` — `cors()` 全許可、`express.json()`、`cookie-parser`（署名付き）、`pino-http`。全ルータを `/api` プレフィックスにマウント。
+- `src/routes/index.ts` — health/auth を**認証なし**でマウントしたあと `requireAuth` を1行挟み、
+  それより下に newsletter/ltv/efo/clarity/campaigns/settings を置く。
+  **新しいデータルートは必ず `requireAuth` より下に足す**（上に書くと素通しになる）。
 
 ### routes（すべて `/api` 配下）
 
 | ルート | メソッド | 概要 |
 |---|---|---|
-| `/healthz` | GET | ヘルスチェック |
+| `/healthz` | GET | ヘルスチェック（**認証なし**・Replitの死活監視用） |
+| `/auth/config` | GET | 設定済みか・不足env名・許可ドメイン（**認証なし**） |
+| `/auth/me` | GET | 現在の段階（`unauthenticated`/`totp_setup`/`totp_required`/`active`） |
+| `/auth/google/start` | GET | Googleの同意画面へ302。state/PKCEを署名付きCookieに置く |
+| `/auth/google/callback` | GET | コード交換 → ドメイン判定 → **totp_pending** のセッションを作る |
+| `/auth/totp/enroll` | POST | 仮シークレット発行（登録確定は6桁コードが通ってから） |
+| `/auth/totp/verify` | POST | 6桁コード検証。初回だけバックアップコードを返す |
+| `/auth/backup-code/verify` | POST | バックアップコード（使い捨て）で二要素を通す |
+| `/auth/backup-codes/regenerate` | POST | バックアップコードの作り直し（active のみ） |
+| `/auth/logout` | POST | セッション失効（`all: true` で全端末） |
 | `/newsletter/sync` | POST | Google Sheets `calc` を再取得 → Supabase upsert → キャッシュ更新 |
 | `/newsletter/data` | GET | 集計データ（groupBy, dateFrom/To, segment, compareFrom/To） |
 | `/newsletter/change-events` | GET | テンプレ/件名の変更イベント |
@@ -103,6 +114,31 @@ marketing-dashboard/
 - `campaigns-supabase.ts` — `campaigns` の CRUD。
 - `settings-storage.ts` — Storage バケット `app-settings` の `config.json` を読み書き。バケット無ければ作成。旧フォーマット `clarityTargetUrl`(単数)→`clarityTargetUrls`(複数) を移行。
 - `logger.ts` — pino ロガー（`LOG_LEVEL`）。
+
+#### 認証（`auth-*.ts` / `middlewares/require-auth.ts`）
+
+**実行時importを持たないファイルと持つファイルを意識して分けている。**
+`node --experimental-strip-types --test` は `./x.js` を `x.ts` に読み替えないため、
+純粋ロジックを実行時importなしのファイルに寄せてテスト可能にしてある。
+
+| ファイル | 役割 | テスト |
+|---|---|---|
+| `auth-totp.ts` | base32 / TOTP(HMAC-SHA1・30秒・6桁)・otpauth URI。`node:crypto` のみ | ✅ RFC 6238 ベクタ |
+| `auth-identity.ts` | id_token の検証・**許可ドメインの完全一致判定**・認可URL組み立て（純粋関数のみ） | ✅ 偽装ドメイン11種 |
+| `auth-session.ts` | 段階判定（`sessionState`）・寿命延長・ロック。**時間/回数の定数もここが正** | ✅ |
+| `auth-crypto.ts` | AES-256-GCM・HKDF・HMAC・PKCE・バックアップコード生成 | ✅ RFC 7636 ベクタ |
+| `auth-config.ts` | env 読み取り・不足検出（`missingAuthEnv`）・許可ドメイン・Cookie名 | — |
+| `auth-google.ts` | Googleのトークンエンドポイントとの通信（fetch） | — |
+| `auth-store.ts` | drizzle で `dashboard_users` / `dashboard_sessions` を読み書き | — |
+| `auth-request.ts` | Cookie読み取り→DB照会→段階判定→寿命延長の合成・Cookie設定 | — |
+| `middlewares/require-auth.ts` | `active` 以外を 401 で止める。未設定なら 503 | — |
+
+注意点
+
+- 鍵は用途ごとに HKDF で分ける（暗号化用とHMAC用を兼用しない）。
+- `AUTH_ENCRYPTION_KEY` を変えると**既存のTOTP登録が全て復号できなくなる**。
+- バックアップコードの消費は `array_remove` の条件付きUPDATE 1文（読んで書き戻すと同じコードを2回使える）。
+- `totp_last_used_step` で同じコードの使い回しを弾く（±1ステップの許容と組み合わせる）。
 
 ## Clarity 収集ジョブ（`clarity-heatmap-export/export.py`）解説
 

@@ -10,6 +10,7 @@ import EfoPage from "@/pages/efo";
 import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
 import Layout from "@/components/Layout";
+import AuthGate from "@/components/AuthGate";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient({
@@ -46,7 +47,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          {/* ログインしていない間は中身を描かない。データAPI自体もサーバー側で止めている */}
+          <AuthGate>
+            <Router />
+          </AuthGate>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

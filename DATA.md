@@ -165,6 +165,42 @@ FB広告経由の定期購入1件＝1行。出典は Google Sheet `10wmBYd-oWJOM
 | segment_b | jsonb | B 側フィルタ条件 |
 | created_at | timestamptz | 作成時刻 |
 
+### `dashboard_users` / `dashboard_sessions`（ログイン認証）★置き場が違う
+
+**この2つだけ Supabase ではなく Replit の Postgres（`DATABASE_URL`）側**。
+集計データと運用データ（セッション・二要素のシークレット）を混ぜないため。
+drizzle のスキーマ（`lib/db/src/schema/auth.ts`）が正で、
+`scripts/post-merge.sh` の `pnpm --filter db push` が作る。**手でDDLを流さない。**
+
+`dashboard_users`
+
+| 列 | 型 | 備考 |
+|---|---|---|
+| `id` | text PK | ランダム16バイトhex |
+| `email` | text UNIQUE | Google の確認済みメール（小文字） |
+| `google_sub` | text | Google のユーザー識別子 |
+| `name` / `picture_url` | text | 表示用 |
+| `totp_secret` | text | **AES-256-GCM で暗号化済み**。平文は保存しない |
+| `totp_enrolled_at` | timestamptz | null = 二要素が未完了 |
+| `totp_last_used_step` | integer | 同じコードの使い回しを弾くため |
+| `backup_code_hashes` | text[] | HMAC ハッシュ。使った分は配列から消える |
+| `totp_failed_count` / `totp_locked_until` | integer / timestamptz | 総当たり対策 |
+| `disabled` | boolean | 個別の利用停止 |
+| `created_at` / `last_login_at` | timestamptz | |
+
+`dashboard_sessions`
+
+| 列 | 型 | 備考 |
+|---|---|---|
+| `id` | text PK | |
+| `token_hash` | text UNIQUE | Cookie のトークンの **sha256 のみ**。トークン本体は保存しない |
+| `user_id` | text | |
+| `stage` | text | `totp_pending`（Googleのみ通過）/ `active`（二要素まで通過） |
+| `created_at` / `expires_at` / `last_seen_at` / `revoked_at` | timestamptz | |
+| `ip` / `user_agent` | text | |
+
+> `stage` が2段階あるのが肝。`totp_pending` を「ログイン済み」として扱わない。
+
 ## Storage オブジェクト
 
 ### `clarity-heatmaps`

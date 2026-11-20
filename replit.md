@@ -50,6 +50,10 @@
 
 ## Gotchas
 
+- **ログイン必須**。環境変数（`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`/`AUTH_ENCRYPTION_KEY`/`AUTH_COOKIE_SECRET`/`DATABASE_URL`）が1つでも欠けると**全APIが503**になり画面が開かない（fail closed）。設定手順は OPERATIONS.md「ログイン認証」
+- 新しいデータAPIは `routes/index.ts` の `requireAuth` より**下**に足す。上に書くと認証なしで公開される
+- 認証テーブル（`dashboard_users`/`dashboard_sessions`）は Supabase ではなく **Replit の Postgres**。`post-merge.sh` の `pnpm --filter db push` が自動作成する
+- `pnpm install --frozen-lockfile` で動くため、**依存パッケージを足すと lockfile 更新まで含めないとデプロイが失敗する**（TOTPを自前実装しているのはこの制約のため）
 - Tailwind v4では `@apply dark` は無効。テーマ変数は `:root` に直接設定する
 - Google Sheetsの認証は Replit Connectors SDK 経由。`@replit/connectors-sdk` を `artifacts/api-server` にインストール済み
 - APIサーバーのワークフローを再起動するとインメモリキャッシュはリセットされる（次回アクセス時にSupabaseから再ロード）
