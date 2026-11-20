@@ -27,9 +27,9 @@ const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subs
 /** Supabaseからの読み込みが同時に走らないようにする（57,000行超を二重に取りに行かないため）。 */
 const inFlight = new Map<LtvDataset, Promise<{ rows: LtvRow[]; syncedAt: string | null }>>();
 
-/** 未指定・不正な値は fb（従来の範囲）にフォールバックする。 */
+/** 通常の表示・更新は全経路。明示した旧データセットの指定は互換性のため維持する。 */
 const parseDataset = (value: string | undefined): LtvDataset =>
-  (LTV_DATASET_KEYS as string[]).includes(value ?? "") ? (value as LtvDataset) : "fb";
+  (LTV_DATASET_KEYS as string[]).includes(value ?? "") ? (value as LtvDataset) : "all";
 
 /**
  * キャッシュ → Supabase。**GET の中でスプレッドシートからの取り込みはしない**。
@@ -73,8 +73,8 @@ const isMonthStart = (value: string | undefined): value is string =>
 
 router.post("/ltv/sync", async (req, res): Promise<void> => {
   try {
-    // dataset 未指定なら両方取り込む（画面の更新ボタンは全部を最新にしたい）
-    const requested = typeof req.query.dataset === "string" ? [parseDataset(req.query.dataset)] : LTV_DATASET_KEYS;
+    // 画面も既定の更新対象も全経路のみ。保存済みのFB広告データは削除しない。
+    const requested = [parseDataset(typeof req.query.dataset === "string" ? req.query.dataset : undefined)];
     const syncedAt = new Date().toISOString();
     const perDataset: Record<string, number> = {};
     let total = 0;
@@ -106,7 +106,7 @@ router.get("/ltv/filters", async (req, res): Promise<void> => {
       monthMax: months.at(-1) ?? null,
       rowCount: rows.length,
       dataset,
-      datasets: LTV_DATASET_KEYS.map((key) => ({ value: key, label: LTV_DATASETS[key].label })),
+      datasets: [{ value: "all", label: LTV_DATASETS.all.label }],
     });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch LTV filters");

@@ -769,7 +769,7 @@ export const GetNewsletterOptoutGroupBy = {
 
 export type SyncLtvParams = {
   /**
-   * 省略すると両方のデータセットを取り込む
+   * 省略すると全経路のみ取り込む。fbの明示指定は旧データとの互換性のため維持
    */
   dataset?: SyncLtvDataset;
 };

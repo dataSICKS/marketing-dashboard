@@ -11,6 +11,7 @@
 - [Newsletter numeric display](newsletter-number-format.md) — メルマガ分析の小数表示は第2位で四捨五入し第1位まで。集計元の精度は維持する。
 - [Newsletter display defaults](newsletter-display-defaults.md) — 初期期間は直近30日。横軸は常に期間、名前・件名は系列。率は折れ線、件数は棒で統一する。
 - [LTV selection menus](ltv-selection-menus.md) — use app-rendered single-select menus in LTV; native popup dismissal was reported in the embedded preview.
+- [LTV channel scope](ltv-channel-scope.md) — ユーザー指定：LTV分析は全経路だけを表示・更新する。FB広告専用との切替は不要。
 - [LTV table requirements](ltv-table-requirements.md) — 表は選んだ内訳ごとにブロック分け。「オプトイン有無」という依頼は既存のオプトアウト有無を指すと確認済み。
 - [LTV toothpaste labels](ltv-toothpaste-labels.md) — 歯磨き剤有無は購入回ごとに独立判定し、LTVの内訳・セグメントに使う。いずれかの回で購入したかには置き換えない。
 - [LTV product count labels](ltv-product-count-labels.md) — 商品購入比率は歯磨き剤有無をまたいだ大人・こどもの本数構成でも集計する。空カンマは別商品にしない。

@@ -271,7 +271,8 @@ paths:
           schema:
             type: string
             enum: [fb, all]
-          description: "省略すると両方のデータセットを取り込む"
+            default: all
+          description: "省略すると全経路のみ取り込む。fbの明示指定は旧データとの互換性のため維持"
       responses:
         "200":
           description: Sync result
@@ -298,7 +299,7 @@ paths:
           schema:
             type: string
             enum: [fb, all]
-            default: fb
+            default: all
       responses:
         "200":
           description: Filter values
@@ -326,7 +327,7 @@ paths:
           schema:
             type: string
             enum: [fb, all]
-            default: fb
+            default: all
           description: "fb = FB広告経由・2024/06以降 / all = 全経路・2026/01以降"
         - name: monthFrom
           in: query

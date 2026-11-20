@@ -402,11 +402,15 @@ export const GetNewsletterOptoutResponse = zod.object({
 /**
  * @summary Sync LTV data from Google Sheets
  */
+export const syncLtvQueryDatasetDefault = `all`;
+
 export const SyncLtvQueryParams = zod.object({
   dataset: zod
     .enum(["fb", "all"])
-    .optional()
-    .describe("省略すると両方のデータセットを取り込む"),
+    .default(syncLtvQueryDatasetDefault)
+    .describe(
+      "省略すると全経路のみ取り込む。fbの明示指定は旧データとの互換性のため維持",
+    ),
 });
 
 export const SyncLtvResponse = zod.object({
@@ -418,7 +422,7 @@ export const SyncLtvResponse = zod.object({
 /**
  * @summary Get available LTV filter values
  */
-export const getLtvFiltersQueryDatasetDefault = `fb`;
+export const getLtvFiltersQueryDatasetDefault = `all`;
 
 export const GetLtvFiltersQueryParams = zod.object({
   dataset: zod.enum(["fb", "all"]).default(getLtvFiltersQueryDatasetDefault),
@@ -453,7 +457,7 @@ export const GetLtvFiltersResponse = zod.object({
  * Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
  * @summary Get LTV by first-order month
  */
-export const getLtvDataQueryDatasetDefault = `fb`;
+export const getLtvDataQueryDatasetDefault = `all`;
 export const getLtvDataQueryTimeGroupByDefault = `month`;
 export const getLtvDataQuerySplitByDefault = `none`;
 export const getLtvDataQueryToothpaste1Default = `all`;
