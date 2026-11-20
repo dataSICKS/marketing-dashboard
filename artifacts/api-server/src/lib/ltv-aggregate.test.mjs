@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aggregateLtv, filterLtvRows } from "./ltv-aggregate.ts";
+import { aggregateLtv, filterLtvRows, collectFilters } from "./ltv-aggregate.ts";
 
 const row = (month, product, customer, profit) => ({
   subsOrderCode: `${month}-${product}-${customer}`, customerCode: customer,
@@ -8,6 +8,43 @@ const row = (month, product, customer, profit) => ({
   offerName: "オファーA", subsStatus: "継続中", adGroupName: "広告A",
   product2: "", product3: "", product4: "", sellingUrl: "",
   ltv95: profit, ltv180: profit * 2, ltv365: profit * 3,
+});
+
+test("selling URL segments preserve exact URLs and weight period averages by subscriptions", () => {
+  const urlA = "https://example.test/lp?a=1&x[]=a|b#top";
+  const urlB = "https://example.test/lp?a=2";
+  const rows = [
+    { ...row("2026-01-01", "商品A", "1", 100), sellingUrl: urlA },
+    { ...row("2026-02-01", "商品B", "2", 400), sellingUrl: urlA },
+    { ...row("2026-02-01", "商品A", "3", 900), sellingUrl: urlB },
+    { ...row("2026-02-01", "商品A", "4", 200), sellingUrl: "  " },
+  ];
+  const totals = aggregateLtv(rows, "sellingUrl", new Set(), "total");
+  assert.equal(totals.length, 3);
+  assert.deepEqual(totals.find((item) => item.segment === urlA), {
+    label: "期間合算", segment: urlA, count: 2, ltv95: 250, ltv180: 500, ltv365: 750,
+  });
+  assert.equal(totals.find((item) => item.segment === "未設定").count, 1);
+  assert.equal(aggregateLtv(rows, "sellingUrl", new Set()).length, 4);
+  assert.deepEqual(collectFilters(rows).sellingUrls, [urlA, urlB, "未設定"]);
+});
+
+test("selling URL multi-selection combines with other filters and treats blanks explicitly", () => {
+  const a = "https://example.test/lp?source=a|b,c";
+  const b = "https://example.test/lp?source=b";
+  const rows = [
+    { ...row("2026-01-01", "商品A", "1", 100), sellingUrl: a },
+    { ...row("2026-02-01", "商品A", "2", 200), sellingUrl: b },
+    { ...row("2026-02-01", "商品B", "3", 900), sellingUrl: b },
+    { ...row("2026-02-01", "商品A", "4", 500), sellingUrl: "" },
+  ];
+  assert.equal(filterLtvRows(rows, { sellingUrls: [] }, new Set()).length, 4);
+  assert.equal(filterLtvRows(rows, { sellingUrls: [a] }, new Set()).length, 1);
+  const selected = filterLtvRows(rows, { sellingUrls: JSON.parse(JSON.stringify([a, b])), firstProducts: ["商品A"], monthFrom: "2026-02-01" }, new Set());
+  assert.deepEqual(selected.map((item) => item.customerCode), ["2"]);
+  assert.deepEqual(filterLtvRows(rows, { sellingUrls: ["未設定"] }, new Set()).map((item) => item.customerCode), ["4"]);
+  assert.deepEqual(filterLtvRows(rows, { sellingUrls: ["https://unknown.test/"] }, new Set()), []);
+  assert.deepEqual(collectFilters([]).sellingUrls, []);
 });
 
 test("period averages use raw subscriptions, not a mean or sum of monthly averages", () => {

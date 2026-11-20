@@ -429,6 +429,7 @@ export const GetLtvFiltersResponse = zod.object({
   firstProducts: zod.array(zod.string()),
   subsStatuses: zod.array(zod.string()),
   adGroups: zod.array(zod.string()),
+  sellingUrls: zod.array(zod.string()),
   monthMin: zod.string().nullish(),
   monthMax: zod.string().nullish(),
   rowCount: zod
@@ -488,6 +489,7 @@ export const GetLtvDataQueryParams = zod.object({
       "firstProduct",
       "subsStatus",
       "adGroup",
+      "sellingUrl",
       "toothpaste1",
       "toothpaste2",
       "toothpaste3",
@@ -532,6 +534,12 @@ export const GetLtvDataQueryParams = zod.object({
     .string()
     .nullish()
     .describe("Pipe-separated ad group names"),
+  sellingUrls: zod.coerce
+    .string()
+    .nullish()
+    .describe(
+      "JSON-encoded array of exact selling URL labels; preserves URL query strings and pipe characters",
+    ),
 });
 
 export const getLtvDataResponseProductRatiosStageCountsMin = 4;
@@ -585,6 +593,7 @@ export const GetLtvDataResponse = zod.object({
     "firstProduct",
     "subsStatus",
     "adGroup",
+    "sellingUrl",
     "toothpaste1",
     "toothpaste2",
     "toothpaste3",

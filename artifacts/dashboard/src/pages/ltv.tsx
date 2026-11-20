@@ -46,6 +46,7 @@ const SPLIT_OPTIONS: { value: GetLtvDataSplitBy; label: string }[] = [
   { value: "firstProduct", label: "初回商品" },
   { value: "subsStatus", label: "サブスク状態" },
   { value: "adGroup", label: "広告グループ" },
+  { value: "sellingUrl", label: "販売URL" },
   { value: "toothpaste1", label: "初回：歯磨き剤有無" },
   { value: "toothpaste2", label: "2回目：歯磨き剤有無" },
   { value: "toothpaste3", label: "3回目：歯磨き剤有無" },
@@ -113,6 +114,7 @@ export default function LtvPage() {
   const [firstProducts, setFirstProducts] = useState<string[]>([]);
   const [subsStatuses, setSubsStatuses] = useState<string[]>([]);
   const [adGroups, setAdGroups] = useState<string[]>([]);
+  const [sellingUrls, setSellingUrls] = useState<string[]>([]);
   const [chartMetric, setChartMetric] = useState<LtvMetricKey | "all">("all");
   const segmentMetric = chartMetric === "all" ? "ltv180" : chartMetric;
 
@@ -135,6 +137,7 @@ export default function LtvPage() {
     firstProducts: firstProducts.length ? firstProducts.join("|") : undefined,
     subsStatuses: subsStatuses.length ? subsStatuses.join("|") : undefined,
     adGroups: adGroups.length ? adGroups.join("|") : undefined,
+    sellingUrls: sellingUrls.length ? JSON.stringify(sellingUrls) : undefined,
   };
   const { data, isLoading, isError } = useGetLtvData(params, {
     query: { queryKey: getGetLtvDataQueryKey(params) },
@@ -229,6 +232,7 @@ export default function LtvPage() {
                   // 対象が変わると選べる値も月の範囲も変わるので、絞り込みは持ち越さない
                   setMonthFrom(undefined); setMonthTo(undefined);
                   setOffers([]); setFirstProducts([]); setSubsStatuses([]); setAdGroups([]);
+                  setSellingUrls([]);
                   setToothpasteFilters(DEFAULT_TOOTHPASTE_FILTERS);
                 }}
                 options={filters?.datasets ?? [{ value: "fb", label: "FB広告（2024/06〜）" }, { value: "all", label: "全経路（2026/01〜）" }]} />
@@ -296,6 +300,10 @@ export default function LtvPage() {
             <div className="flex items-center gap-2 text-xs text-gray-500">
               広告グループ
               <div className="w-40"><MultiSelectCombobox options={filters?.adGroups ?? []} selected={adGroups} onChange={setAdGroups} emptyMessage={comboEmptyMessage} /></div>
+            </div>
+            <div role="group" aria-label="販売URLで絞り込み" className="flex items-center gap-2 text-xs text-gray-500" data-testid="filter-selling-urls">
+              販売URL
+              <div className="w-64 max-w-full"><MultiSelectCombobox options={filters?.sellingUrls ?? []} selected={sellingUrls} onChange={setSellingUrls} emptyMessage={comboEmptyMessage} /></div>
             </div>
             <div className="mt-1 flex w-full flex-wrap items-center gap-3 border-t border-gray-100 pt-3 text-xs text-gray-500"
               data-testid="toothpaste-segment-controls">
@@ -397,14 +405,19 @@ export default function LtvPage() {
                           tickLine={false} axisLine={false} width={52}
                           tickFormatter={(v) => formatNumber(v as number)} />
                         <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB" }}
+                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #EBEBEB", maxWidth: 440, overflowWrap: "anywhere" }}
+                          itemStyle={{ whiteSpace: "normal" }}
                           formatter={(value: number, name: string) =>
                             [name === "件数" ? `${formatNumber(value)} 件` : yen(value), name]}
                         />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Legend height={splitBy === "sellingUrl" ? 72 : undefined}
+                          wrapperStyle={{ fontSize: 11, ...(splitBy === "sellingUrl" ? { maxHeight: 72, overflowY: "auto" as const } : {}) }}
+                          formatter={(value: string) => splitBy === "sellingUrl"
+                            ? <span className="inline-block max-w-[240px] truncate align-bottom" title={value}>{value}</span>
+                            : value} />
                         {isSplit
                           ? segments.map((segment, index) => (
-                            <Bar key={segment} yAxisId="left" dataKey={`seg__${segment}`} name={segment}
+                            <Bar key={segment} yAxisId="left" dataKey={(point) => point[`seg__${segment}`]} name={segment}
                               fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]} maxBarSize={28} radius={[3, 3, 0, 0]} />
                           ))
                           : LTV_METRICS.filter((metric) => chartMetric === "all" || metric.value === chartMetric).map((metric) => (

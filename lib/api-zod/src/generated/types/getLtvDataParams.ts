@@ -77,4 +77,9 @@ export type GetLtvDataParams = {
    * @nullable
    */
   adGroups?: string | null;
+  /**
+   * JSON-encoded array of exact selling URL labels; preserves URL query strings and pipe characters
+   * @nullable
+   */
+  sellingUrls?: string | null;
 };

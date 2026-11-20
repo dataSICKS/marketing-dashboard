@@ -13,6 +13,7 @@ export interface LtvFiltersResponse {
   firstProducts: string[];
   subsStatuses: string[];
   adGroups: string[];
+  sellingUrls: string[];
   /** @nullable */
   monthMin?: string | null;
   /** @nullable */

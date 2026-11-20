@@ -353,7 +353,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [none, optout, offer, firstProduct, subsStatus, adGroup, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
+            enum: [none, optout, offer, firstProduct, subsStatus, adGroup, sellingUrl, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
             default: none
           description: Breakdown axis
         - name: toothpaste1
@@ -416,6 +416,12 @@ paths:
           schema:
             type: ["string", "null"]
           description: Pipe-separated ad group names
+        - name: sellingUrls
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: JSON-encoded array of exact selling URL labels; preserves URL query strings and pipe characters
       responses:
         "200":
           description: LTV data
@@ -1178,6 +1184,10 @@ components:
           type: array
           items:
             type: string
+        sellingUrls:
+          type: array
+          items:
+            type: string
         monthMin:
           type: ["string", "null"]
         monthMax:
@@ -1197,6 +1207,7 @@ components:
         - firstProducts
         - subsStatuses
         - adGroups
+        - sellingUrls
 
     LtvMetrics:
       type: object
@@ -1324,7 +1335,7 @@ components:
           enum: [fb, all]
         splitBy:
           type: string
-          enum: [none, optout, offer, firstProduct, subsStatus, adGroup, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
+          enum: [none, optout, offer, firstProduct, subsStatus, adGroup, sellingUrl, toothpaste1, toothpaste2, toothpaste3, toothpaste4]
         items:
           type: array
           items:

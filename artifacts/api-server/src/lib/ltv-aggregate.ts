@@ -3,7 +3,7 @@ import type { LtvRow } from "./ltv-types.js";
 /** 内訳の軸。`none` は全体1本（LTVレポートのシートと同じ形）。 */
 export type ToothpasteAxis = "toothpaste1" | "toothpaste2" | "toothpaste3" | "toothpaste4";
 export type ToothpasteStatus = "yes" | "no" | "unknown";
-export type LtvSplitBy = "none" | "optout" | "offer" | "firstProduct" | "subsStatus" | "adGroup" | ToothpasteAxis;
+export type LtvSplitBy = "none" | "optout" | "offer" | "firstProduct" | "subsStatus" | "adGroup" | "sellingUrl" | ToothpasteAxis;
 export type LtvTimeGroupBy = "month" | "total";
 
 export interface LtvMetrics {
@@ -31,6 +31,7 @@ export interface LtvFilters {
   firstProducts: string[];
   subsStatuses: string[];
   adGroups: string[];
+  sellingUrls: string[];
 }
 
 export const OPTOUT_YES = "オプトアウトあり";
@@ -73,6 +74,7 @@ export interface LtvQuery {
   firstProducts?: string[];
   subsStatuses?: string[];
   adGroups?: string[];
+  sellingUrls?: string[];
   /** `yes` = オプトアウトした顧客のみ / `no` = していない顧客のみ */
   optout?: "all" | "yes" | "no";
   toothpaste1?: "all" | ToothpasteStatus;
@@ -99,6 +101,7 @@ export function filterLtvRows(rows: LtvRow[], query: LtvQuery, optedOut: Set<str
     if (has(query.firstProducts) && !query.firstProducts!.includes(row.firstProduct || UNSET)) return false;
     if (has(query.subsStatuses) && !query.subsStatuses!.includes(row.subsStatus || UNSET)) return false;
     if (has(query.adGroups) && !query.adGroups!.includes(row.adGroupName || UNSET)) return false;
+    if (has(query.sellingUrls) && !query.sellingUrls!.includes(row.sellingUrl.trim() || UNSET)) return false;
     for (const axis of Object.keys(TOOTHPASTE_FIELDS) as ToothpasteAxis[]) {
       const expected = query[axis];
       if (expected && expected !== "all" && toothpasteStatus(row[TOOTHPASTE_FIELDS[axis]]) !== expected) return false;
@@ -119,6 +122,7 @@ export function segmentOf(row: LtvRow, splitBy: LtvSplitBy, optedOut: Set<string
     case "firstProduct": return row.firstProduct || UNSET;
     case "subsStatus": return row.subsStatus || UNSET;
     case "adGroup": return row.adGroupName || UNSET;
+    case "sellingUrl": return row.sellingUrl.trim() || UNSET;
     case "toothpaste1":
     case "toothpaste2":
     case "toothpaste3":
@@ -196,6 +200,7 @@ export function collectFilters(rows: LtvRow[]): LtvFilters {
     firstProducts: pick((r) => r.firstProduct),
     subsStatuses: pick((r) => r.subsStatus),
     adGroups: pick((r) => r.adGroupName),
+    sellingUrls: pick((r) => r.sellingUrl.trim()),
   };
 }
 

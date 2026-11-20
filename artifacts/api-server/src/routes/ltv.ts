@@ -22,7 +22,7 @@ import { calculateLtvProductBreakdowns, calculateMonthlyLtvProductBreakdowns } f
 
 const router: IRouter = Router();
 
-const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup", "toothpaste1", "toothpaste2", "toothpaste3", "toothpaste4"];
+const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup", "sellingUrl", "toothpaste1", "toothpaste2", "toothpaste3", "toothpaste4"];
 
 /** Supabaseからの読み込みが同時に走らないようにする（57,000行超を二重に取りに行かないため）。 */
 const inFlight = new Map<LtvDataset, Promise<{ rows: LtvRow[]; syncedAt: string | null }>>();
@@ -127,6 +127,17 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       return;
     }
     const timeGroupBy = q.timeGroupBy === "total" ? "total" : "month";
+    let sellingUrls: string[] | undefined;
+    if (q.sellingUrls !== undefined) {
+      try {
+        const parsed: unknown = JSON.parse(q.sellingUrls);
+        if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) throw new Error("Invalid URL list");
+        sellingUrls = parsed;
+      } catch {
+        res.status(400).json({ error: "販売URLの絞り込みは文字列のJSON配列で指定してください" });
+        return;
+      }
+    }
     const toothpasteFilters: Pick<LtvQuery, ToothpasteAxis> = {};
     for (const axis of Object.keys(TOOTHPASTE_FIELDS) as ToothpasteAxis[]) {
       const value = q[axis];
@@ -160,6 +171,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
       firstProducts: splitList(q.firstProducts),
       subsStatuses: splitList(q.subsStatuses),
       adGroups: splitList(q.adGroups),
+      sellingUrls,
       optout: optoutAvailable ? optout : "all",
     };
 

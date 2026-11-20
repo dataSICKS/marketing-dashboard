@@ -16,6 +16,7 @@ export const GetLtvDataSplitBy = {
   firstProduct: "firstProduct",
   subsStatus: "subsStatus",
   adGroup: "adGroup",
+  sellingUrl: "sellingUrl",
   toothpaste1: "toothpaste1",
   toothpaste2: "toothpaste2",
   toothpaste3: "toothpaste3",
