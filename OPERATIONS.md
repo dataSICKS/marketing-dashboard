@@ -68,6 +68,14 @@ Google アカウント側の2段階認証に任せるのではなく、**この�
 画面には「認証が未設定です」と**不足している変数名**が出る。
 未設定のまま誰でも見られる状態にはならない。
 
+### 本番URL
+
+`https://abema-marketing-report.replit.app`（Replit autoscale デプロイ）
+
+- リダイレクトURI … `https://abema-marketing-report.replit.app/api/auth/google/callback`
+- Replit の **replshield** が前段に居るため、ブラウザ以外（curl等）からのアクセスは
+  `307` で `replit.com/__replshield` に飛ばされる。API の疎通確認はブラウザで行う。
+
 ### Google Cloud Console での準備（初回のみ）
 
 1. プロジェクトを選び「APIとサービス」→「OAuth 同意画面」を作る（内部/外部はアカウント構成に合わせる）
