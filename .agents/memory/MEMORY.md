@@ -17,3 +17,4 @@
 - [LTV product count labels](ltv-product-count-labels.md) — 商品購入比率は歯磨き剤有無をまたいだ大人・こどもの本数構成でも集計する。空カンマは別商品にしない。
 - [Opt-out date precision](optout-date-precision.md) — 元シートのオプトアウト日は日次スナップショットのオン→オフ検出日の前日。実操作日時として扱わない。
 - [Opt-out delivery history](newsletter-optout-history.md) — 顧客別履歴は元シートのma_rawにあるが、期間の網羅性と成功ステータスを確認してから「何通目」を集計する。
+- [Dashboard access policy](dashboard-access-policy.md) — Googleログイン＋認証アプリのコード確認を全員必須にし、指定3ドメインだけを完全一致で許可する方針。
