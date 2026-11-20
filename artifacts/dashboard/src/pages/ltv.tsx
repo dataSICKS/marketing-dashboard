@@ -6,7 +6,7 @@ import {
   useSyncLtv,
   getGetLtvDataQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvDataSplitBy, GetLtvDataTimeGroupBy, GetLtvDataToothpaste1, LtvMetrics } from "@workspace/api-client-react";
+import type { GetLtvDataDataset, GetLtvDataSplitBy, GetLtvDataTimeGroupBy, GetLtvDataToothpaste1, LtvMetrics } from "@workspace/api-client-react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from "recharts";
@@ -99,6 +99,7 @@ const monthText = (iso: string) => iso.slice(0, 7).replace("-", "/");
 export default function LtvPage() {
   const queryClient = useQueryClient();
 
+  const [dataset, setDataset] = useState<GetLtvDataDataset>("fb");
   const [monthFrom, setMonthFrom] = useState<string | undefined>(undefined);
   const [monthTo, setMonthTo] = useState<string | undefined>(undefined);
   const [splitBy, setSplitBy] = useState<GetLtvDataSplitBy>("none");
@@ -115,7 +116,7 @@ export default function LtvPage() {
   const [chartMetric, setChartMetric] = useState<LtvMetricKey | "all">("all");
   const segmentMetric = chartMetric === "all" ? "ltv180" : chartMetric;
 
-  const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters();
+  const { data: filters, isLoading: filtersLoading, isError: filtersError } = useGetLtvFilters({ dataset });
 
   /** 候補が空のとき、読み込み中・取得失敗・未取り込みを黙って同じ見た目にしない。 */
   const comboEmptyMessage = filtersLoading ? "読み込み中..."
@@ -125,6 +126,7 @@ export default function LtvPage() {
 
   const params = {
     ...toothpasteFilters,
+    dataset,
     monthFrom,
     monthTo,
     splitBy,
@@ -201,7 +203,7 @@ export default function LtvPage() {
             </span>
           </div>
           <button
-            onClick={() => syncMutation.mutate(undefined)}
+            onClick={() => syncMutation.mutate({})}
             disabled={syncMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-60 whitespace-nowrap"
             style={{ background: YELLOW, color: "#fff", boxShadow: `0 1px 4px ${YELLOW}66` }}
@@ -218,6 +220,20 @@ export default function LtvPage() {
           {/* ── Controls ── */}
           <div className="bg-white rounded-xl px-4 md:px-5 py-3 md:py-4 flex flex-wrap items-center gap-2 md:gap-3"
             style={{ border: "1px solid #EBEBEB" }} data-testid="ltv-controls">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              対象
+              <LtvSelect label="対象データセット" testId="select-dataset"
+                value={dataset}
+                onValueChange={(value) => {
+                  setDataset(value as GetLtvDataDataset);
+                  // 対象が変わると選べる値も月の範囲も変わるので、絞り込みは持ち越さない
+                  setMonthFrom(undefined); setMonthTo(undefined);
+                  setOffers([]); setFirstProducts([]); setSubsStatuses([]); setAdGroups([]);
+                  setToothpasteFilters(DEFAULT_TOOTHPASTE_FILTERS);
+                }}
+                options={filters?.datasets ?? [{ value: "fb", label: "FB広告（2024/06〜）" }, { value: "all", label: "全経路（2026/01〜）" }]} />
+            </div>
+
             <div className="flex items-center gap-2 text-xs text-gray-500">
               初回購入月
               <LtvSelect label="初回購入月の開始" testId="select-month-from"
@@ -317,11 +333,14 @@ export default function LtvPage() {
                 {data?.monthMin && data?.monthMax && <>（初回購入月 {data.monthMin} 〜 {data.monthMax}）</>}
               </span>
               <br />
-              LTVは売上ではなく<strong>利益</strong>の合計で、<strong>定期1件あたりの平均</strong>です（対象はFB広告経由・2024年6月以降の発送完了分）。
+              LTVは売上ではなく<strong>利益</strong>の合計で、<strong>定期1件あたりの平均</strong>です（対象は{dataset === "all" ? "全経路・2026年1月以降" : "FB広告経由・2024年6月以降"}の発送完了分）。
               {immatureFrom && <> <strong>{immatureFrom}</strong> より後に初回購入した月は、まだ365日経っていないぶんLTV365が小さく出ます。</>}
               {data?.optoutAvailable === false
                 ? " オプトアウトのデータが取得できないため、オプトアウトの内訳・絞り込みのみ無効です。他の内訳は利用できます。"
-                : <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>しかないため、それ以前に初回購入した定期は実際に解除していても「オプトアウトなし」に入ります。</>}
+                : dataset === "all"
+                  ? <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>で、この「全経路」は2026/01以降が対象なので<strong>期間が揃っています</strong>（オプトアウト軸で比較するならこちら）。</>
+                  : <> オプトアウトのデータは<strong>{data?.optoutDataFrom?.replace(/-/g, "/") ?? "2025/12/31"}以降</strong>しかないため、それ以前に初回購入した定期は実際に解除していても「オプトアウトなし」に入ります。オプトアウト軸で見るなら「全経路（2026/01〜）」のほうが揃います。</>}
+              {dataset === "all" && <> 全経路のデータには<strong>オファー名が入っていない</strong>ため、オファーでの内訳・絞り込みは使えません。</>}
             </div>
           </div>
 

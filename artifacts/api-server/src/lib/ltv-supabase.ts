@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { LtvRow } from "./ltv-types.js";
+import type { LtvDataset } from "./ltv-sheets.js";
 import { logger } from "./logger.js";
 
 function getSupabaseClient() {
@@ -11,13 +12,14 @@ function getSupabaseClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function upsertLtvRows(rows: LtvRow[], syncedAt: string): Promise<void> {
+export async function upsertLtvRows(rows: LtvRow[], dataset: LtvDataset, syncedAt: string): Promise<void> {
   const supabase = getSupabaseClient();
 
   // 同一 定期購入番号 の重複を除去（シート側に重複行があっても二重計上しない・後勝ち）
   const seen = new Map<string, Record<string, unknown>>();
   for (const r of rows) {
     seen.set(r.subsOrderCode, {
+      dataset,
       subs_order_code: r.subsOrderCode,
       customer_code: r.customerCode,
       first_order_month: r.firstOrderMonth,
@@ -36,24 +38,25 @@ export async function upsertLtvRows(rows: LtvRow[], syncedAt: string): Promise<v
     });
   }
   const records = Array.from(seen.values());
-  logger.info({ original: rows.length, deduplicated: records.length }, "Deduplicated LTV rows");
+  logger.info({ dataset, original: rows.length, deduplicated: records.length }, "Deduplicated LTV rows");
 
   const BATCH = 500;
   for (let i = 0; i < records.length; i += BATCH) {
     const batch = records.slice(i, i + BATCH);
     const { error } = await supabase
       .from("ltv_subscriptions")
-      .upsert(batch, { onConflict: "subs_order_code", ignoreDuplicates: false });
+      // fb と all は2026年以降が重なるので、定期購入番号だけでは一意にならない
+      .upsert(batch, { onConflict: "dataset,subs_order_code", ignoreDuplicates: false });
     if (error) {
       logger.error({ error }, "Supabase LTV upsert failed");
       throw new Error(`Supabase upsert失敗: ${error.message}`);
     }
   }
 
-  logger.info({ rowCount: records.length }, "Upserted LTV rows to Supabase");
+  logger.info({ dataset, rowCount: records.length }, "Upserted LTV rows to Supabase");
 }
 
-export async function fetchLtvFromSupabase(): Promise<{ rows: LtvRow[]; syncedAt: string | null }> {
+export async function fetchLtvFromSupabase(dataset: LtvDataset): Promise<{ rows: LtvRow[]; syncedAt: string | null }> {
   const supabase = getSupabaseClient();
   const PAGE = 1000;
   const allData: Record<string, unknown>[] = [];
@@ -64,6 +67,7 @@ export async function fetchLtvFromSupabase(): Promise<{ rows: LtvRow[]; syncedAt
     const { data, error } = await supabase
       .from("ltv_subscriptions")
       .select("*")
+      .eq("dataset", dataset)
       .order("subs_order_code", { ascending: true })
       .range(from, from + PAGE - 1);
 

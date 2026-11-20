@@ -264,6 +264,14 @@ paths:
       operationId: syncLtv
       tags: [ltv]
       summary: Sync LTV data from Google Sheets
+      parameters:
+        - name: dataset
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [fb, all]
+          description: "省略すると両方のデータセットを取り込む"
       responses:
         "200":
           description: Sync result
@@ -283,6 +291,14 @@ paths:
       operationId: getLtvFilters
       tags: [ltv]
       summary: Get available LTV filter values
+      parameters:
+        - name: dataset
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [fb, all]
+            default: fb
       responses:
         "200":
           description: Filter values
@@ -304,6 +320,14 @@ paths:
       summary: Get LTV by first-order month
       description: Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
       parameters:
+        - name: dataset
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [fb, all]
+            default: fb
+          description: "fb = FB広告経由・2024/06以降 / all = 全経路・2026/01以降"
         - name: monthFrom
           in: query
           required: false
@@ -1113,11 +1137,27 @@ components:
       properties:
         rowCount:
           type: number
+        perDataset:
+          type: object
+          additionalProperties:
+            type: number
         syncedAt:
           type: string
       required:
         - rowCount
         - syncedAt
+
+    LtvDatasetOption:
+      type: object
+      properties:
+        value:
+          type: string
+          enum: [fb, all]
+        label:
+          type: string
+      required:
+        - value
+        - label
 
     LtvFiltersResponse:
       type: object
@@ -1145,6 +1185,13 @@ components:
         rowCount:
           type: number
           description: Number of rows currently loaded (0 means the table has not been synced yet)
+        dataset:
+          type: string
+          enum: [fb, all]
+        datasets:
+          type: array
+          items:
+            $ref: "#/components/schemas/LtvDatasetOption"
       required:
         - offers
         - firstProducts
@@ -1272,6 +1319,9 @@ components:
     LtvDataResponse:
       type: object
       properties:
+        dataset:
+          type: string
+          enum: [fb, all]
         splitBy:
           type: string
           enum: [none, optout, offer, firstProduct, subsStatus, adGroup, toothpaste1, toothpaste2, toothpaste3, toothpaste4]

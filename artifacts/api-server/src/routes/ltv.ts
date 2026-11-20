@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { fetchLtvSheet } from "../lib/ltv-sheets.js";
+import { fetchLtvSheet, LTV_DATASETS, LTV_DATASET_KEYS, type LtvDataset } from "../lib/ltv-sheets.js";
 import { upsertLtvRows, fetchLtvFromSupabase } from "../lib/ltv-supabase.js";
 import { getLtvCache, setLtvCache } from "../lib/ltv-cache.js";
 import { loadOptoutCustomerCodes } from "../lib/newsletter-optout-source.js";
@@ -25,7 +25,11 @@ const router: IRouter = Router();
 const SPLIT_BY: LtvSplitBy[] = ["none", "optout", "offer", "firstProduct", "subsStatus", "adGroup", "toothpaste1", "toothpaste2", "toothpaste3", "toothpaste4"];
 
 /** Supabaseからの読み込みが同時に走らないようにする（57,000行超を二重に取りに行かないため）。 */
-let inFlight: Promise<{ rows: LtvRow[]; syncedAt: string | null }> | null = null;
+const inFlight = new Map<LtvDataset, Promise<{ rows: LtvRow[]; syncedAt: string | null }>>();
+
+/** 未指定・不正な値は fb（従来の範囲）にフォールバックする。 */
+const parseDataset = (value: string | undefined): LtvDataset =>
+  (LTV_DATASET_KEYS as string[]).includes(value ?? "") ? (value as LtvDataset) : "fb";
 
 /**
  * キャッシュ → Supabase。**GET の中でスプレッドシートからの取り込みはしない**。
@@ -33,25 +37,30 @@ let inFlight: Promise<{ rows: LtvRow[]; syncedAt: string | null }> | null = null
  * 「一部の月しか出ない」「絞り込みの候補が空」といった中途半端な表示になるため、
  * 取り込みは明示的に `POST /ltv/sync` でだけ行う。
  */
-async function getLtvRows(req: { log: { info: (...a: unknown[]) => void } }): Promise<{ rows: LtvRow[]; syncedAt: string | null }> {
-  const cached = getLtvCache();
+async function getLtvRows(
+  req: { log: { info: (...a: unknown[]) => void } },
+  dataset: LtvDataset,
+): Promise<{ rows: LtvRow[]; syncedAt: string | null }> {
+  const cached = getLtvCache(dataset);
   if (cached) return cached;
-  if (inFlight) return inFlight;
+  const running = inFlight.get(dataset);
+  if (running) return running;
 
-  inFlight = (async () => {
-    const { rows, syncedAt } = await fetchLtvFromSupabase();
+  const request = (async () => {
+    const { rows, syncedAt } = await fetchLtvFromSupabase(dataset);
     if (rows.length > 0 && syncedAt) {
-      setLtvCache(rows, syncedAt);
+      setLtvCache(dataset, rows, syncedAt);
       return { rows, syncedAt };
     }
-    req.log.info("LTV table is empty; waiting for an explicit /ltv/sync");
+    req.log.info({ dataset }, "LTV table is empty; waiting for an explicit /ltv/sync");
     return { rows: [] as LtvRow[], syncedAt: null };
   })();
+  inFlight.set(dataset, request);
 
   try {
-    return await inFlight;
+    return await request;
   } finally {
-    inFlight = null;
+    inFlight.delete(dataset);
   }
 }
 
@@ -64,11 +73,19 @@ const isMonthStart = (value: string | undefined): value is string =>
 
 router.post("/ltv/sync", async (req, res): Promise<void> => {
   try {
-    const rows = await fetchLtvSheet();
+    // dataset 未指定なら両方取り込む（画面の更新ボタンは全部を最新にしたい）
+    const requested = typeof req.query.dataset === "string" ? [parseDataset(req.query.dataset)] : LTV_DATASET_KEYS;
     const syncedAt = new Date().toISOString();
-    if (rows.length > 0) await upsertLtvRows(rows, syncedAt);
-    setLtvCache(rows, syncedAt);
-    res.json({ rowCount: rows.length, syncedAt });
+    const perDataset: Record<string, number> = {};
+    let total = 0;
+    for (const dataset of requested) {
+      const rows = await fetchLtvSheet(dataset);
+      if (rows.length > 0) await upsertLtvRows(rows, dataset, syncedAt);
+      setLtvCache(dataset, rows, syncedAt);
+      perDataset[dataset] = rows.length;
+      total += rows.length;
+    }
+    res.json({ rowCount: total, perDataset, syncedAt });
   } catch (err) {
     req.log.error({ err }, "Failed to sync LTV data");
     res.status(500).json({ error: "LTVデータの取得に失敗しました" });
@@ -77,7 +94,8 @@ router.post("/ltv/sync", async (req, res): Promise<void> => {
 
 router.get("/ltv/filters", async (req, res): Promise<void> => {
   try {
-    const { rows } = await getLtvRows(req);
+    const dataset = parseDataset(req.query.dataset as string | undefined);
+    const { rows } = await getLtvRows(req, dataset);
     const months = rows
       .map((row) => row.firstOrderMonth)
       .filter((value): value is string => !!value)
@@ -87,6 +105,8 @@ router.get("/ltv/filters", async (req, res): Promise<void> => {
       monthMin: months[0] ?? null,
       monthMax: months.at(-1) ?? null,
       rowCount: rows.length,
+      dataset,
+      datasets: LTV_DATASET_KEYS.map((key) => ({ value: key, label: LTV_DATASETS[key].label })),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch LTV filters");
@@ -119,7 +139,8 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     const splitBy = (SPLIT_BY as string[]).includes(q.splitBy ?? "") ? (q.splitBy as LtvSplitBy) : "none";
     const optout = q.optout === "yes" || q.optout === "no" ? q.optout : "all";
 
-    const { rows, syncedAt } = await getLtvRows(req);
+    const dataset = parseDataset(q.dataset);
+    const { rows, syncedAt } = await getLtvRows(req, dataset);
 
     // オプトアウトが取れなくても LTV の表示は止めない（軸として使えないだけ）。
     let optedOut = new Set<string>();
@@ -150,6 +171,7 @@ router.get("/ltv/data", async (req, res): Promise<void> => {
     const toothpasteLabel = (product: string) => TOOTHPASTE_LABELS[toothpasteStatus(product)];
 
     res.json({
+      dataset,
       splitBy: effectiveSplitBy,
       items,
       productRatios: calculateLtvProductBreakdowns(filtered, toothpasteLabel),

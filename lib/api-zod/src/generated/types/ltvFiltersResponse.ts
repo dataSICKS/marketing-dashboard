@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LtvDatasetOption } from "./ltvDatasetOption";
+import type { LtvFiltersResponseDataset } from "./ltvFiltersResponseDataset";
 
 export interface LtvFiltersResponse {
   offers: string[];
@@ -17,4 +19,6 @@ export interface LtvFiltersResponse {
   monthMax?: string | null;
   /** Number of rows currently loaded (0 means the table has not been synced yet) */
   rowCount?: number;
+  dataset?: LtvFiltersResponseDataset;
+  datasets?: LtvDatasetOption[];
 }

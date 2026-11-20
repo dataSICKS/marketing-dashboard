@@ -96,10 +96,34 @@ export interface NewsletterOptoutResponse {
   lastSyncedAt?: string | null;
 }
 
+export type LtvSyncResultPerDataset = { [key: string]: number };
+
 export interface LtvSyncResult {
   rowCount: number;
+  perDataset?: LtvSyncResultPerDataset;
   syncedAt: string;
 }
+
+export type LtvDatasetOptionValue =
+  (typeof LtvDatasetOptionValue)[keyof typeof LtvDatasetOptionValue];
+
+export const LtvDatasetOptionValue = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export interface LtvDatasetOption {
+  value: LtvDatasetOptionValue;
+  label: string;
+}
+
+export type LtvFiltersResponseDataset =
+  (typeof LtvFiltersResponseDataset)[keyof typeof LtvFiltersResponseDataset];
+
+export const LtvFiltersResponseDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
 
 export interface LtvFiltersResponse {
   offers: string[];
@@ -112,6 +136,8 @@ export interface LtvFiltersResponse {
   monthMax?: string | null;
   /** Number of rows currently loaded (0 means the table has not been synced yet) */
   rowCount?: number;
+  dataset?: LtvFiltersResponseDataset;
+  datasets?: LtvDatasetOption[];
 }
 
 export interface LtvMetrics {
@@ -177,6 +203,14 @@ export interface LtvProductRatioMonth {
   productRatios: LtvProductRatios;
 }
 
+export type LtvDataResponseDataset =
+  (typeof LtvDataResponseDataset)[keyof typeof LtvDataResponseDataset];
+
+export const LtvDataResponseDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
 export type LtvDataResponseSplitBy =
   (typeof LtvDataResponseSplitBy)[keyof typeof LtvDataResponseSplitBy];
 
@@ -194,6 +228,7 @@ export const LtvDataResponseSplitBy = {
 } as const;
 
 export interface LtvDataResponse {
+  dataset?: LtvDataResponseDataset;
   splitBy: LtvDataResponseSplitBy;
   items: LtvMetrics[];
   productRatios?: LtvProductRatios;
@@ -730,7 +765,38 @@ export const GetNewsletterOptoutGroupBy = {
   month: "month",
 } as const;
 
+export type SyncLtvParams = {
+  /**
+   * 省略すると両方のデータセットを取り込む
+   */
+  dataset?: SyncLtvDataset;
+};
+
+export type SyncLtvDataset =
+  (typeof SyncLtvDataset)[keyof typeof SyncLtvDataset];
+
+export const SyncLtvDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
+export type GetLtvFiltersParams = {
+  dataset?: GetLtvFiltersDataset;
+};
+
+export type GetLtvFiltersDataset =
+  (typeof GetLtvFiltersDataset)[keyof typeof GetLtvFiltersDataset];
+
+export const GetLtvFiltersDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
+
 export type GetLtvDataParams = {
+  /**
+   * fb = FB広告経由・2024/06以降 / all = 全経路・2026/01以降
+   */
+  dataset?: GetLtvDataDataset;
   /**
    * First-order month lower bound (YYYY-MM-DD, month start)
    * @nullable
@@ -790,6 +856,14 @@ export type GetLtvDataParams = {
    */
   adGroups?: string | null;
 };
+
+export type GetLtvDataDataset =
+  (typeof GetLtvDataDataset)[keyof typeof GetLtvDataDataset];
+
+export const GetLtvDataDataset = {
+  fb: "fb",
+  all: "all",
+} as const;
 
 export type GetLtvDataTimeGroupBy =
   (typeof GetLtvDataTimeGroupBy)[keyof typeof GetLtvDataTimeGroupBy];

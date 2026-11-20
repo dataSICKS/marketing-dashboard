@@ -38,6 +38,7 @@ import type {
   GetEfoDataParams,
   GetEfoFiltersParams,
   GetLtvDataParams,
+  GetLtvFiltersParams,
   GetNewsletterChangeEventsParams,
   GetNewsletterDataParams,
   GetNewsletterMatrixParams,
@@ -53,6 +54,7 @@ import type {
   NewsletterSegmentsResponse,
   NewsletterSyncResult,
   NewsletterTemplatesResponse,
+  SyncLtvParams,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -695,17 +697,30 @@ export function useGetNewsletterOptout<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
-export const getSyncLtvUrl = () => {
-  return `/api/ltv/sync`;
+export const getSyncLtvUrl = (params?: SyncLtvParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/sync?${stringifiedParams}`
+    : `/api/ltv/sync`;
 };
 
 /**
  * @summary Sync LTV data from Google Sheets
  */
 export const syncLtv = async (
+  params?: SyncLtvParams,
   options?: RequestInit,
 ): Promise<LtvSyncResult> => {
-  return customFetch<LtvSyncResult>(getSyncLtvUrl(), {
+  return customFetch<LtvSyncResult>(getSyncLtvUrl(params), {
     ...options,
     method: "POST",
   });
@@ -718,14 +733,14 @@ export const getSyncLtvMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof syncLtv>>,
     TError,
-    void,
+    { params?: SyncLtvParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof syncLtv>>,
   TError,
-  void,
+  { params?: SyncLtvParams },
   TContext
 > => {
   const mutationKey = ["syncLtv"];
@@ -739,9 +754,11 @@ export const getSyncLtvMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof syncLtv>>,
-    void
-  > = () => {
-    return syncLtv(requestOptions);
+    { params?: SyncLtvParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return syncLtv(params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -763,57 +780,73 @@ export const useSyncLtv = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof syncLtv>>,
     TError,
-    void,
+    { params?: SyncLtvParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof syncLtv>>,
   TError,
-  void,
+  { params?: SyncLtvParams },
   TContext
 > => {
   return useMutation(getSyncLtvMutationOptions(options));
 };
 
-export const getGetLtvFiltersUrl = () => {
-  return `/api/ltv/filters`;
+export const getGetLtvFiltersUrl = (params?: GetLtvFiltersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/filters?${stringifiedParams}`
+    : `/api/ltv/filters`;
 };
 
 /**
  * @summary Get available LTV filter values
  */
 export const getLtvFilters = async (
+  params?: GetLtvFiltersParams,
   options?: RequestInit,
 ): Promise<LtvFiltersResponse> => {
-  return customFetch<LtvFiltersResponse>(getGetLtvFiltersUrl(), {
+  return customFetch<LtvFiltersResponse>(getGetLtvFiltersUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetLtvFiltersQueryKey = () => {
-  return [`/api/ltv/filters`] as const;
+export const getGetLtvFiltersQueryKey = (params?: GetLtvFiltersParams) => {
+  return [`/api/ltv/filters`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetLtvFiltersQueryOptions = <
   TData = Awaited<ReturnType<typeof getLtvFilters>>,
   TError = ErrorType<ErrorResponse>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getLtvFilters>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetLtvFiltersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvFilters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetLtvFiltersQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetLtvFiltersQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getLtvFilters>>> = ({
     signal,
-  }) => getLtvFilters({ signal, ...requestOptions });
+  }) => getLtvFilters(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getLtvFilters>>,
@@ -834,15 +867,18 @@ export type GetLtvFiltersQueryError = ErrorType<ErrorResponse>;
 export function useGetLtvFilters<
   TData = Awaited<ReturnType<typeof getLtvFilters>>,
   TError = ErrorType<ErrorResponse>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getLtvFilters>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetLtvFiltersQueryOptions(options);
+>(
+  params?: GetLtvFiltersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLtvFilters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLtvFiltersQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

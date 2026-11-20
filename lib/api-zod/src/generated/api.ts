@@ -402,14 +402,28 @@ export const GetNewsletterOptoutResponse = zod.object({
 /**
  * @summary Sync LTV data from Google Sheets
  */
+export const SyncLtvQueryParams = zod.object({
+  dataset: zod
+    .enum(["fb", "all"])
+    .optional()
+    .describe("省略すると両方のデータセットを取り込む"),
+});
+
 export const SyncLtvResponse = zod.object({
   rowCount: zod.number(),
+  perDataset: zod.record(zod.string(), zod.number()).optional(),
   syncedAt: zod.string(),
 });
 
 /**
  * @summary Get available LTV filter values
  */
+export const getLtvFiltersQueryDatasetDefault = `fb`;
+
+export const GetLtvFiltersQueryParams = zod.object({
+  dataset: zod.enum(["fb", "all"]).default(getLtvFiltersQueryDatasetDefault),
+});
+
 export const GetLtvFiltersResponse = zod.object({
   offers: zod.array(zod.string()),
   firstProducts: zod.array(zod.string()),
@@ -423,12 +437,22 @@ export const GetLtvFiltersResponse = zod.object({
     .describe(
       "Number of rows currently loaded (0 means the table has not been synced yet)",
     ),
+  dataset: zod.enum(["fb", "all"]).optional(),
+  datasets: zod
+    .array(
+      zod.object({
+        value: zod.enum(["fb", "all"]),
+        label: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
  * Average LTV95/180/365 per subscription, grouped by month or the entire filtered period and an optional breakdown axis. Period averages are computed from raw subscriptions, not rounded monthly averages.
  * @summary Get LTV by first-order month
  */
+export const getLtvDataQueryDatasetDefault = `fb`;
 export const getLtvDataQueryTimeGroupByDefault = `month`;
 export const getLtvDataQuerySplitByDefault = `none`;
 export const getLtvDataQueryToothpaste1Default = `all`;
@@ -438,6 +462,10 @@ export const getLtvDataQueryToothpaste4Default = `all`;
 export const getLtvDataQueryOptoutDefault = `all`;
 
 export const GetLtvDataQueryParams = zod.object({
+  dataset: zod
+    .enum(["fb", "all"])
+    .default(getLtvDataQueryDatasetDefault)
+    .describe("fb = FB広告経由・2024\/06以降 \/ all = 全経路・2026\/01以降"),
   monthFrom: zod.coerce
     .string()
     .nullish()
@@ -549,6 +577,7 @@ export const getLtvDataResponseProductRatioMonthsItemProductRatiosBrushCountAllI
 export const getLtvDataResponseProductRatioMonthsItemProductRatiosBrushCountAllItemStageCountsMax = 4;
 
 export const GetLtvDataResponse = zod.object({
+  dataset: zod.enum(["fb", "all"]).optional(),
   splitBy: zod.enum([
     "none",
     "optout",

@@ -1,16 +1,18 @@
 import type { LtvRow } from "./ltv-types.js";
+import type { LtvDataset } from "./ltv-sheets.js";
 
 interface LtvCacheEntry {
   rows: LtvRow[];
   syncedAt: string;
 }
 
-let cache: LtvCacheEntry | null = null;
+/** データセット（fb / all）ごとに別のキャッシュを持つ。 */
+const cache = new Map<LtvDataset, LtvCacheEntry>();
 
-export function getLtvCache(): LtvCacheEntry | null {
-  return cache;
+export function getLtvCache(dataset: LtvDataset): LtvCacheEntry | null {
+  return cache.get(dataset) ?? null;
 }
 
-export function setLtvCache(rows: LtvRow[], syncedAt: string): void {
-  cache = { rows, syncedAt };
+export function setLtvCache(dataset: LtvDataset, rows: LtvRow[], syncedAt: string): void {
+  cache.set(dataset, { rows, syncedAt });
 }

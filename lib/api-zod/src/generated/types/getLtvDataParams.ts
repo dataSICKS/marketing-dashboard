@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GetLtvDataDataset } from "./getLtvDataDataset";
 import type { GetLtvDataOptout } from "./getLtvDataOptout";
 import type { GetLtvDataSplitBy } from "./getLtvDataSplitBy";
 import type { GetLtvDataTimeGroupBy } from "./getLtvDataTimeGroupBy";
@@ -14,6 +15,10 @@ import type { GetLtvDataToothpaste3 } from "./getLtvDataToothpaste3";
 import type { GetLtvDataToothpaste4 } from "./getLtvDataToothpaste4";
 
 export type GetLtvDataParams = {
+  /**
+   * fb = FB広告経由・2024/06以降 / all = 全経路・2026/01以降
+   */
+  dataset?: GetLtvDataDataset;
   /**
    * First-order month lower bound (YYYY-MM-DD, month start)
    * @nullable
