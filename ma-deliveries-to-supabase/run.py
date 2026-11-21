@@ -17,6 +17,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +30,9 @@ CFG = yaml.safe_load(open(HERE / "config.yml"))
 SB = CFG["supabase"]
 TABLE = SB.get("table", "ma_deliveries")
 
-BATCH = 500
+BATCH = 250
+# 1バッチあたりの再試行。10万行規模だと接続が切れることがあるため
+RETRIES = 5
 
 # CSVのヘッダ名 → DBの列名。位置ではなく名前で引く（列が増えてもずれない）
 COLUMNS = {
@@ -152,10 +155,27 @@ def upsert(rows, synced_at):
         batch = rows[i : i + BATCH]
         for r in batch:
             r["synced_at"] = synced_at
-        res = requests.post(url, headers=headers, data=json.dumps(batch), timeout=180)
-        if res.status_code >= 300:
-            raise SystemExit(f"upsert失敗 ({res.status_code}): {res.text[:500]}")
-        print(f"  {i + len(batch):,}/{len(rows):,}")
+        body = json.dumps(batch)
+        for attempt in range(1, RETRIES + 1):
+            try:
+                res = requests.post(url, headers=headers, data=body, timeout=180)
+            except requests.exceptions.RequestException as err:
+                if attempt == RETRIES:
+                    raise SystemExit(f"upsert失敗（接続） {i}行目〜: {err}")
+                wait = 2 ** attempt
+                print(f"  {i:,}行目〜 接続エラー（{attempt}/{RETRIES}）{wait}秒待って再試行")
+                time.sleep(wait)
+                continue
+            if res.status_code < 300:
+                break
+            # 5xx は一時的なことがあるので再試行、4xx は直らないので即止める
+            if res.status_code < 500 or attempt == RETRIES:
+                raise SystemExit(f"upsert失敗 ({res.status_code}) {i}行目〜: {res.text[:500]}")
+            wait = 2 ** attempt
+            print(f"  {i:,}行目〜 {res.status_code}（{attempt}/{RETRIES}）{wait}秒待って再試行")
+            time.sleep(wait)
+        if (i // BATCH) % 20 == 0 or i + BATCH >= len(rows):
+            print(f"  {min(i + BATCH, len(rows)):,}/{len(rows):,}")
 
 
 def main():
