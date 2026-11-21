@@ -56,6 +56,46 @@
 ダッシュボードでは期間合計の KPI と期間別推移のみを出す。データは 2025/12/31 以降しか無い
 （BQ 側のクエリが `imported_date >= 2026-01-01` 起点で、そこから1日引いた日付を採用しているため）。
 
+### `ma_deliveries`（MA 配信実績・顧客別）
+
+**1行＝1顧客×1ノードの配信実績。** `newsletter_rows` が日×シナリオ×テンプレートの
+**合計**しか持たないのに対し、こちらは顧客番号が入っているため
+**顧客ごとに何通届いたか**を数えられる。`newsletter_optouts` との突合キーも顧客番号。
+
+出所は MA管理画面 → 各シナリオのレポート → 「配信対象者毎」CSV
+（`scenario_message_target_users_*.csv`、シナリオ1本＝1ファイル）。
+Drive フォルダ `1onjS6IBW75WHlTF7ThCOB-_1YNqsI3-M` に置いたものを
+`ma-deliveries-to-supabase/run.py` で取り込む。**列はヘッダー名で引く**（位置ではない）。
+
+ユニークキー: `node_id, customer_code, delivered_at`（upsert onConflict・後勝ち）。
+同じ期間を再エクスポートしても二重計上しない。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | bigint (identity) | PK |
+| scenario_id / scenario_name / scenario_desc | text | シナリオ |
+| segment | text | セグメント |
+| node_id | text | シナリオ内の配信ノード（ユニークキーの一部） |
+| delivered_at | timestamptz | 配信日時。CSVはJST表記なので `+09:00` を付けて格納 |
+| delivery_date | date | `delivered_at` の日付（集計用） |
+| delivery_method / template_name / subject | text | 配信方法・テンプレート名・件名 |
+| customer_id | text | MAの顧客ID |
+| customer_code | text | 顧客番号。`newsletter_optouts` / `ltv_subscriptions` との突合キー |
+| delivery_status | text | `完了` / `配信不可` / `スキップ` |
+| opened / clicked / auto_opened | boolean | 有→true、無→false、空→null |
+| last_click_url | text | 最終クリックURL |
+| ordered / order_id / order_code / order_amount / order_count / order_date / order_product_code | — | 受注の有無と内容 |
+| source_file | text | 取り込み元CSVのファイル名 |
+| synced_at | timestamptz | 同期時刻 |
+
+**受信通数を数えるときは `delivery_status = '完了'` で絞る。**
+`配信不可`・`スキップ` は届いていない。
+
+⚠️ **MAの保持期間は約13ヶ月**。2026-11-16のエクスポートは **2025-10-01 以降**しか入っていない
+（`newsletter_rows` は 2025-09-12 から始まるので1ヶ月ぶん足りない）。
+顧客の最初の配信まで履歴が揃わない場合、「累計何通目でオプトアウトした」と断定しない。
+⚠️ 開封には bot の自動開封が混ざる（`auto_opened`）。
+
 ### `ltv_subscriptions`（定期購入ごとの購入商品と LTV）
 
 FB広告経由の定期購入1件＝1行。出典は Google Sheet `10wmBYd-oWJOMkKCtmu98SeHu5ulV6o02tYd_eqZsf_8`
@@ -246,6 +286,7 @@ Clarity スクロール深度:
 |---|---|---|---|
 | newsletter_rows | Google Sheet `1zITxm8...` `calc` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期。読み出しはキャッシュ優先 |
 | newsletter_optouts | Google Sheet `1zITxm8...` `20260101以降のオプトアウトリスト` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期 |
+| ma_deliveries | MA「配信対象者毎」CSV（Drive `1onjS6IB...`） | `ma-deliveries-to-supabase/run.py`（upsert） | **定期実行なし**。CSVを再エクスポートしたら手動 |
 | ltv_subscriptions | Google Sheet `10wmBYd...` の `RAW_定期ID別購入商品_LTV95_180_365`（fb）と `..._全経路`（all） | 手動 `/ltv/sync` のみ（GETでは取り込まない） | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
@@ -314,6 +355,57 @@ create index if not exists ltv_subscriptions_month_idx
   on ltv_subscriptions (first_order_month);
 create index if not exists ltv_subscriptions_offer_idx
   on ltv_subscriptions (offer_name);
+
+-- ma_deliveries の作成（service_role キーでは DDL を実行できないため SQL Editor で手動実行）
+create table if not exists public.ma_deliveries (
+  id                 bigint generated always as identity primary key,
+  scenario_id        text,
+  scenario_name      text,
+  scenario_desc      text,
+  segment            text,
+  node_id            text        not null,
+  delivered_at       timestamptz not null,
+  delivery_date      date        not null,
+  delivery_method    text,
+  template_name      text,
+  subject            text,
+  customer_id        text,
+  customer_code      text        not null,
+  delivery_status    text,
+  opened             boolean,
+  clicked            boolean,
+  last_click_url     text,
+  ordered            boolean,
+  order_id           text,
+  order_code         text,
+  order_amount       integer     not null default 0,
+  order_count        integer     not null default 0,
+  auto_opened        boolean,
+  order_date         date,
+  order_product_code text,
+  source_file        text,
+  synced_at          timestamptz not null default now(),
+  unique (node_id, customer_code, delivered_at)
+);
+alter table public.ma_deliveries enable row level security;
+create index if not exists ma_deliveries_customer_idx
+  on public.ma_deliveries (customer_code, delivered_at);
+create index if not exists ma_deliveries_date_idx
+  on public.ma_deliveries (delivery_date);
+create index if not exists ma_deliveries_template_idx
+  on public.ma_deliveries (template_name, delivery_date);
+
+-- 顧客ごとの受信通数（届いた分のみ）×オプトアウト有無
+select d.cnt, count(*) as customers,
+       count(o.customer_code) as opted_out
+from (select customer_code, count(*) as cnt
+      from ma_deliveries
+      where delivery_status = '完了'
+      group by customer_code) as d
+left join (select distinct customer_code from newsletter_optouts) as o
+       using (customer_code)
+group by d.cnt
+order by d.cnt;
 
 -- 初回購入月 × オプトアウト有無 の平均LTV180
 select to_char(l.first_order_month, 'YYYY/MM') as ym,
