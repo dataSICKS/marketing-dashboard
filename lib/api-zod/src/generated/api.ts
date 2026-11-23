@@ -637,6 +637,207 @@ export const GetLtvOptoutAnalysisResponse = zod.object({
 });
 
 /**
+ * @summary Relate completed email deliveries to opt-out, by sequence position, node, send frequency and LTV
+ */
+export const getOptoutMailAnalysisQueryMinEventsDefault = 200;
+export const getOptoutMailAnalysisQueryMinEventsMax = 100000;
+
+export const GetOptoutMailAnalysisQueryParams = zod.object({
+  minEvents: zod.coerce
+    .number()
+    .min(1)
+    .max(getOptoutMailAnalysisQueryMinEventsMax)
+    .default(getOptoutMailAnalysisQueryMinEventsDefault)
+    .describe(
+      "Minimum delivery events for a node row to be listed; smaller groups are grouped as low volume",
+    ),
+});
+
+export const GetOptoutMailAnalysisResponse = zod.object({
+  coverage: zod.object({
+    deliveryFrom: zod
+      .string()
+      .nullable()
+      .describe("Earliest completed email date in the history"),
+    deliveryTo: zod.string().nullable(),
+    optoutFrom: zod
+      .string()
+      .nullable()
+      .describe("Earliest estimated opt-out date; the cohort starts here"),
+    optoutTo: zod.string().nullable(),
+    deliveryEvents: zod
+      .number()
+      .describe(
+        "Completed email events after excluding undeliverable and skipped",
+      ),
+    deliveryCustomers: zod.number(),
+    cohortCustomers: zod
+      .number()
+      .describe(
+        "Customers whose first delivery is on or after optoutFrom; the only group where an opt-out is observable",
+      ),
+    cohortOptouts: zod.number(),
+    excludedEarlyCustomers: zod
+      .number()
+      .describe(
+        "Customers whose first delivery predates opt-out data and whose opt-out could be invisible",
+      ),
+    undecidableSameDay: zod
+      .number()
+      .describe(
+        "Opt-outs whose only prior record is the same estimated day; order within a day is unknown",
+      ),
+    undecidableNoHistory: zod.number(),
+    aggregateDeliveries: zod
+      .number()
+      .nullable()
+      .describe(
+        "Deliveries the aggregate report counts over the same window; null when it could not be read",
+      ),
+    coverageRatio: zod
+      .number()
+      .nullable()
+      .describe(
+        "Per-customer records divided by aggregate deliveries. Below 1 means some scenarios were never exported, so a customer's Nth email is only the Nth among the records we hold",
+      ),
+    purchaseSyncedAt: zod.string().nullable(),
+    fetchedAt: zod.string(),
+  }),
+  missingScenarios: zod
+    .array(
+      zod.object({
+        scenarioName: zod.string(),
+        deliveries: zod
+          .number()
+          .describe(
+            "Deliveries the aggregate report counts for this scenario in the window",
+          ),
+        missingDeliveries: zod.number().describe("Of those"),
+      }),
+    )
+    .describe(
+      "Scenarios whose per-customer export is incomplete, largest gap first",
+    ),
+  sequence: zod.array(
+    zod.object({
+      sequence: zod
+        .number()
+        .min(1)
+        .describe(
+          "Nth completed email counted strictly before the estimated opt-out date",
+        ),
+      reached: zod
+        .number()
+        .describe(
+          "Cohort customers who received at least this many emails; the denominator",
+        ),
+      churned: zod
+        .number()
+        .describe("Customers whose last email before opting out was this one"),
+      hazard: zod.number().describe("churned divided by reached"),
+      cumulativeShare: zod
+        .number()
+        .describe("Share of the whole cohort that has opted out by this point"),
+    }),
+  ),
+  nodes: zod.array(
+    zod.object({
+      label: zod
+        .string()
+        .describe(
+          "Display name; falls back to scenario plus node when the template was deleted in MA",
+        ),
+      templateName: zod.string(),
+      nodeId: zod.string(),
+      scenarioName: zod.string(),
+      events: zod
+        .number()
+        .describe("Delivery events for this node; the denominator"),
+      customers: zod.number(),
+      churned: zod.number(),
+      hazard: zod.number(),
+      medianSequence: zod
+        .number()
+        .describe("Median sequence position at which this node is received"),
+    }),
+  ),
+  lowVolumeNodes: zod
+    .number()
+    .describe(
+      "Nodes below minEvents, omitted from the list rather than shown with an unstable rate",
+    ),
+  nodesBySequence: zod.array(
+    zod.object({
+      sequence: zod.number(),
+      items: zod.array(
+        zod.object({
+          label: zod
+            .string()
+            .describe(
+              "Display name; falls back to scenario plus node when the template was deleted in MA",
+            ),
+          templateName: zod.string(),
+          nodeId: zod.string(),
+          scenarioName: zod.string(),
+          events: zod
+            .number()
+            .describe("Delivery events for this node; the denominator"),
+          customers: zod.number(),
+          churned: zod.number(),
+          hazard: zod.number(),
+          medianSequence: zod
+            .number()
+            .describe(
+              "Median sequence position at which this node is received",
+            ),
+        }),
+      ),
+    }),
+  ),
+  frequency: zod.array(
+    zod.object({
+      sequence: zod
+        .number()
+        .describe("Compare gaps only within the same sequence position"),
+      buckets: zod.array(
+        zod.object({
+          bucket: zod.enum(["d0_3", "d4_7", "d8_14", "d15_30", "d31_plus"]),
+          label: zod.string(),
+          events: zod.number(),
+          churned: zod.number(),
+          hazard: zod.number(),
+        }),
+      ),
+    }),
+  ),
+  ltvCohorts: zod.array(
+    zod.object({
+      cohortMonth: zod
+        .string()
+        .describe("First observed purchase month YYYY-MM"),
+      withoutCount: zod.number(),
+      withoutLtv95: zod.number(),
+      withoutLtv180: zod.number(),
+      withoutLtv365: zod.number(),
+      withCount: zod.number(),
+      withLtv95: zod.number(),
+      withLtv180: zod.number(),
+      withLtv365: zod.number(),
+      optoutRate: zod
+        .number()
+        .describe(
+          "Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out",
+        ),
+      mature180: zod
+        .boolean()
+        .describe("False when 180 days have not elapsed for the whole cohort"),
+      mature365: zod.boolean(),
+    }),
+  ),
+  notes: zod.array(zod.string()),
+});
+
+/**
  * @summary Manually refresh read-only opt-out and mail snapshots; does not modify purchase data
  */
 export const RefreshLtvOptoutAnalysisResponse = zod.object({

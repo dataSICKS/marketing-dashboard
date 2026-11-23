@@ -89,10 +89,15 @@ marketing-dashboard/
 | `/campaigns` | GET/POST | 施策一覧/作成 |
 | `/campaigns/{id}` | PUT/DELETE | 施策更新/削除 |
 | `/settings` | GET/PUT | `clarityTargetUrls` の取得/更新（Storage `app-settings/config.json`） |
+| `/ltv/optout-analysis` | GET | 顧客単位の解除タイミング（購入月×解除日×配信記録）。絞り込み・ページングあり |
+| `/ltv/optout-analysis/refresh` | POST | 解除履歴と配信実績のスナップショットだけ再取得（購入データは更新しない） |
+| `/ltv/optout-mail-analysis` | GET | 配信と解除の関係（通目別ハザード/ノード別/間隔別/LTVコホート）。`minEvents` で表示下限 |
 
 ### lib（サーバー）
 
 - `newsletter-sheets.ts` — Replit Connectors 経由で Sheet `1zITxm8...` の `calc!A2:L` を取得しパース。
+  **`MAX_ROWS` は実際の行数より余裕を持たせる**。2026-11時点で `calc` は13,339行あり、上限10,000では後ろが切れて
+  テンプレート別の配信数が実際より少なく出ていた（「クロス_やわらかめ_新登場」で約3,400通不足）。
 - `newsletter-supabase.ts` — `newsletter_rows` へ 500 件バッチ upsert（ユニークキーで重複除去・後勝ち）/ 全件 fetch。
 - `newsletter-aggregate.ts` — day/week/month/scenario/template 集計、比較(before/after)マージ、マトリクス生成。
   `MatrixMetric` に `optoutCount` を含むが、**配信行からは計算できず `metrics` では指定できない**。
@@ -110,6 +115,24 @@ marketing-dashboard/
   シートは `RAW_定期ID別購入商品_LTV95_180_365` を**ヘッダー名で**読む（BQのSELECTに列が増えても壊れないように）。
   集計は初回購入月 × 内訳（`LtvSplitBy`）で、**定期1件あたりの平均**を円単位に丸める。
   オプトアウト軸は `customer_code` で `newsletter_optouts` と突き合わせる。
+- `ma-deliveries-row.ts` — `ma_deliveries` の1行を配信イベントに変換する**純粋関数のみ**（実行時importなし＝ローカルで試験できる）。
+  「届いた1通」の定義がここ1箇所にある: **配信方法が「メール」かつ配信ステータスが「完了」**。
+  `配信不可`/`スキップ`/LINE は受信通数に数えない。
+- `ma-deliveries-supabase.ts` — `ma_deliveries` を1,000件ずつページングで全件読み、`DeliverySnapshot` を返す。
+  行の判定は `ma-deliveries-row.ts` に委ねる。**日付までしか持たない**（解除日が日単位の推定値で、同日内の前後を判定できないため）。
+- `ltv-optout-sources.ts` — 解除履歴（元シート `20260101以降のオプトアウトリスト`）と配信実績（**Supabase `ma_deliveries`**）の
+  読み取りスナップショット（TTL 10分・single-flight）。
+  **元シートの `ma_raw` タブは使わない**（MA管理画面からの直近エクスポートが貼られるだけで、
+  2026-11時点で2,000行台＝集計側の1%程度しか覆わず、顧客ごとの通数を数えられない）。
+- `ltv-optout-analysis.ts` — 顧客単位の解除タイミング集計。購入月との月差・解除前日までの配信記録数・同日配信を別に扱う。
+- `optout-mail-analysis.ts` — 配信×解除のハザード集計。約束事は3つ。
+  - **解除日当日と以降の配信は分子からも分母からも外す**（解除日は推定日で、同日内の前後が分からない）。
+  - **コホートは `optoutDataFrom`（= 2025-12-31）以降に初めて配信された顧客だけ**。
+    それ以前から配信が始まっている顧客は「解除したのに記録に出てこない」可能性があり、残すと継続側に混ざる。
+    この日は抽出条件として分かっている値をルートから渡す（観測された最小の解除日で代用すると、
+    解除が遅い抽出のときに全員が除外される）。
+  - **どの表も分母を持つ**。件数だけでは配信の多いテンプレートが常に悪く見える。
+  `coverageAgainstAggregate` は個票が集計側の何割を覆っているかと、**書き出し直すべきシナリオ**を出す。
 - `efo-sheets.ts` / `efo-supabase.ts` / `efo-aggregate.ts` / `efo-preset-supabase.ts` — EFO 版の Sheets/DB/集計/プリセット。Sheet `1gibjDJns9...` の `raw_efo_access` / `raw_efo_cv` を読む。
 - `campaigns-supabase.ts` — `campaigns` の CRUD。
 - `settings-storage.ts` — Storage バケット `app-settings` の `config.json` を読み書き。バケット無ければ作成。旧フォーマット `clarityTargetUrl`(単数)→`clarityTargetUrls`(複数) を移行。

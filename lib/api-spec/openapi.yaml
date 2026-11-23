@@ -429,6 +429,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ltv/optout-mail-analysis:
+    get:
+      operationId: getOptoutMailAnalysis
+      tags: [ltv]
+      summary: Relate completed email deliveries to opt-out, by sequence position, node, send frequency and LTV
+      parameters:
+        - { name: minEvents, in: query, schema: { type: integer, minimum: 1, maximum: 100000, default: 200 }, description: Minimum delivery events for a node row to be listed; smaller groups are grouped as low volume }
+      responses:
+        "200":
+          description: Hazard rates with explicit denominators; never bare counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptoutMailAnalysis"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Delivery, opt-out or purchase source unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ltv/optout-analysis/refresh:
     post:
       operationId: refreshLtvOptoutAnalysis
@@ -1439,6 +1466,147 @@ components:
         page: { type: integer }
         pageSize: { type: integer }
         totalPages: { type: integer }
+        notes:
+          type: array
+          items: { type: string }
+
+    OptoutMailCoverage:
+      type: object
+      required: [deliveryFrom, deliveryTo, optoutFrom, optoutTo, deliveryEvents, deliveryCustomers, cohortCustomers, cohortOptouts, excludedEarlyCustomers, undecidableSameDay, undecidableNoHistory, aggregateDeliveries, coverageRatio, purchaseSyncedAt, fetchedAt]
+      properties:
+        deliveryFrom: { type: [string, "null"], description: Earliest completed email date in the history }
+        deliveryTo: { type: [string, "null"] }
+        optoutFrom: { type: [string, "null"], description: Earliest estimated opt-out date; the cohort starts here }
+        optoutTo: { type: [string, "null"] }
+        deliveryEvents: { type: integer, description: Completed email events after excluding undeliverable and skipped }
+        deliveryCustomers: { type: integer }
+        cohortCustomers: { type: integer, description: Customers whose first delivery is on or after optoutFrom; the only group where an opt-out is observable }
+        cohortOptouts: { type: integer }
+        excludedEarlyCustomers: { type: integer, description: Customers whose first delivery predates opt-out data and whose opt-out could be invisible }
+        undecidableSameDay: { type: integer, description: Opt-outs whose only prior record is the same estimated day; order within a day is unknown }
+        undecidableNoHistory: { type: integer }
+        aggregateDeliveries:
+          type: [integer, "null"]
+          description: Deliveries the aggregate report counts over the same window; null when it could not be read
+        coverageRatio:
+          type: [number, "null"]
+          description: Per-customer records divided by aggregate deliveries. Below 1 means some scenarios were never exported, so a customer's Nth email is only the Nth among the records we hold
+        purchaseSyncedAt: { type: [string, "null"] }
+        fetchedAt: { type: string }
+
+    OptoutMailMissingScenario:
+      type: object
+      required: [scenarioName, deliveries, missingDeliveries]
+      properties:
+        scenarioName: { type: string }
+        deliveries: { type: integer, description: Deliveries the aggregate report counts for this scenario in the window }
+        missingDeliveries: { type: integer, description: Of those, deliveries with no per-customer record; export this scenario again to close the gap }
+
+    OptoutMailSequenceBucket:
+      type: object
+      required: [sequence, reached, churned, hazard, cumulativeShare]
+      properties:
+        sequence: { type: integer, minimum: 1, description: Nth completed email counted strictly before the estimated opt-out date }
+        reached: { type: integer, description: Cohort customers who received at least this many emails; the denominator }
+        churned: { type: integer, description: Customers whose last email before opting out was this one }
+        hazard: { type: number, description: churned divided by reached }
+        cumulativeShare: { type: number, description: Share of the whole cohort that has opted out by this point }
+
+    OptoutMailNodeItem:
+      type: object
+      required: [label, templateName, nodeId, scenarioName, events, customers, churned, hazard, medianSequence]
+      properties:
+        label: { type: string, description: Display name; falls back to scenario plus node when the template was deleted in MA }
+        templateName: { type: string }
+        nodeId: { type: string }
+        scenarioName: { type: string }
+        events: { type: integer, description: Delivery events for this node; the denominator }
+        customers: { type: integer }
+        churned: { type: integer }
+        hazard: { type: number }
+        medianSequence: { type: number, description: Median sequence position at which this node is received }
+
+    OptoutMailSequenceNodes:
+      type: object
+      required: [sequence, items]
+      properties:
+        sequence: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailNodeItem"
+
+    OptoutMailFrequencyBucket:
+      type: object
+      required: [bucket, label, events, churned, hazard]
+      properties:
+        bucket: { type: string, enum: [d0_3, d4_7, d8_14, d15_30, d31_plus] }
+        label: { type: string }
+        events: { type: integer }
+        churned: { type: integer }
+        hazard: { type: number }
+
+    OptoutMailFrequencyGroup:
+      type: object
+      required: [sequence, buckets]
+      properties:
+        sequence: { type: integer, description: Compare gaps only within the same sequence position, so survivors are not mixed with newcomers }
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailFrequencyBucket"
+
+    OptoutMailLtvCohort:
+      type: object
+      required: [cohortMonth, withoutCount, withoutLtv95, withoutLtv180, withoutLtv365, withCount, withLtv95, withLtv180, withLtv365, optoutRate, mature180, mature365]
+      properties:
+        cohortMonth: { type: string, description: First observed purchase month YYYY-MM }
+        withoutCount: { type: integer }
+        withoutLtv95: { type: integer }
+        withoutLtv180: { type: integer }
+        withoutLtv365: { type: integer }
+        withCount: { type: integer }
+        withLtv95: { type: integer }
+        withLtv180: { type: integer }
+        withLtv365: { type: integer }
+        optoutRate: { type: number, description: Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out }
+        mature180: { type: boolean, description: False when 180 days have not elapsed for the whole cohort, so the average is still rising }
+        mature365: { type: boolean }
+
+    OptoutMailAnalysis:
+      type: object
+      required: [coverage, missingScenarios, sequence, nodes, lowVolumeNodes, nodesBySequence, frequency, ltvCohorts, notes]
+      properties:
+        coverage:
+          $ref: "#/components/schemas/OptoutMailCoverage"
+        missingScenarios:
+          type: array
+          description: Scenarios whose per-customer export is incomplete, largest gap first
+          items:
+            $ref: "#/components/schemas/OptoutMailMissingScenario"
+        sequence:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailSequenceBucket"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailNodeItem"
+        lowVolumeNodes:
+          type: integer
+          description: Nodes below minEvents, omitted from the list rather than shown with an unstable rate
+        nodesBySequence:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailSequenceNodes"
+        frequency:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailFrequencyGroup"
+        ltvCohorts:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutMailLtvCohort"
         notes:
           type: array
           items: { type: string }

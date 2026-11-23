@@ -4,7 +4,12 @@ import { logger } from "./logger.js";
 
 const SPREADSHEET_ID = "1zITxm8hxMkjNYJb7CKqY1B7JzQWvv20N8afMBkZWVbU";
 const SHEET_NAME = "calc";
-const MAX_ROWS = 10000;
+/**
+ * `calc` の行数の上限。2026-11時点で13,339行あり、10,000では後ろが切れて
+ * テンプレートごとの配信数が実際より少なく出ていた（「クロス_やわらかめ_新登場」で約3,400通不足）。
+ * 増える前提で余裕を持たせる。
+ */
+const MAX_ROWS = 50000;
 
 function parseNumber(val: string): number {
   const n = Number(val.replace(/,/g, ""));

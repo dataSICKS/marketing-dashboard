@@ -50,6 +50,7 @@ import type {
   GetNewsletterDataParams,
   GetNewsletterMatrixParams,
   GetNewsletterOptoutParams,
+  GetOptoutMailAnalysisParams,
   HealthStatus,
   LogoutInput,
   LogoutResult,
@@ -65,6 +66,7 @@ import type {
   NewsletterSegmentsResponse,
   NewsletterSyncResult,
   NewsletterTemplatesResponse,
+  OptoutMailAnalysis,
   SyncLtvParams,
   TotpEnrollResponse,
   TotpVerifyResponse,
@@ -1370,6 +1372,109 @@ export function useGetLtvOptoutAnalysis<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetLtvOptoutAnalysisQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetOptoutMailAnalysisUrl = (
+  params?: GetOptoutMailAnalysisParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ltv/optout-mail-analysis?${stringifiedParams}`
+    : `/api/ltv/optout-mail-analysis`;
+};
+
+/**
+ * @summary Relate completed email deliveries to opt-out, by sequence position, node, send frequency and LTV
+ */
+export const getOptoutMailAnalysis = async (
+  params?: GetOptoutMailAnalysisParams,
+  options?: RequestInit,
+): Promise<OptoutMailAnalysis> => {
+  return customFetch<OptoutMailAnalysis>(getGetOptoutMailAnalysisUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOptoutMailAnalysisQueryKey = (
+  params?: GetOptoutMailAnalysisParams,
+) => {
+  return [
+    `/api/ltv/optout-mail-analysis`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetOptoutMailAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOptoutMailAnalysis>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetOptoutMailAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOptoutMailAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOptoutMailAnalysisQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOptoutMailAnalysis>>
+  > = ({ signal }) =>
+    getOptoutMailAnalysis(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOptoutMailAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOptoutMailAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOptoutMailAnalysis>>
+>;
+export type GetOptoutMailAnalysisQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Relate completed email deliveries to opt-out, by sequence position, node, send frequency and LTV
+ */
+
+export function useGetOptoutMailAnalysis<
+  TData = Awaited<ReturnType<typeof getOptoutMailAnalysis>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetOptoutMailAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOptoutMailAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOptoutMailAnalysisQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

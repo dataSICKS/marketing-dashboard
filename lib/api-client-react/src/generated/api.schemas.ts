@@ -210,6 +210,148 @@ export interface LtvOptoutAnalysis {
   notes: string[];
 }
 
+export interface OptoutMailCoverage {
+  /**
+   * Earliest completed email date in the history
+   * @nullable
+   */
+  deliveryFrom: string | null;
+  /** @nullable */
+  deliveryTo: string | null;
+  /**
+   * Earliest estimated opt-out date; the cohort starts here
+   * @nullable
+   */
+  optoutFrom: string | null;
+  /** @nullable */
+  optoutTo: string | null;
+  /** Completed email events after excluding undeliverable and skipped */
+  deliveryEvents: number;
+  deliveryCustomers: number;
+  /** Customers whose first delivery is on or after optoutFrom; the only group where an opt-out is observable */
+  cohortCustomers: number;
+  cohortOptouts: number;
+  /** Customers whose first delivery predates opt-out data and whose opt-out could be invisible */
+  excludedEarlyCustomers: number;
+  /** Opt-outs whose only prior record is the same estimated day; order within a day is unknown */
+  undecidableSameDay: number;
+  undecidableNoHistory: number;
+  /**
+   * Deliveries the aggregate report counts over the same window; null when it could not be read
+   * @nullable
+   */
+  aggregateDeliveries: number | null;
+  /**
+   * Per-customer records divided by aggregate deliveries. Below 1 means some scenarios were never exported, so a customer's Nth email is only the Nth among the records we hold
+   * @nullable
+   */
+  coverageRatio: number | null;
+  /** @nullable */
+  purchaseSyncedAt: string | null;
+  fetchedAt: string;
+}
+
+export interface OptoutMailMissingScenario {
+  scenarioName: string;
+  /** Deliveries the aggregate report counts for this scenario in the window */
+  deliveries: number;
+  /** Of those */
+  missingDeliveries: number;
+}
+
+export interface OptoutMailSequenceBucket {
+  /**
+   * Nth completed email counted strictly before the estimated opt-out date
+   * @minimum 1
+   */
+  sequence: number;
+  /** Cohort customers who received at least this many emails; the denominator */
+  reached: number;
+  /** Customers whose last email before opting out was this one */
+  churned: number;
+  /** churned divided by reached */
+  hazard: number;
+  /** Share of the whole cohort that has opted out by this point */
+  cumulativeShare: number;
+}
+
+export interface OptoutMailNodeItem {
+  /** Display name; falls back to scenario plus node when the template was deleted in MA */
+  label: string;
+  templateName: string;
+  nodeId: string;
+  scenarioName: string;
+  /** Delivery events for this node; the denominator */
+  events: number;
+  customers: number;
+  churned: number;
+  hazard: number;
+  /** Median sequence position at which this node is received */
+  medianSequence: number;
+}
+
+export interface OptoutMailSequenceNodes {
+  sequence: number;
+  items: OptoutMailNodeItem[];
+}
+
+export type OptoutMailFrequencyBucketBucket =
+  (typeof OptoutMailFrequencyBucketBucket)[keyof typeof OptoutMailFrequencyBucketBucket];
+
+export const OptoutMailFrequencyBucketBucket = {
+  d0_3: "d0_3",
+  d4_7: "d4_7",
+  d8_14: "d8_14",
+  d15_30: "d15_30",
+  d31_plus: "d31_plus",
+} as const;
+
+export interface OptoutMailFrequencyBucket {
+  bucket: OptoutMailFrequencyBucketBucket;
+  label: string;
+  events: number;
+  churned: number;
+  hazard: number;
+}
+
+export interface OptoutMailFrequencyGroup {
+  /** Compare gaps only within the same sequence position */
+  sequence: number;
+  buckets: OptoutMailFrequencyBucket[];
+}
+
+export interface OptoutMailLtvCohort {
+  /** First observed purchase month YYYY-MM */
+  cohortMonth: string;
+  withoutCount: number;
+  withoutLtv95: number;
+  withoutLtv180: number;
+  withoutLtv365: number;
+  withCount: number;
+  withLtv95: number;
+  withLtv180: number;
+  withLtv365: number;
+  /** Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out */
+  optoutRate: number;
+  /** False when 180 days have not elapsed for the whole cohort */
+  mature180: boolean;
+  mature365: boolean;
+}
+
+export interface OptoutMailAnalysis {
+  coverage: OptoutMailCoverage;
+  /** Scenarios whose per-customer export is incomplete, largest gap first */
+  missingScenarios: OptoutMailMissingScenario[];
+  sequence: OptoutMailSequenceBucket[];
+  nodes: OptoutMailNodeItem[];
+  /** Nodes below minEvents, omitted from the list rather than shown with an unstable rate */
+  lowVolumeNodes: number;
+  nodesBySequence: OptoutMailSequenceNodes[];
+  frequency: OptoutMailFrequencyGroup[];
+  ltvCohorts: OptoutMailLtvCohort[];
+  notes: string[];
+}
+
 export type LtvDatasetOptionValue =
   (typeof LtvDatasetOptionValue)[keyof typeof LtvDatasetOptionValue];
 
@@ -988,6 +1130,15 @@ export type GetLtvOptoutAnalysisParams = {
    * @maximum 100
    */
   pageSize?: number;
+};
+
+export type GetOptoutMailAnalysisParams = {
+  /**
+   * Minimum delivery events for a node row to be listed; smaller groups are grouped as low volume
+   * @minimum 1
+   * @maximum 100000
+   */
+  minEvents?: number;
 };
 
 export type SyncLtvParams = {

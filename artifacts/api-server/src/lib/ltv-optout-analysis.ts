@@ -35,46 +35,6 @@ export function normalizeAnalysisDate(value: unknown): string | null {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === result ? result : null;
 }
 
-/** Count completed email events, never target-count flags or LINE deliveries. */
-export function parseMailHistory(header: string[], values: unknown[][]): MailHistory {
-  const column = (label: string) => {
-    const index = header.findIndex((item) => String(item).trim() === label);
-    if (index < 0) throw new Error(`メール配信実績に「${label}」列がありません`);
-    return index;
-  };
-  const at = {
-    customer: column("顧客番号"), timestamp: column("配信日時"), method: column("配信方法"),
-    status: column("配信ステータス"), scenario: column("シナリオID"), node: column("ノードID"), template: column("テンプレート名"),
-  };
-  // One event can have repeated exports/statuses; a completed record takes precedence.
-  const events = new Map<string, { customerCode: string; date: string; completed: boolean; email: boolean }>();
-  let rawRows = 0, invalidRows = 0, duplicateRows = 0;
-  for (const row of values) {
-    const cell = (index: number) => String(row[index] ?? "").trim();
-    if (![at.customer, at.timestamp, at.status, at.method].some((index) => cell(index))) continue;
-    rawRows++;
-    const customerCode = cell(at.customer);
-    const date = normalizeAnalysisDate(cell(at.timestamp));
-    if (!customerCode || !date) { invalidRows++; continue; }
-    const key = JSON.stringify([customerCode, cell(at.timestamp), cell(at.method), cell(at.scenario), cell(at.node), cell(at.template)]);
-    const completed = cell(at.status) === "完了";
-    const previous = events.get(key);
-    if (previous) {
-      duplicateRows++;
-      if (completed) previous.completed = true;
-      continue;
-    }
-    events.set(key, { customerCode, date, completed, email: cell(at.method) === "メール" });
-  }
-  const dates = [...events.values()].filter((event) => event.email).map((event) => event.date).sort();
-  const rows = [...events.values()].filter((event) => event.email && event.completed)
-    .map(({ customerCode, date }) => ({ customerCode, date }));
-  return {
-    rows, from: dates[0] ?? null, to: dates.at(-1) ?? null, rawRows, invalidRows, duplicateRows,
-    excludedRows: events.size - rows.length, available: true, error: null,
-  };
-}
-
 export interface OptoutAnalysisFilters {
   monthFrom?: string;
   monthTo?: string;
@@ -197,7 +157,7 @@ export function analyzeOptoutTiming(
       "メールは配信方法が「メール」かつ配信ステータス「完了」の記録だけを数えます。配信不可・スキップは除外します。受信箱への実到達を保証する値ではありません。",
       "確認通数は、確認できる配信履歴の開始から推定解除日の前日までの記録数で、購入後のみに限定していません。解除日当日の配信は前後不明のため別表示です。",
       "配信履歴は全期間・全シナリオの網羅性を確認できません。累計何通目かは全顧客で判定不可です。事前の配信記録が無い顧客も0通とは表示しません。",
-      "購入データはLTVの保存済み全経路データ、解除・メール実績は元シートの読取スナップショットを使用します。再取得はDBの購入データを更新しません。",
+      "購入データはLTVの保存済み全経路データ、配信実績はSupabaseに取り込んだMAの「配信対象者毎」CSV、解除履歴は元シートの読取スナップショットです。再取得はDBの購入データを更新しません。",
     ],
   };
 }

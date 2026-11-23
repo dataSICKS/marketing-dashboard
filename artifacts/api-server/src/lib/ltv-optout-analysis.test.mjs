@@ -1,17 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeAnalysisDate, parseMailHistory, analyzeOptoutTiming } from "./ltv-optout-analysis.ts";
+import { normalizeAnalysisDate, analyzeOptoutTiming } from "./ltv-optout-analysis.ts";
 
-const header = ["顧客番号", "配信日時", "配信方法", "配信ステータス", "シナリオID", "ノードID", "テンプレート名"];
-const message = (customer, date, status = "完了", node = "n1", method = "メール") =>
-  [customer, date, method, status, "scenario", node, "template"];
+// 配信履歴は ma_deliveries（Supabase）から来る。1行＝メール・完了の1通。
+const mailHistory = (events) => {
+  const dates = events.map(([, date]) => date).sort();
+  return {
+    rows: events.map(([customerCode, date]) => ({ customerCode, date })),
+    from: dates[0] ?? null, to: dates.at(-1) ?? null,
+    rawRows: events.length, excludedRows: 0, duplicateRows: 0, invalidRows: 0,
+    available: true, error: null,
+  };
+};
 const purchase = (customer, month, sub = customer) => ({
   customerCode: customer, subsOrderCode: sub, firstOrderMonth: month,
   firstProduct: "", product2: "", product3: "", product4: "", offerName: "",
   adGroupName: "", subsStatus: "", sellingUrl: "", ltv95: 0, ltv180: 0, ltv365: 0,
 });
 const out = (customer, date) => ({ customerCode: customer, optoutDate: date });
-const emptyMail = () => parseMailHistory(header, []);
+const emptyMail = () => mailHistory([]);
 const metadata = { purchaseSyncedAt: "2026-11-01T00:00:00Z", fetchedAt: "2026-11-20T00:00:00Z" };
 const analyze = (purchases, optouts, mail = emptyMail(), filters = {}) =>
   analyzeOptoutTiming(purchases, optouts, mail, filters, metadata);
@@ -24,30 +31,6 @@ test("valid calendar dates and Japanese timezone boundaries are normalized witho
   for (const value of ["2026-02-29", "2026-11-31", "2026-13-01", "不明", "", null]) {
     assert.equal(normalizeAnalysisDate(value), null);
   }
-});
-
-test("only completed emails count; duplicated exports/statuses are one event but distinct nodes remain distinct", () => {
-  const values = [
-    message("001", "2026/11/04 10:00", "配信不可"),
-    message("001", "2026/11/04 10:00"),
-    message("001", "2026/11/04 10:00"),
-    message("001", "2026/11/04 10:00", "完了", "n2"),
-    message("001", "2026/11/05 10:00", "配信不可"),
-    message("001", "2026/11/06 10:00", "スキップ"),
-    message("001", "2026/01/01 10:00", "完了", "n1", "LINE"),
-    message("001", "2026/02/30 10:00"),
-    [], ["", "", "", ""],
-  ];
-  const mail = parseMailHistory(header, values);
-  assert.equal(mail.rows.length, 2);
-  assert.equal(mail.from, "2026-11-04");
-  assert.equal(mail.to, "2026-11-06");
-  assert.equal(mail.rawRows, 8);
-  assert.equal(mail.duplicateRows, 2);
-  assert.equal(mail.excludedRows, 3);
-  assert.equal(mail.invalidRows, 1);
-  assert.equal(mail.rows[0].customerCode, "001");
-  assert.throws(() => parseMailHistory(["顧客番号"], []), /配信日時/);
 });
 
 test("customer joins preserve leading zeroes, use earliest observed month, and never count multiple subscriptions twice", () => {
@@ -81,10 +64,9 @@ test("first eligible opt-out is selected before filters, and cohort filters do n
 });
 
 test("observed counts exclude same-day and later emails; unknown cumulative counts never become lifetime zeroes", () => {
-  const mail = parseMailHistory(header, [
-    message("a", "2026/11/04 10:00"), message("a", "2026/11/05 00:01"),
-    message("a", "2026/11/05 23:59", "完了", "n2"), message("a", "2026/11/06 10:00"),
-    message("b", "2026/11/05 10:00"),
+  const mail = mailHistory([
+    ["a", "2026-11-04"], ["a", "2026-11-05"], ["a", "2026-11-05"], ["a", "2026-11-06"],
+    ["b", "2026-11-05"],
   ]);
   const report = analyze(
     ["a", "b", "c", "d", "e"].map((id) => purchase(id, "2026-01-01")),

@@ -3,11 +3,13 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetLtvOptoutAnalysis, useRefreshLtvOptoutAnalysis, getGetLtvOptoutAnalysisQueryKey,
+  useGetOptoutMailAnalysis, getGetOptoutMailAnalysisQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvOptoutAnalysisParams, LtvOptoutCustomerMailStatus, LtvOptoutAnalysis } from "@workspace/api-client-react";
+import type { GetLtvOptoutAnalysisParams, LtvOptoutCustomerMailStatus, LtvOptoutAnalysis, OptoutMailAnalysis } from "@workspace/api-client-react";
 import { ArrowLeft, RefreshCw, Info, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MonthDistributionChart, MailDistributionChart } from "@/components/LtvOptoutCharts";
+import { OptoutMailBlocks } from "@/components/OptoutMailBlocks";
 import { formatNumber, formatDate } from "@/lib/format";
 
 const YELLOW = "#FBBF24";
@@ -47,8 +49,19 @@ export default function LtvOptoutsPage() {
   const query = useGetLtvOptoutAnalysis(params, {
     query: { queryKey: getGetLtvOptoutAnalysisQueryKey(params), staleTime: 300000, refetchOnWindowFocus: false },
   });
+  // 配信×解除の分析は絞り込みの影響を受けない（全体の傾向を見るもの）ので、別の問い合わせにする。
+  // 片方が落ちてももう片方は表示できる。
+  const mailParams = { minEvents: 200 } as const;
+  const mailQuery = useGetOptoutMailAnalysis(mailParams, {
+    query: { queryKey: getGetOptoutMailAnalysisQueryKey(mailParams), staleTime: 300000, refetchOnWindowFocus: false },
+  });
   const refresh = useRefreshLtvOptoutAnalysis({
-    mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/ltv/optout-analysis"] }); } },
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/ltv/optout-analysis"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/ltv/optout-mail-analysis"] });
+      },
+    },
   });
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied);
@@ -140,7 +153,9 @@ export default function LtvOptoutsPage() {
             </div>
           ) : (
             <Results data={data} fetching={query.isFetching} pageSize={pageSize}
-              onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} onReset={reset} hasFilters={JSON.stringify(applied) !== JSON.stringify(EMPTY)} />
+              onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} onReset={reset} hasFilters={JSON.stringify(applied) !== JSON.stringify(EMPTY)}
+              mail={mailQuery.data} mailLoading={mailQuery.isLoading} mailError={mailQuery.isError}
+              mailErrorText={mailQuery.error?.data?.error} onRetryMail={() => mailQuery.refetch()} />
           )}
         </div>
       </main>
@@ -159,8 +174,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFilters }: {
+function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFilters, mail, mailLoading, mailError, mailErrorText, onRetryMail }: {
   data: LtvOptoutAnalysis; fetching: boolean; pageSize: number; onPage: (p: number) => void; onPageSize: (s: number) => void; onReset: () => void; hasFilters: boolean;
+  mail?: OptoutMailAnalysis; mailLoading: boolean; mailError: boolean; mailErrorText?: string; onRetryMail: () => void;
 }) {
   const { sources: src, summary: s } = data;
   const empty = s.analyzedCustomers === 0;
@@ -219,6 +235,21 @@ function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFil
           </div>
           <CustomerTable data={data} pageSize={pageSize} onPage={onPage} onPageSize={onPageSize} />
         </>
+      )}
+
+      {/* 配信とオプトアウトの関係（絞り込みの影響を受けない全体の傾向） */}
+      {mailLoading ? (
+        <div className="flex flex-col gap-4" data-testid="optout-mail-loading">
+          <Skeleton className="h-72 w-full" /><Skeleton className="h-64 w-full" />
+        </div>
+      ) : mailError || !mail ? (
+        <div className="bg-white rounded-xl p-8 text-center text-sm text-red-500" role="alert" style={CARD} data-testid="optout-mail-error">
+          配信とオプトアウトの関係を集計できませんでした。上の分析は表示できています。
+          {mailErrorText && <div className="mt-1 text-xs break-all">{mailErrorText}</div>}
+          <div className="mt-3"><button className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700" onClick={onRetryMail} data-testid="button-retry-mail">再読み込み</button></div>
+        </div>
+      ) : (
+        <OptoutMailBlocks data={mail} />
       )}
 
       <MailStatusLegend />
