@@ -92,6 +92,9 @@ marketing-dashboard/
 | `/ltv/optout-analysis` | GET | 顧客単位の解除タイミング（購入月×解除日×配信記録）。絞り込み・ページングあり |
 | `/ltv/optout-analysis/refresh` | POST | 解除履歴と配信実績のスナップショットだけ再取得（購入データは更新しない） |
 | `/ltv/optout-mail-analysis` | GET | 配信と解除の関係（通目別ハザード/ノード別/間隔別/LTVコホート）。`minEvents` で表示下限 |
+| `/line/sync` | POST | LINE実績レポートのシートを読み直して3テーブルへ。検算に合わない行も返す |
+| `/line/data` | GET | 経路ゾーン別の友だち数・新規・ブロック・LPアクセス・CV（`grain` 日/週/月） |
+| `/line/deliveries` | GET | 配信（メッセージパック）別・セグメント別のCV。開封率・CTRは出せない |
 
 ### lib（サーバー）
 
@@ -133,6 +136,23 @@ marketing-dashboard/
     解除が遅い抽出のときに全員が除外される）。
   - **どの表も分母を持つ**。件数だけでは配信の多いテンプレートが常に悪く見える。
   `coverageAgainstAggregate` は個票が集計側の何割を覆っているかと、**書き出し直すべきシナリオ**を出す。
+- `line-sheet-parse.ts` — LINE実績レポートの読み取り（**実行時importなし＝ローカルで試験できる**）。
+  - 前半は `日実績` タブの109列。**列は見出し文字列ではなく位置で読む**（見出しにセル内改行があり、
+    コスフェス大阪・福岡だけ改行位置が違うため文字列照合が外れる）。代わりに `verifyLineRow` が
+    用語タブの恒等式（`人数=残存+ブロック累計` / `全体CV=タグ計+リッチ+他` / `タグ計=経路別合計`）で確認する。
+    **崩れたら列ズレか、列を持たない流入経路が増えた合図**なので画面に出す。
+  - 後半は配信別（`パラメURL` × `LINE_ECFCV`）。こちらは**ヘッダー名で読む**（列を足す運用なので位置は不安定）。
+    識別子は**URLの `?u=` から取り出す**。識別子だけの列は見出しが無く位置がずれる。
+    ステップ通数は列が使えなければパック名の丸数字（①②③）から拾う。
+- `line-aggregate.ts` — 日/週/月の集計（型importのみなので試験できる）。**ストックとフローを混ぜない**。
+  残高（人数・ブロック累計・残存・シナリオ分類数）は期間の**最終日の値**、
+  フロー（新規・即ブロック・LPアクセス・CV）は**合計**。率は合計してから割る。週は月曜始まり。
+- `line-sheets.ts` — Replit Connectors でシートを読む。**`UNFORMATTED_VALUE` 必須**
+  （表示形式だと `50,920` と `2月1日` で返り、桁区切りと年落ちで壊れる）。
+  **タブ名はメタデータから末尾一致で解決**する（GASのタブは `GAS_` 接頭辞つき、手作業のタブは無し）。
+  返り値に各タブの `sheetId`（URLの `gid`）を含めるので、共有されたリンクとタブを突き合わせられる。
+- `line-supabase.ts` — 3テーブルへの保存と全件取得。`line_url_cv` だけ **DELETE→INSERT**
+  （0を保存しない作りなので、upsertだと1→0に直ったCVが残る）。
 - `efo-sheets.ts` / `efo-supabase.ts` / `efo-aggregate.ts` / `efo-preset-supabase.ts` — EFO 版の Sheets/DB/集計/プリセット。Sheet `1gibjDJns9...` の `raw_efo_access` / `raw_efo_cv` を読む。
 - `campaigns-supabase.ts` — `campaigns` の CRUD。
 - `settings-storage.ts` — Storage バケット `app-settings` の `config.json` を読み書き。バケット無ければ作成。旧フォーマット `clarityTargetUrl`(単数)→`clarityTargetUrls`(複数) を移行。

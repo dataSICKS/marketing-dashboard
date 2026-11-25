@@ -502,6 +502,214 @@ export const GetNewsletterOptoutResponse = zod.object({
 });
 
 /**
+ * @summary Re-read the LINE performance sheet and store daily zone metrics, parameter-URL master and per-URL CV
+ */
+export const SyncLineResponse = zod.object({
+  dailyRows: zod.number(),
+  zoneRows: zod.number(),
+  masterRows: zod.number(),
+  cvRows: zod.number().describe("Only non-zero CV is stored"),
+  issues: zod.array(
+    zod.object({
+      date: zod.string(),
+      check: zod
+        .string()
+        .describe("Which identity from the sheet's glossary failed"),
+      detail: zod.string(),
+    }),
+  ),
+  masterSkipped: zod
+    .number()
+    .describe("Parameter-URL rows with no identifier yet"),
+  masterDuplicates: zod.number(),
+  cvIdentifiers: zod.number(),
+  syncedAt: zod.string(),
+  columnCountWarning: zod
+    .string()
+    .nullable()
+    .describe("Set when the daily tab is no longer 109 columns wide"),
+  tabs: zod
+    .array(
+      zod.object({
+        title: zod.string(),
+        sheetId: zod.number().describe("The gid in the spreadsheet URL"),
+        rowCount: zod.number(),
+        columnCount: zod.number(),
+      }),
+    )
+    .describe(
+      "Tab titles with their gid, so a shared sheet link can be matched to a tab",
+    ),
+});
+
+/**
+ * @summary Friend balance, new additions, blocks, LP access and CV by acquisition route
+ */
+export const getLineDataQueryGrainDefault = `day`;
+
+export const GetLineDataQueryParams = zod.object({
+  grain: zod
+    .enum(["day", "week", "month"])
+    .default(getLineDataQueryGrainDefault),
+  dateFrom: zod.coerce.string().optional().describe("Lower bound YYYY-MM-DD"),
+  dateTo: zod.coerce.string().optional().describe("Upper bound YYYY-MM-DD"),
+  zones: zod.coerce
+    .string()
+    .optional()
+    .describe("Pipe-separated zone keys; empty means every zone"),
+});
+
+export const GetLineDataResponse = zod.object({
+  grain: zod.enum(["day", "week", "month"]),
+  zones: zod.array(
+    zod.object({
+      key: zod.string(),
+      label: zod.string(),
+      hasBalance: zod.boolean().describe("False for routes that only carry CV"),
+      hasCv: zod.boolean(),
+      hasScenario: zod.boolean(),
+    }),
+  ),
+  items: zod.array(
+    zod.object({
+      period: zod.string().describe("Day"),
+      zone: zod.string(),
+      days: zod
+        .number()
+        .describe("Days with data in this period; a short count means gaps"),
+      newCount: zod.number().nullable().describe("Flow; summed"),
+      instantBlock: zod.number().nullable(),
+      blockDelta: zod.number().nullable(),
+      lpAccess: zod.number().nullable(),
+      cv: zod.number().nullable(),
+      people: zod
+        .number()
+        .nullable()
+        .describe("Stock; the period's closing value"),
+      blockTotal: zod.number().nullable(),
+      active: zod
+        .number()
+        .nullable()
+        .describe(
+          "people minus blockTotal; the figure to call the friend count",
+        ),
+      scenarioCount: zod.number().nullable(),
+      activeDelta: zod
+        .number()
+        .nullable()
+        .describe("Closing active minus the previous period's closing active"),
+      instantBlockRate: zod.number().nullable(),
+      blockRate: zod.number().nullable(),
+      scenarioRate: zod.number().nullable(),
+      cvrLp: zod
+        .number()
+        .nullable()
+        .describe("CV divided by LP access on the same rows"),
+      convRate: zod
+        .number()
+        .nullable()
+        .describe("CV divided by new additions; not a same-cohort rate"),
+    }),
+  ),
+  summary: zod.object({
+    activeLatest: zod.number().nullable().describe("Latest closing balance"),
+    activeLatestDate: zod.string().nullable(),
+    peopleLatest: zod.number().nullable(),
+    blockTotalLatest: zod.number().nullable(),
+    blockRateLatest: zod.number().nullable(),
+    newCount: zod.number(),
+    instantBlock: zod.number(),
+    instantBlockRate: zod.number().nullable(),
+    lpAccess: zod.number(),
+    cv: zod.number(),
+    cvrLp: zod.number().nullable(),
+    convRate: zod.number().nullable(),
+  }),
+  issues: zod.array(
+    zod.object({
+      date: zod.string(),
+      check: zod
+        .string()
+        .describe("Which identity from the sheet's glossary failed"),
+      detail: zod.string(),
+    }),
+  ),
+  columnCountWarning: zod.string().nullable(),
+  dateMin: zod.string().nullable(),
+  dateMax: zod.string().nullable(),
+  lastSyncedAt: zod.string().nullable(),
+  notes: zod.array(zod.string()),
+});
+
+/**
+ * @summary CV by message pack, step number and segment, from the parameter-URL identifiers
+ */
+export const GetLineDeliveriesQueryParams = zod.object({
+  dateFrom: zod.coerce.string().optional(),
+  dateTo: zod.coerce.string().optional(),
+});
+
+export const GetLineDeliveriesResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      messagePack: zod.string(),
+      route: zod.string(),
+      stepNumber: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null when neither the column nor the circled numeral gave one",
+        ),
+      variants: zod
+        .number()
+        .describe("Identifiers under this pack that produced CV"),
+      cv: zod.number(),
+      hasCoupon: zod.boolean().nullable(),
+      firstCvDate: zod.string().nullable(),
+      lastCvDate: zod.string().nullable(),
+    }),
+  ),
+  unmatched: zod
+    .array(
+      zod.object({
+        identifier: zod.string(),
+        cv: zod.number(),
+      }),
+    )
+    .describe(
+      "CV on identifiers absent from the parameter-URL sheet; a sign new URLs were issued without being registered",
+    ),
+  bySubscription: zod.array(
+    zod.object({
+      key: zod.string(),
+      label: zod.string(),
+      cv: zod.number(),
+    }),
+  ),
+  byChild: zod.array(
+    zod.object({
+      key: zod.string(),
+      label: zod.string(),
+      cv: zod.number(),
+    }),
+  ),
+  byRoute: zod.array(
+    zod.object({
+      key: zod.string(),
+      label: zod.string(),
+      cv: zod.number(),
+    }),
+  ),
+  totalCv: zod.number().describe("Includes unmatched CV"),
+  matchedCv: zod.number(),
+  identifierCount: zod.number(),
+  dateMin: zod.string().nullable(),
+  dateMax: zod.string().nullable(),
+  lastSyncedAt: zod.string().nullable(),
+  notes: zod.array(zod.string()),
+});
+
+/**
  * @summary Analyze opt-out timing by customer code across all-channel purchases and observed email history
  */
 export const getLtvOptoutAnalysisQueryPageDefault = 1;

@@ -241,6 +241,64 @@ drizzle のスキーマ（`lib/db/src/schema/auth.ts`）が正で、
 
 > `stage` が2段階あるのが肝。`totp_pending` を「ログイン済み」として扱わない。
 
+### `line_zone_daily` / `line_url_master` / `line_url_cv`（LINE実績レポート）
+
+出所: Google Sheet `1ol--HUyOeodoFPEQIyleBsP3HyFhFBv7rCJfrxrx42g`
+（`O2O×SICKS／LINE実績レポート`。GASがLiny APIから毎日取得して書いている）。
+取り込みは手動 `POST /line/sync`。
+
+**値は `UNFORMATTED_VALUE` で取る。** 表示形式のままだと友だち数が `50,920`（桁区切り）、
+日付が `2月1日`（年が落ちる）で返ってくる。
+
+**タブ名はメタデータから末尾一致で解決する。** GASが作るタブには `GAS_` の接頭辞が付き、
+手作業のタブ（`SICKS作成用_パラメURL`）には付いていない。固定名で書くと片方が外れる。
+
+#### `line_zone_daily`（日付 × 経路ゾーン）
+
+`日実績` タブ（A〜DE／109列）を縦持ちにしたもの。ユニークキー: `report_date, zone`。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| report_date | date | 日付 |
+| zone | text | `overall` / `tagged` / `qrNew` / `qrOld` / `site` / `noah` / `cosfesOsaka` / `cosfesFukuoka` / `richMenu` / `other` |
+| people | integer | 人数(累計)。**ブロックした人も含む**ので友だち数ではない |
+| new_count | integer | 当日新規（created_atベース）。**翌朝確定**。空欄は未確定で0ではない |
+| instant_block | integer | その日の新規のうち翌朝時点でブロックしていた人数 |
+| block_delta | integer | ブロック累計の前日差（ブロック日時が無いための代理値。マイナスもあり得る） |
+| block_total | integer | ブロック累計 |
+| active | integer | 残存。`people − block_total`。**KPIの「友だち数」はこれ** |
+| scenario_count | integer | シナリオ分類済み人数（新QR・旧QRのみ） |
+| lp_access | integer | パラメURLへの到達数（ECforceのaccess_count）。友だち追加数でも開封数でもない |
+| cv | integer | LINE経由のサブスク登録数（ECforce由来） |
+
+率は保存しない。**合計してから割る**ため（日ごとの率の平均にしない）。
+`richMenu` と `other` は経路を特定できないため残高を持たず、`lp_access` と `cv` だけ。
+
+#### `line_url_master`（識別子 → 配信の属性）
+
+`SICKS作成用_パラメURL` タブ。ユニークキー: `identifier`。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| identifier | text PK | パラメURLの `?u=` 以降。**URLから取り出す**（識別子だけの列は見出しが無く位置がずれる） |
+| route / segment_subscription / segment_child | text | 経路名 / サブスク経験 / 子ども有無 |
+| message_pack | text | メッセージパック名（例 `ステップ配信⑥_クーポン`） |
+| step_number | integer | ステップ配信の通数。列が使えないときは**パック名の丸数字**から拾う |
+| ad_group / url | text | 広告G名 / パラメURL全文 |
+| has_coupon | boolean | `あり`→true、`無`→false、空欄は **null**（「無し」と断定しない） |
+
+#### `line_url_cv`（日付 × 識別子のCV）
+
+`LINE_ECFCV（URL_日別）` タブ（横持ち）を縦持ちにしたもの。ユニークキー: `report_date, identifier`。
+**0は保存しない。** そのため取り込みは **DELETE→INSERT**（upsertだと1→0に直ったCVが残る）。
+
+**識別子ごとのLPアクセスは取り込めていない。** 用語タブには
+`LINE_ECFアクセス（URL_日別）` を2026/10/08に追加したと書かれているが、**実ファイルにタブが存在しない**
+（`新規獲得ログ_過去分` `ステップ復活検知` `【凍結】日次実績_手動` も同様に無い）。
+そのため**配信別のCVRは出せない**（分母が無い）。経路別のLPアクセスは `line_zone_daily` にある。
+
+**配信通数・開封数・クリック数はどのタブにも無い。** 開封率・CTRはこのデータでは出せない。
+
 ## Storage オブジェクト
 
 ### `clarity-heatmaps`
@@ -287,6 +345,7 @@ Clarity スクロール深度:
 | newsletter_rows | Google Sheet `1zITxm8...` `calc` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期。読み出しはキャッシュ優先 |
 | newsletter_optouts | Google Sheet `1zITxm8...` `20260101以降のオプトアウトリスト` | API（cache→Supabase→Sheets）+ 手動 `/newsletter/sync` | Sheet 更新時に手動同期 |
 | ma_deliveries | MA「配信対象者毎」CSV（Drive `1onjS6IB...`） | `ma-deliveries-to-supabase/run.py`（upsert） | **定期実行なし**。CSVを再エクスポートしたら手動 |
+| line_zone_daily / line_url_master / line_url_cv | Google Sheet `1ol--HU...`（`O2O×SICKS／LINE実績レポート`） | 手動 `POST /line/sync`（Replit Connectors経由） | **定期実行なし**。元シートはGASが毎日更新、取り込みは画面のボタン |
 | ltv_subscriptions | Google Sheet `10wmBYd...` の `RAW_定期ID別購入商品_LTV95_180_365`（fb）と `..._全経路`（all） | 手動 `/ltv/sync` のみ（GETでは取り込まない） | Sheet 更新時に手動同期 |
 | efo_access_cv / efo_exit_scenarios | Google Sheet `1gibjDJns9...` `raw_efo_*` | API `/efo/sync` ＋ 外部 ecforce-efo-to-supabase | ダッシュボード同期時 / 外部日次 |
 | ecf_ad_access_cv | BQ_ECF 広告集計 Sheet（CSV export） | `ecf-ad-to-supabase/run.py`（DELETE→INSERT） | **日次 08:15**（cron） |
@@ -433,4 +492,52 @@ select ad_code,
 from efo_access_cv
 group by ad_code
 order by cv desc;
+```
+
+### LINE実績レポートの3テーブル（SQL Editor で手動実行）
+
+```sql
+create table if not exists public.line_zone_daily (
+  report_date    date    not null,
+  zone           text    not null,
+  people         integer,
+  new_count      integer,
+  instant_block  integer,
+  block_delta    integer,
+  block_total    integer,
+  active         integer,
+  scenario_count integer,
+  lp_access      integer,
+  cv             integer,
+  synced_at      timestamptz not null default now(),
+  primary key (report_date, zone)
+);
+alter table public.line_zone_daily enable row level security;
+create index if not exists line_zone_daily_zone_idx on public.line_zone_daily (zone, report_date);
+
+create table if not exists public.line_url_master (
+  identifier           text primary key,
+  route                text,
+  segment_subscription text,
+  segment_child        text,
+  message_pack         text,
+  step_number          integer,
+  ad_group             text,
+  has_coupon           boolean,
+  url                  text,
+  synced_at            timestamptz not null default now()
+);
+alter table public.line_url_master enable row level security;
+create index if not exists line_url_master_pack_idx on public.line_url_master (message_pack);
+
+-- 0は保存しない運用。取り込みは DELETE→INSERT。
+create table if not exists public.line_url_cv (
+  report_date date    not null,
+  identifier  text    not null,
+  cv          integer not null,
+  synced_at   timestamptz not null default now(),
+  primary key (report_date, identifier)
+);
+alter table public.line_url_cv enable row level security;
+create index if not exists line_url_cv_identifier_idx on public.line_url_cv (identifier, report_date);
 ```

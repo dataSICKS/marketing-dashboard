@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import newsletterRouter from "./newsletter";
 import ltvRouter from "./ltv";
+import lineRouter from "./line";
 import efoRouter from "./efo";
 import clarityRouter from "./clarity";
 import campaignsRouter from "./campaigns";
@@ -23,6 +24,7 @@ router.use(requireAuth);
 
 router.use(newsletterRouter);
 router.use(ltvRouter);
+router.use(lineRouter);
 router.use(efoRouter);
 router.use(clarityRouter);
 router.use(campaignsRouter);

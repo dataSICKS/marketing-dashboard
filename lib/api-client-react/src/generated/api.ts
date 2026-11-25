@@ -43,6 +43,8 @@ import type {
   GetClarityScrollParams,
   GetEfoDataParams,
   GetEfoFiltersParams,
+  GetLineDataParams,
+  GetLineDeliveriesParams,
   GetLtvDataParams,
   GetLtvFiltersParams,
   GetLtvOptoutAnalysisParams,
@@ -52,6 +54,9 @@ import type {
   GetNewsletterOptoutParams,
   GetOptoutMailAnalysisParams,
   HealthStatus,
+  LineDataResponse,
+  LineDeliveriesResponse,
+  LineSyncResult,
   LogoutInput,
   LogoutResult,
   LtvDataResponse,
@@ -1272,6 +1277,278 @@ export function useGetNewsletterOptout<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetNewsletterOptoutQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSyncLineUrl = () => {
+  return `/api/line/sync`;
+};
+
+/**
+ * @summary Re-read the LINE performance sheet and store daily zone metrics, parameter-URL master and per-URL CV
+ */
+export const syncLine = async (
+  options?: RequestInit,
+): Promise<LineSyncResult> => {
+  return customFetch<LineSyncResult>(getSyncLineUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncLineMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncLine>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncLine>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["syncLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncLine>>,
+    void
+  > = () => {
+    return syncLine(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncLine>>
+>;
+
+export type SyncLineMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Re-read the LINE performance sheet and store daily zone metrics, parameter-URL master and per-URL CV
+ */
+export const useSyncLine = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncLine>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncLine>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSyncLineMutationOptions(options));
+};
+
+export const getGetLineDataUrl = (params?: GetLineDataParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/line/data?${stringifiedParams}`
+    : `/api/line/data`;
+};
+
+/**
+ * @summary Friend balance, new additions, blocks, LP access and CV by acquisition route
+ */
+export const getLineData = async (
+  params?: GetLineDataParams,
+  options?: RequestInit,
+): Promise<LineDataResponse> => {
+  return customFetch<LineDataResponse>(getGetLineDataUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLineDataQueryKey = (params?: GetLineDataParams) => {
+  return [`/api/line/data`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLineDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLineData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLineDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLineData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLineDataQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLineData>>> = ({
+    signal,
+  }) => getLineData(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLineData>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLineDataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLineData>>
+>;
+export type GetLineDataQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Friend balance, new additions, blocks, LP access and CV by acquisition route
+ */
+
+export function useGetLineData<
+  TData = Awaited<ReturnType<typeof getLineData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLineDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLineData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLineDataQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetLineDeliveriesUrl = (params?: GetLineDeliveriesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/line/deliveries?${stringifiedParams}`
+    : `/api/line/deliveries`;
+};
+
+/**
+ * @summary CV by message pack, step number and segment, from the parameter-URL identifiers
+ */
+export const getLineDeliveries = async (
+  params?: GetLineDeliveriesParams,
+  options?: RequestInit,
+): Promise<LineDeliveriesResponse> => {
+  return customFetch<LineDeliveriesResponse>(getGetLineDeliveriesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLineDeliveriesQueryKey = (
+  params?: GetLineDeliveriesParams,
+) => {
+  return [`/api/line/deliveries`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLineDeliveriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLineDeliveries>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLineDeliveriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLineDeliveries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetLineDeliveriesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLineDeliveries>>
+  > = ({ signal }) => getLineDeliveries(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLineDeliveries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLineDeliveriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLineDeliveries>>
+>;
+export type GetLineDeliveriesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary CV by message pack, step number and segment, from the parameter-URL identifiers
+ */
+
+export function useGetLineDeliveries<
+  TData = Awaited<ReturnType<typeof getLineDeliveries>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetLineDeliveriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLineDeliveries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLineDeliveriesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

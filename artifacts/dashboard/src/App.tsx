@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import LtvPage from "@/pages/ltv";
+import LinePage from "@/pages/line";
 import LtvOptoutsPage from "@/pages/ltv-optouts";
 import EfoPage from "@/pages/efo";
 import CampaignsPage from "@/pages/campaigns";
@@ -28,6 +29,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/ltv" component={LtvPage} />
+        <Route path="/line" component={LinePage} />
         <Route path="/ltv/optouts" component={LtvOptoutsPage} />
         <Route path="/efo" component={EfoPage} />
         <Route path="/campaigns" component={CampaignsPage} />

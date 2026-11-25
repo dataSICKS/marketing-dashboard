@@ -210,6 +210,209 @@ export interface LtvOptoutAnalysis {
   notes: string[];
 }
 
+export interface LineRowIssue {
+  date: string;
+  /** Which identity from the sheet's glossary failed */
+  check: string;
+  detail: string;
+}
+
+export interface LineSheetTab {
+  title: string;
+  /** The gid in the spreadsheet URL */
+  sheetId: number;
+  rowCount: number;
+  columnCount: number;
+}
+
+export interface LineSyncResult {
+  dailyRows: number;
+  zoneRows: number;
+  masterRows: number;
+  /** Only non-zero CV is stored */
+  cvRows: number;
+  issues: LineRowIssue[];
+  /** Parameter-URL rows with no identifier yet */
+  masterSkipped: number;
+  masterDuplicates: number;
+  cvIdentifiers: number;
+  syncedAt: string;
+  /**
+   * Set when the daily tab is no longer 109 columns wide
+   * @nullable
+   */
+  columnCountWarning: string | null;
+  /** Tab titles with their gid, so a shared sheet link can be matched to a tab */
+  tabs: LineSheetTab[];
+}
+
+export interface LineZoneOption {
+  key: string;
+  label: string;
+  /** False for routes that only carry CV */
+  hasBalance: boolean;
+  hasCv: boolean;
+  hasScenario: boolean;
+}
+
+export interface LineZonePeriod {
+  /** Day */
+  period: string;
+  zone: string;
+  /** Days with data in this period; a short count means gaps */
+  days: number;
+  /**
+   * Flow; summed
+   * @nullable
+   */
+  newCount: number | null;
+  /** @nullable */
+  instantBlock: number | null;
+  /** @nullable */
+  blockDelta: number | null;
+  /** @nullable */
+  lpAccess: number | null;
+  /** @nullable */
+  cv: number | null;
+  /**
+   * Stock; the period's closing value
+   * @nullable
+   */
+  people: number | null;
+  /** @nullable */
+  blockTotal: number | null;
+  /**
+   * people minus blockTotal; the figure to call the friend count
+   * @nullable
+   */
+  active: number | null;
+  /** @nullable */
+  scenarioCount: number | null;
+  /**
+   * Closing active minus the previous period's closing active
+   * @nullable
+   */
+  activeDelta: number | null;
+  /** @nullable */
+  instantBlockRate: number | null;
+  /** @nullable */
+  blockRate: number | null;
+  /** @nullable */
+  scenarioRate: number | null;
+  /**
+   * CV divided by LP access on the same rows
+   * @nullable
+   */
+  cvrLp: number | null;
+  /**
+   * CV divided by new additions; not a same-cohort rate
+   * @nullable
+   */
+  convRate: number | null;
+}
+
+export interface LineSummary {
+  /**
+   * Latest closing balance
+   * @nullable
+   */
+  activeLatest: number | null;
+  /** @nullable */
+  activeLatestDate: string | null;
+  /** @nullable */
+  peopleLatest: number | null;
+  /** @nullable */
+  blockTotalLatest: number | null;
+  /** @nullable */
+  blockRateLatest: number | null;
+  newCount: number;
+  instantBlock: number;
+  /** @nullable */
+  instantBlockRate: number | null;
+  lpAccess: number;
+  cv: number;
+  /** @nullable */
+  cvrLp: number | null;
+  /** @nullable */
+  convRate: number | null;
+}
+
+export type LineDataResponseGrain =
+  (typeof LineDataResponseGrain)[keyof typeof LineDataResponseGrain];
+
+export const LineDataResponseGrain = {
+  day: "day",
+  week: "week",
+  month: "month",
+} as const;
+
+export interface LineDataResponse {
+  grain: LineDataResponseGrain;
+  zones: LineZoneOption[];
+  items: LineZonePeriod[];
+  summary: LineSummary;
+  issues: LineRowIssue[];
+  /** @nullable */
+  columnCountWarning: string | null;
+  /** @nullable */
+  dateMin: string | null;
+  /** @nullable */
+  dateMax: string | null;
+  /** @nullable */
+  lastSyncedAt: string | null;
+  notes: string[];
+}
+
+export interface LineDeliveryItem {
+  messagePack: string;
+  route: string;
+  /**
+   * Null when neither the column nor the circled numeral gave one
+   * @nullable
+   */
+  stepNumber: number | null;
+  /** Identifiers under this pack that produced CV */
+  variants: number;
+  cv: number;
+  /** @nullable */
+  hasCoupon: boolean | null;
+  /** @nullable */
+  firstCvDate: string | null;
+  /** @nullable */
+  lastCvDate: string | null;
+}
+
+export interface LineDeliverySplit {
+  key: string;
+  label: string;
+  cv: number;
+}
+
+export interface LineDeliveryUnmatched {
+  identifier: string;
+  cv: number;
+}
+
+export interface LineDeliveriesResponse {
+  items: LineDeliveryItem[];
+  /** CV on identifiers absent from the parameter-URL sheet; a sign new URLs were issued without being registered */
+  unmatched: LineDeliveryUnmatched[];
+  bySubscription: LineDeliverySplit[];
+  byChild: LineDeliverySplit[];
+  byRoute: LineDeliverySplit[];
+  /** Includes unmatched CV */
+  totalCv: number;
+  matchedCv: number;
+  identifierCount: number;
+  /** @nullable */
+  dateMin: string | null;
+  /** @nullable */
+  dateMax: string | null;
+  /** @nullable */
+  lastSyncedAt: string | null;
+  notes: string[];
+}
+
 export interface OptoutMailCoverage {
   /**
    * Earliest completed email date in the history
@@ -1099,6 +1302,36 @@ export const GetNewsletterOptoutGroupBy = {
   week: "week",
   month: "month",
 } as const;
+
+export type GetLineDataParams = {
+  grain?: GetLineDataGrain;
+  /**
+   * Lower bound YYYY-MM-DD
+   */
+  dateFrom?: string;
+  /**
+   * Upper bound YYYY-MM-DD
+   */
+  dateTo?: string;
+  /**
+   * Pipe-separated zone keys; empty means every zone
+   */
+  zones?: string;
+};
+
+export type GetLineDataGrain =
+  (typeof GetLineDataGrain)[keyof typeof GetLineDataGrain];
+
+export const GetLineDataGrain = {
+  day: "day",
+  week: "week",
+  month: "month",
+} as const;
+
+export type GetLineDeliveriesParams = {
+  dateFrom?: string;
+  dateTo?: string;
+};
 
 export type GetLtvOptoutAnalysisParams = {
   /**

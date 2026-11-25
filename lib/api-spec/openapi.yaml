@@ -396,6 +396,83 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /line/sync:
+    post:
+      operationId: syncLine
+      tags: [line]
+      summary: Re-read the LINE performance sheet and store daily zone metrics, parameter-URL master and per-URL CV
+      responses:
+        "200":
+          description: Stored row counts and the identity checks that failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineSyncResult"
+        "503":
+          description: Sheet or database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /line/data:
+    get:
+      operationId: getLineData
+      tags: [line]
+      summary: Friend balance, new additions, blocks, LP access and CV by acquisition route
+      parameters:
+        - { name: grain, in: query, schema: { type: string, enum: [day, week, month], default: day } }
+        - { name: dateFrom, in: query, schema: { type: string }, description: Lower bound YYYY-MM-DD }
+        - { name: dateTo, in: query, schema: { type: string }, description: Upper bound YYYY-MM-DD }
+        - { name: zones, in: query, schema: { type: string }, description: Pipe-separated zone keys; empty means every zone }
+      responses:
+        "200":
+          description: Stock metrics are period-end values and flow metrics are period sums; they are never added together
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineDataResponse"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /line/deliveries:
+    get:
+      operationId: getLineDeliveries
+      tags: [line]
+      summary: CV by message pack, step number and segment, from the parameter-URL identifiers
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string } }
+        - { name: dateTo, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: CV only; per-identifier LP access does not exist, so there is no delivery-level CVR
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineDeliveriesResponse"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ltv/optout-analysis:
     get:
       operationId: getLtvOptoutAnalysis
@@ -1466,6 +1543,186 @@ components:
         page: { type: integer }
         pageSize: { type: integer }
         totalPages: { type: integer }
+        notes:
+          type: array
+          items: { type: string }
+
+    LineRowIssue:
+      type: object
+      required: [date, check, detail]
+      properties:
+        date: { type: string }
+        check: { type: string, description: Which identity from the sheet's glossary failed }
+        detail: { type: string }
+
+    LineSyncResult:
+      type: object
+      required: [dailyRows, zoneRows, masterRows, cvRows, issues, masterSkipped, masterDuplicates, cvIdentifiers, syncedAt, columnCountWarning, tabs]
+      properties:
+        dailyRows: { type: integer }
+        zoneRows: { type: integer }
+        masterRows: { type: integer }
+        cvRows: { type: integer, description: Only non-zero CV is stored }
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineRowIssue"
+        masterSkipped: { type: integer, description: Parameter-URL rows with no identifier yet }
+        masterDuplicates: { type: integer }
+        cvIdentifiers: { type: integer }
+        syncedAt: { type: string }
+        columnCountWarning: { type: [string, "null"], description: Set when the daily tab is no longer 109 columns wide }
+        tabs:
+          type: array
+          description: Tab titles with their gid, so a shared sheet link can be matched to a tab
+          items:
+            $ref: "#/components/schemas/LineSheetTab"
+
+    LineSheetTab:
+      type: object
+      required: [title, sheetId, rowCount, columnCount]
+      properties:
+        title: { type: string }
+        sheetId: { type: integer, description: The gid in the spreadsheet URL }
+        rowCount: { type: integer }
+        columnCount: { type: integer }
+
+    LineZoneOption:
+      type: object
+      required: [key, label, hasBalance, hasCv, hasScenario]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        hasBalance: { type: boolean, description: False for routes that only carry CV, such as the rich menu }
+        hasCv: { type: boolean }
+        hasScenario: { type: boolean }
+
+    LineZonePeriod:
+      type: object
+      required: [period, zone, days, newCount, instantBlock, blockDelta, lpAccess, cv, people, blockTotal, active, scenarioCount, activeDelta, instantBlockRate, blockRate, scenarioRate, cvrLp, convRate]
+      properties:
+        period: { type: string, description: Day, the week's Monday, or the month's first day }
+        zone: { type: string }
+        days: { type: integer, description: Days with data in this period; a short count means gaps }
+        newCount: { type: [integer, "null"], description: Flow; summed }
+        instantBlock: { type: [integer, "null"] }
+        blockDelta: { type: [integer, "null"] }
+        lpAccess: { type: [integer, "null"] }
+        cv: { type: [integer, "null"] }
+        people: { type: [integer, "null"], description: Stock; the period's closing value, never a sum }
+        blockTotal: { type: [integer, "null"] }
+        active: { type: [integer, "null"], description: people minus blockTotal; the figure to call the friend count }
+        scenarioCount: { type: [integer, "null"] }
+        activeDelta: { type: [integer, "null"], description: Closing active minus the previous period's closing active }
+        instantBlockRate: { type: [number, "null"] }
+        blockRate: { type: [number, "null"] }
+        scenarioRate: { type: [number, "null"] }
+        cvrLp: { type: [number, "null"], description: CV divided by LP access on the same rows }
+        convRate: { type: [number, "null"], description: CV divided by new additions; not a same-cohort rate }
+
+    LineSummary:
+      type: object
+      required: [activeLatest, activeLatestDate, peopleLatest, blockTotalLatest, blockRateLatest, newCount, instantBlock, instantBlockRate, lpAccess, cv, cvrLp, convRate]
+      properties:
+        activeLatest: { type: [integer, "null"], description: Latest closing balance, not a period total }
+        activeLatestDate: { type: [string, "null"] }
+        peopleLatest: { type: [integer, "null"] }
+        blockTotalLatest: { type: [integer, "null"] }
+        blockRateLatest: { type: [number, "null"] }
+        newCount: { type: integer }
+        instantBlock: { type: integer }
+        instantBlockRate: { type: [number, "null"] }
+        lpAccess: { type: integer }
+        cv: { type: integer }
+        cvrLp: { type: [number, "null"] }
+        convRate: { type: [number, "null"] }
+
+    LineDataResponse:
+      type: object
+      required: [grain, zones, items, summary, issues, columnCountWarning, dateMin, dateMax, lastSyncedAt, notes]
+      properties:
+        grain: { type: string, enum: [day, week, month] }
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineZoneOption"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineZonePeriod"
+        summary:
+          $ref: "#/components/schemas/LineSummary"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineRowIssue"
+        columnCountWarning: { type: [string, "null"] }
+        dateMin: { type: [string, "null"] }
+        dateMax: { type: [string, "null"] }
+        lastSyncedAt: { type: [string, "null"] }
+        notes:
+          type: array
+          items: { type: string }
+
+    LineDeliveryItem:
+      type: object
+      required: [messagePack, route, stepNumber, variants, cv, hasCoupon, firstCvDate, lastCvDate]
+      properties:
+        messagePack: { type: string }
+        route: { type: string }
+        stepNumber: { type: [integer, "null"], description: Null when neither the column nor the circled numeral gave one }
+        variants: { type: integer, description: Identifiers under this pack that produced CV, one per segment branch }
+        cv: { type: integer }
+        hasCoupon: { type: [boolean, "null"] }
+        firstCvDate: { type: [string, "null"] }
+        lastCvDate: { type: [string, "null"] }
+
+    LineDeliverySplit:
+      type: object
+      required: [key, label, cv]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        cv: { type: integer }
+
+    LineDeliveryUnmatched:
+      type: object
+      required: [identifier, cv]
+      properties:
+        identifier: { type: string }
+        cv: { type: integer }
+
+    LineDeliveriesResponse:
+      type: object
+      required: [items, unmatched, bySubscription, byChild, byRoute, totalCv, matchedCv, identifierCount, dateMin, dateMax, lastSyncedAt, notes]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineDeliveryItem"
+        unmatched:
+          type: array
+          description: CV on identifiers absent from the parameter-URL sheet; a sign new URLs were issued without being registered
+          items:
+            $ref: "#/components/schemas/LineDeliveryUnmatched"
+        bySubscription:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineDeliverySplit"
+        byChild:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineDeliverySplit"
+        byRoute:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineDeliverySplit"
+        totalCv: { type: integer, description: Includes unmatched CV, so the parts can be reconciled }
+        matchedCv: { type: integer }
+        identifierCount: { type: integer }
+        dateMin: { type: [string, "null"] }
+        dateMax: { type: [string, "null"] }
+        lastSyncedAt: { type: [string, "null"] }
         notes:
           type: array
           items: { type: string }

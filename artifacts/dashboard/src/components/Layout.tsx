@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { BarChart2, Mail, MousePointerClick, Settings, Menu, X, ChevronLeft, ChevronRight, CalendarDays, TrendingUp } from "lucide-react";
+import { BarChart2, Mail, MousePointerClick, Settings, Menu, X, ChevronLeft, ChevronRight, CalendarDays, TrendingUp, MessageCircle } from "lucide-react";
 import AccountPanel from "@/components/AccountPanel";
 
 const YELLOW = "#FBBF24";
@@ -16,6 +16,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { icon: Mail, label: "メルマガ分析", href: "/" },
   { icon: TrendingUp, label: "LTV分析", href: "/ltv" },
+  { icon: MessageCircle, label: "LINE分析", href: "/line" },
   { icon: MousePointerClick, label: "CVRレポート", href: "/efo" },
   { icon: CalendarDays, label: "施策カレンダー", href: "/campaigns" },
 ];
