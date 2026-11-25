@@ -3,12 +3,19 @@
 AbemaTV「奇跡の歯ブラシ」のLINE（LINY）から、ダッシュボードの分母に使えるデータを
 APIで直接取る。`out/` は gitignore（JSONと友だちIDが入るため）。
 
-    ./run.sh      # 初回はトークンを聞く。collect.py → friends.py を続けて実行
+    ./run.sh              # 初回はトークンを聞く → sync.py
+    ./run.sh --dry-run    # 取得して out/ に保存するだけ（Supabaseへ入れない）
 
-- `collect.py` … タグフォルダ・タグ・**タグごとの保有者（友だちID＋ブロック状態）**
-- `friends.py` … 友だちを全件1パス。**追加日・ブロック状態・各タグの付与日時**
+- `liny.py` … LINY APIとSupabaseの共通クライアント
+- `sync.py` … タグと友だちを全件取り、`liny_tag` / `liny_friend` / `liny_friend_tag` へ入れる
+- `ddl.sql` … 3テーブルの定義（**service_role ではDDLを流せないので手で実行する**）
+- `com.sicks.liny-sync.plist` … 毎朝 08:45 のlaunchd（`~/Library/LaunchAgents/` へコピーして `launchctl load`）
 
-氏名・uid・memo は保存しない。分析に使わない個人情報を持ち回らないため。
+**氏名・LINEのuid・memoは保存しない。** 分析に使わない個人情報を持ち回らないため、
+残すのは LINY内部の friend_id・追加日時・ブロック状態・タグの付与日時だけ。
+
+`include_tags[]` は1回に100個までなので、**タグ数が100を超えたら自動で複数パスに分けて**
+友だちを取り直し、タグをマージする（診断タグが増えても設計を変えずに済む）。
 
 ## APIの実挙動（2026-11-25 に実測して確認したこと）
 
