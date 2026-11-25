@@ -261,11 +261,21 @@ export interface LineUrlCv {
 
 const text = (value: unknown): string => String(value ?? "").trim();
 
-/** `①` → 1。`⑳` まで。見つからなければ null。 */
-export function circledNumber(value: string): number | null {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code >= 0x2460 && code <= 0x2473) return code - 0x2460 + 1;
+/**
+ * メッセージパック名の**先頭**から通数を読む。`①_奇跡の歯ブラシとは` → 1、`13_クーポン` → 13。
+ *
+ * **先頭に限るのが肝。** 名前の途中の丸数字は通数ではない。
+ * 「アンケート回答後①　旧QR300_all」の①はリッチメニューのクーポン導線の**パターン番号**で、
+ * ここを拾うとリッチメニュー経由のCVが「1通目のCV」として混ざる（実データで211件が誤って1通目に入っていた）。
+ */
+export function stepFromPackName(value: string): number | null {
+  const text = value.trim();
+  const code = text.codePointAt(0) ?? 0;
+  if (code >= 0x2460 && code <= 0x2473) return code - 0x2460 + 1;
+  const digits = text.match(/^(\d{1,2})[_\s]/);
+  if (digits) {
+    const parsed = Number(digits[1]);
+    if (parsed >= 1 && parsed <= 99) return parsed;
   }
   return null;
 }
@@ -342,8 +352,8 @@ export function parseUrlMaster(values: readonly unknown[][]): {
     const declared = parseLineNumber(cell("stepNumber"));
     const step = declared !== null && Number.isInteger(declared) && declared >= 1 && declared <= 99
       ? declared
-      // 列がずれていても丸数字から拾えるので、こちらを控えにする。
-      : circledNumber(pack);
+      // 列がずれていても先頭の番号から拾えるので、こちらを控えにする。
+      : stepFromPackName(pack);
     const entry: LineUrlMaster = {
       identifier,
       route: cell("route"),

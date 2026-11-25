@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   LINE_ZONES, LINE_ROW_LENGTH, parseLineNumber, parseLineDate, parseLineRow, verifyLineRow,
-  parseUrlMaster, parseCvMatrix, aggregateDeliveries, findMasterHeader, identifierFromUrl, circledNumber,
+  parseUrlMaster, parseCvMatrix, aggregateDeliveries, findMasterHeader, identifierFromUrl, stepFromPackName,
 } from "./line-sheet-parse.ts";
 
 /** 用語タブ⑤が示す列レター。読み取り位置がずれていないかの固定点。 */
@@ -151,7 +151,7 @@ const MASTER_HEADER = [
 const masterRow = (over = {}) => {
   const base = {
     No: "1", 経路名: "旧QR", 経路: "A", セグメント名: "サブスク経験あり", セグメント: "子どもあり",
-    内容: "sub1-ch1", メッセージパック名: "ステップ配信⑥_クーポン", 配信名: "⑥_クーポン_sub1-ch1",
+    内容: "sub1-ch1", メッセージパック名: "⑥_クーポン", 配信名: "⑥_クーポン_sub1-ch1",
     ステップ配信番号: "6", 広告G名: "奇跡の歯ブラシ/LINE公式アカウント", 識別子: "id",
     テンプレ: "531", "URL（LINE用）": "https://ssr.abemashopping.jp/lp?u=",
     パラメURL: "https://ssr.abemashopping.jp/lp?u=kisekino_haburashi_LINE_A_sub1-ch16",
@@ -170,7 +170,7 @@ test("the parameter-URL sheet is read by header name, below the free-text note r
     route: "旧QR",
     segmentSubscription: "サブスク経験あり",
     segmentChild: "子どもあり",
-    messagePack: "ステップ配信⑥_クーポン",
+    messagePack: "⑥_クーポン",
     stepNumber: 6,
     adGroup: "奇跡の歯ブラシ/LINE公式アカウント",
     hasCoupon: true,
@@ -191,16 +191,25 @@ test("the identifier comes from the URL, so an unnamed identifier column cannot 
   assert.equal(skipped, 1);
 });
 
-test("the step number falls back to the circled numeral when the column is missing or wrong", () => {
-  assert.equal(circledNumber("ステップ配信⑥_クーポン"), 6);
-  assert.equal(circledNumber("⑳番目"), 20);
-  assert.equal(circledNumber("クーポン"), null);
+test("the step number falls back to the pack name's leading number when the column is missing or wrong", () => {
+  assert.equal(stepFromPackName("⑥_クーポン"), 6);
+  assert.equal(stepFromPackName("⑳_最後"), 20);
+  assert.equal(stepFromPackName("13_クーポン_use0-ch0"), 13);
+  assert.equal(stepFromPackName("クーポン"), null);
+  // 名前の途中の丸数字はリッチメニュー導線のパターン番号。通数として拾うと211件が1通目に混ざった
+  assert.equal(stepFromPackName("アンケート回答後①　旧QR300_all"), null);
+  assert.equal(stepFromPackName("リッチメニュー_all　70％OFF"), null);
+  assert.equal(stepFromPackName("定期_交換アナウンス_use3-ch1"), null);
   const noColumn = MASTER_HEADER.filter((name) => name !== "ステップ配信番号");
   const row = masterRow();
   const trimmed = noColumn.map((name) => row[MASTER_HEADER.indexOf(name)]);
-  assert.equal(parseUrlMaster([noColumn, trimmed]).rows[0].stepNumber, 6, "丸数字から拾う");
+  assert.equal(parseUrlMaster([noColumn, trimmed]).rows[0].stepNumber, 6, "先頭の番号から拾う");
   const bad = parseUrlMaster([MASTER_HEADER, masterRow({ ステップ配信番号: "①_クーポン_sub1-ch1" })]);
-  assert.equal(bad.rows[0].stepNumber, 6, "列がずれていてもパック名の丸数字が勝つ");
+  assert.equal(bad.rows[0].stepNumber, 6, "列がずれていてもパック名の先頭番号が勝つ");
+  const rich = parseUrlMaster([MASTER_HEADER, masterRow({
+    メッセージパック名: "アンケート回答後①　旧QR300_all", ステップ配信番号: "リッチメニュー",
+  })]);
+  assert.equal(rich.rows[0].stepNumber, null, "リッチメニュー導線を通数にしない");
 });
 
 test("coupon presence distinguishes unknown from absent", () => {
@@ -212,12 +221,12 @@ test("coupon presence distinguishes unknown from absent", () => {
 });
 
 test("a repeated identifier keeps the later row, matching how fixes are appended", () => {
-  const first = masterRow({ メッセージパック名: "ステップ配信①_旧" });
-  const second = masterRow({ メッセージパック名: "ステップ配信②_新" });
+  const first = masterRow({ メッセージパック名: "①_旧" });
+  const second = masterRow({ メッセージパック名: "②_新" });
   const { rows, duplicates } = parseUrlMaster([MASTER_HEADER, first, second]);
   assert.equal(rows.length, 1);
   assert.equal(duplicates, 1);
-  assert.equal(rows[0].messagePack, "ステップ配信②_新");
+  assert.equal(rows[0].messagePack, "②_新");
 });
 
 test("the wide CV sheet melts into rows, dropping zeros and the total column", () => {
@@ -238,11 +247,11 @@ test("CV is grouped by message pack and route, and unmatched identifiers are sur
     MASTER_HEADER,
     masterRow(),
     masterRow({
-      セグメント: "子どもなし", メッセージパック名: "ステップ配信⑥_クーポン",
+      セグメント: "子どもなし", メッセージパック名: "⑥_クーポン",
       パラメURL: "https://x/lp?u=pack6_b",
     }),
     masterRow({
-      経路名: "新QR", メッセージパック名: "ステップ配信①_奇跡の歯ブラシとは", ステップ配信番号: "1",
+      経路名: "新QR", メッセージパック名: "①_奇跡の歯ブラシとは", ステップ配信番号: "1",
       パラメURL: "https://x/lp?u=pack1", クーポンあり無: "無",
     }),
   ]).rows;
