@@ -97,5 +97,14 @@ CSVのエクスポートがMA管理画面の手作業なので、cronには載�
 - `配信不可` `スキップ` は**届いていない**。受信通数に数えるときは
   `delivery_status = '完了'` で絞る。
 - `開封有無` にはbotによる自動開封が混ざる。`auto_opened` を併せて見る。
-- Drive経由でダウンロードできるのは1ファイル10MBまで（コネクタの制限）。
-  超えるものは期間を分けて再エクスポートする。
+- **Driveコネクタ経由は1ファイル10MBまで。** これで2026-11-16エクスポートの22ファイルのうち
+  **10MB超の3ファイル（40.5MB / 26.2MB / 11.4MB・計215,329行）が取り込まれず**、
+  オプトアウト8,589人との一致率が25%しか出ない原因になっていた。
+  **Drive APIにはこの制限が無いので `fetch_drive.py` で落とす。**
+
+      /usr/bin/python3 fetch_drive.py --min-mb 10   # 10MB超だけ取得
+      /usr/bin/python3 fetch_drive.py               # csv/ に無いものを全部
+
+  認証は `meta-ads-to-sheets/credentials.json` のサービスアカウント
+  （`sheets-writer@meta-ads-reporter-487515...`）。このフォルダの閲覧権限は付与済みで、
+  **追加の共有設定は要らない**。`csv/` は顧客番号を含むので gitignore 対象。
