@@ -6,6 +6,7 @@ import {
   useEnrollTotp,
   useVerifyTotp,
   useVerifyBackupCode,
+  getGetAuthConfigQueryKey,
   getGetAuthMeQueryKey,
   ApiError,
   type AuthMeResponse,
@@ -493,12 +494,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [pendingBackupCodes, setPendingBackupCodes] = useState<string[] | null>(null);
 
   const config = useGetAuthConfig({
-    query: { retry: false, staleTime: 5 * 60 * 1000 },
+    query: { queryKey: getGetAuthConfigQueryKey(), retry: false, staleTime: 5 * 60 * 1000 },
   });
   const configured = config.data?.configured === true;
 
   const me = useGetAuthMe({
     query: {
+      queryKey: getGetAuthMeQueryKey(),
       enabled: configured,
       retry: false,
       staleTime: 30 * 1000,

@@ -177,8 +177,12 @@ const zoneOf = (row: LineDailyRow, key: string) => row.zones.find((zone) => zone
 export function verifyLineRow(row: LineDailyRow): LineRowIssue[] {
   const issues: LineRowIssue[] = [];
   const add = (check: string, detail: string) => issues.push({ date: row.date, check, detail });
+  // 全部nullなら「未確定」としてnullを返す。1つでも値があれば欠けは0として足す。
+  // reduce の累積値を number に固定しないと、配列の要素型から null が混ざると推論される。
   const sum = (values: (number | null)[]) =>
-    values.every((value) => value === null) ? null : values.reduce((total, value) => total + (value ?? 0), 0);
+    values.every((value) => value === null)
+      ? null
+      : values.reduce<number>((total, value) => total + (value ?? 0), 0);
 
   for (const zone of row.zones) {
     if (zone.people === null || zone.blockTotal === null || zone.active === null) continue;

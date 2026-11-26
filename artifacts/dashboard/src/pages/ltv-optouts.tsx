@@ -162,7 +162,8 @@ export default function LtvOptoutsPage() {
             <Results data={data} fetching={query.isFetching} pageSize={pageSize}
               onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} onReset={reset} hasFilters={JSON.stringify(applied) !== JSON.stringify(EMPTY)}
               mail={mailQuery.data} mailLoading={mailQuery.isLoading} mailError={mailQuery.isError}
-              mailErrorText={mailQuery.error?.data?.error} onRetryMail={() => mailQuery.refetch()} />
+              mailErrorText={mailQuery.error?.data?.error} onRetryMail={() => mailQuery.refetch()}
+              scenarioKind={scenarioKind} onScenarioKind={setScenarioKind} />
           )}
         </div>
       </main>
@@ -181,9 +182,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFilters, mail, mailLoading, mailError, mailErrorText, onRetryMail }: {
+function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFilters, mail, mailLoading, mailError, mailErrorText, onRetryMail, scenarioKind, onScenarioKind }: {
   data: LtvOptoutAnalysis; fetching: boolean; pageSize: number; onPage: (p: number) => void; onPageSize: (s: number) => void; onReset: () => void; hasFilters: boolean;
   mail?: OptoutMailAnalysis; mailLoading: boolean; mailError: boolean; mailErrorText?: string; onRetryMail: () => void;
+  scenarioKind: GetOptoutMailAnalysisScenarioKind; onScenarioKind: (kind: GetOptoutMailAnalysisScenarioKind) => void;
 }) {
   const { sources: src, summary: s } = data;
   const empty = s.analyzedCustomers === 0;
@@ -267,7 +269,7 @@ function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFil
               <button
                 key={option.value}
                 title={option.hint}
-                onClick={() => setScenarioKind(option.value)}
+                onClick={() => onScenarioKind(option.value)}
                 data-testid={`button-kind-${option.value}`}
                 className={`rounded-lg border px-3 py-1.5 text-xs ${
                   scenarioKind === option.value

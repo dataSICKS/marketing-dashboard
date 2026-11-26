@@ -128,7 +128,9 @@ async function fetchAll(supabase: Client, table: string, select: string, order: 
       throw new Error(`${table} の取得に失敗しました: ${error.message}`);
     }
     if (!data || data.length === 0) break;
-    all.push(...(data as Record<string, unknown>[]));
+    // supabase-js の戻り型は select 文字列から推論されるが、ここは列を動的に渡すので
+    // 行の形を静的に決められない。unknown を挟んでから落とす。
+    all.push(...(data as unknown as Record<string, unknown>[]));
     if (data.length < PAGE) break;
     from += PAGE;
   }
