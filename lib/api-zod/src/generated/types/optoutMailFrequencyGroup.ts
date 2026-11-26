@@ -8,7 +8,7 @@
 import type { OptoutMailFrequencyBucket } from "./optoutMailFrequencyBucket";
 
 export interface OptoutMailFrequencyGroup {
-  /** Compare gaps only within the same sequence position */
+  /** Compare gaps only within the same sequence position, so survivors are not mixed with newcomers */
   sequence: number;
   buckets: OptoutMailFrequencyBucket[];
 }

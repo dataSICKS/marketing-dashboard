@@ -14,7 +14,7 @@ export interface LineDeliveryItem {
    * @nullable
    */
   stepNumber: number | null;
-  /** Identifiers under this pack that produced CV */
+  /** Identifiers under this pack that produced CV, one per segment branch */
   variants: number;
   cv: number;
   /** @nullable */

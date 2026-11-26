@@ -9,7 +9,7 @@
 export interface LineZoneOption {
   key: string;
   label: string;
-  /** False for routes that only carry CV */
+  /** False for routes that only carry CV, such as the rich menu */
   hasBalance: boolean;
   hasCv: boolean;
   hasScenario: boolean;

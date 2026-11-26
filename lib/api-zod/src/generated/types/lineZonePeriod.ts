@@ -7,7 +7,7 @@
  */
 
 export interface LineZonePeriod {
-  /** Day */
+  /** Day, the week's Monday, or the month's first day */
   period: string;
   zone: string;
   /** Days with data in this period; a short count means gaps */
@@ -26,7 +26,7 @@ export interface LineZonePeriod {
   /** @nullable */
   cv: number | null;
   /**
-   * Stock; the period's closing value
+   * Stock; the period's closing value, never a sum
    * @nullable
    */
   people: number | null;

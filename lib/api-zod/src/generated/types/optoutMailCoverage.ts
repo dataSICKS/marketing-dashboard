@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { OptoutMailCoverageScenarioKind } from "./optoutMailCoverageScenarioKind";
 
 export interface OptoutMailCoverage {
   /**
@@ -45,4 +46,14 @@ export interface OptoutMailCoverage {
   /** @nullable */
   purchaseSyncedAt: string | null;
   fetchedAt: string;
+  /** Which kind of scenario the rates below cover. Step scenarios only, by default; one-off blasts reach nearly every customer and would inflate every match */
+  scenarioKind: OptoutMailCoverageScenarioKind;
+  /** Opt-outs dropped because they fall on a bulk-processing day, where the count far exceeds what the deliveries of that day could explain */
+  excludedBulkOptouts: number;
+  /** The dropped days */
+  bulkOptoutDates: string[];
+  /** Distinct customers with an opt-out after the bulk days are dropped */
+  optoutCustomers: number;
+  /** Of those, customers that also appear in the delivery history. The rest opted out without a delivery record we hold */
+  matchedOptoutCustomers: number;
 }

@@ -565,14 +565,18 @@ export const GetLineDataResponse = zod.object({
     zod.object({
       key: zod.string(),
       label: zod.string(),
-      hasBalance: zod.boolean().describe("False for routes that only carry CV"),
+      hasBalance: zod
+        .boolean()
+        .describe("False for routes that only carry CV, such as the rich menu"),
       hasCv: zod.boolean(),
       hasScenario: zod.boolean(),
     }),
   ),
   items: zod.array(
     zod.object({
-      period: zod.string().describe("Day"),
+      period: zod
+        .string()
+        .describe("Day, the week's Monday, or the month's first day"),
       zone: zod.string(),
       days: zod
         .number()
@@ -585,7 +589,7 @@ export const GetLineDataResponse = zod.object({
       people: zod
         .number()
         .nullable()
-        .describe("Stock; the period's closing value"),
+        .describe("Stock; the period's closing value, never a sum"),
       blockTotal: zod.number().nullable(),
       active: zod
         .number()
@@ -612,7 +616,10 @@ export const GetLineDataResponse = zod.object({
     }),
   ),
   summary: zod.object({
-    activeLatest: zod.number().nullable().describe("Latest closing balance"),
+    activeLatest: zod
+      .number()
+      .nullable()
+      .describe("Latest closing balance, not a period total"),
     activeLatestDate: zod.string().nullable(),
     peopleLatest: zod.number().nullable(),
     blockTotalLatest: zod.number().nullable(),
@@ -662,7 +669,9 @@ export const GetLineDeliveriesResponse = zod.object({
         ),
       variants: zod
         .number()
-        .describe("Identifiers under this pack that produced CV"),
+        .describe(
+          "Identifiers under this pack that produced CV, one per segment branch",
+        ),
       cv: zod.number(),
       hasCoupon: zod.boolean().nullable(),
       firstCvDate: zod.string().nullable(),
@@ -700,7 +709,9 @@ export const GetLineDeliveriesResponse = zod.object({
       cv: zod.number(),
     }),
   ),
-  totalCv: zod.number().describe("Includes unmatched CV"),
+  totalCv: zod
+    .number()
+    .describe("Includes unmatched CV, so the parts can be reconciled"),
   matchedCv: zod.number(),
   identifierCount: zod.number(),
   dateMin: zod.string().nullable(),
@@ -850,6 +861,8 @@ export const GetLtvOptoutAnalysisResponse = zod.object({
 export const getOptoutMailAnalysisQueryMinEventsDefault = 200;
 export const getOptoutMailAnalysisQueryMinEventsMax = 100000;
 
+export const getOptoutMailAnalysisQueryScenarioKindDefault = `step`;
+
 export const GetOptoutMailAnalysisQueryParams = zod.object({
   minEvents: zod.coerce
     .number()
@@ -858,6 +871,18 @@ export const GetOptoutMailAnalysisQueryParams = zod.object({
     .default(getOptoutMailAnalysisQueryMinEventsDefault)
     .describe(
       "Minimum delivery events for a node row to be listed; smaller groups are grouped as low volume",
+    ),
+  scenarioKind: zod
+    .enum(["step", "blast", "all"])
+    .default(getOptoutMailAnalysisQueryScenarioKindDefault)
+    .describe(
+      "Which scenarios to measure. Step by default, because a one-off blast reaches nearly every customer and would attach an opt-out to every template alike",
+    ),
+  scenarios: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Pipe-separated scenario names to keep. Applied after scenarioKind; empty means every scenario of that kind",
     ),
 });
 
@@ -910,6 +935,27 @@ export const GetOptoutMailAnalysisResponse = zod.object({
       ),
     purchaseSyncedAt: zod.string().nullable(),
     fetchedAt: zod.string(),
+    scenarioKind: zod
+      .enum(["step", "blast", "all"])
+      .describe(
+        "Which kind of scenario the rates below cover. Step scenarios only, by default; one-off blasts reach nearly every customer and would inflate every match",
+      ),
+    excludedBulkOptouts: zod
+      .number()
+      .describe(
+        "Opt-outs dropped because they fall on a bulk-processing day, where the count far exceeds what the deliveries of that day could explain",
+      ),
+    bulkOptoutDates: zod.array(zod.string()).describe("The dropped days"),
+    optoutCustomers: zod
+      .number()
+      .describe(
+        "Distinct customers with an opt-out after the bulk days are dropped",
+      ),
+    matchedOptoutCustomers: zod
+      .number()
+      .describe(
+        "Of those, customers that also appear in the delivery history. The rest opted out without a delivery record we hold",
+      ),
   }),
   missingScenarios: zod
     .array(
@@ -920,11 +966,81 @@ export const GetOptoutMailAnalysisResponse = zod.object({
           .describe(
             "Deliveries the aggregate report counts for this scenario in the window",
           ),
-        missingDeliveries: zod.number().describe("Of those"),
+        missingDeliveries: zod
+          .number()
+          .describe(
+            "Of those, deliveries with no per-customer record; export this scenario again to close the gap",
+          ),
       }),
     )
     .describe(
       "Scenarios whose per-customer export is incomplete, largest gap first",
+    ),
+  scenarios: zod
+    .array(
+      zod.object({
+        scenarioName: zod.string(),
+        kind: zod
+          .enum(["blast", "step"])
+          .describe(
+            "Derived from how far the deliveries spread. Neither the CSV nor the database carries a flag",
+          ),
+        deliveries: zod.number(),
+        customers: zod.number(),
+        perCustomer: zod
+          .number()
+          .describe(
+            "Deliveries per customer. Shown so the classification can be checked, not used to decide it",
+          ),
+        nodes: zod.number(),
+        firstDate: zod.string(),
+        lastDate: zod.string(),
+        spanDays: zod
+          .number()
+          .describe(
+            "Days from first to last delivery. Three or fewer means a one-off blast",
+          ),
+      }),
+    )
+    .describe(
+      "Every scenario in the delivery history with the figures the one-off\/step split is derived from",
+    ),
+  blasts: zod
+    .array(
+      zod.object({
+        scenarioName: zod.string(),
+        sendFrom: zod.string(),
+        sendTo: zod.string(),
+        deliveries: zod.number(),
+        customers: zod.number(),
+        baselineDaily: zod
+          .number()
+          .describe("Median daily opt-outs over the 28 days before the send"),
+        daily: zod.array(
+          zod.object({
+            date: zod.string(),
+            offset: zod
+              .number()
+              .describe("Days from the first send day; negative is before"),
+            optouts: zod.number(),
+          }),
+        ),
+        windowOptouts: zod
+          .number()
+          .describe("Opt-outs on the send day through three days after"),
+        expectedOptouts: zod
+          .number()
+          .describe("What the baseline would predict over the same four days"),
+        excessOptouts: zod.number(),
+        excessRate: zod
+          .number()
+          .describe(
+            "Excess divided by deliveries. The share of recipients this blast pushed into opting out",
+          ),
+      }),
+    )
+    .describe(
+      "One-off blasts measured against the days around the send, since a blast reaches everyone at once and has no Nth-email position",
     ),
   sequence: zod.array(
     zod.object({
@@ -1006,7 +1122,9 @@ export const GetOptoutMailAnalysisResponse = zod.object({
     zod.object({
       sequence: zod
         .number()
-        .describe("Compare gaps only within the same sequence position"),
+        .describe(
+          "Compare gaps only within the same sequence position, so survivors are not mixed with newcomers",
+        ),
       buckets: zod.array(
         zod.object({
           bucket: zod.enum(["d0_3", "d4_7", "d8_14", "d15_30", "d31_plus"]),
@@ -1038,7 +1156,9 @@ export const GetOptoutMailAnalysisResponse = zod.object({
         ),
       mature180: zod
         .boolean()
-        .describe("False when 180 days have not elapsed for the whole cohort"),
+        .describe(
+          "False when 180 days have not elapsed for the whole cohort, so the average is still rising",
+        ),
       mature365: zod.boolean(),
     }),
   ),

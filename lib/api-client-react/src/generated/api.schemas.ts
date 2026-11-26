@@ -249,14 +249,14 @@ export interface LineSyncResult {
 export interface LineZoneOption {
   key: string;
   label: string;
-  /** False for routes that only carry CV */
+  /** False for routes that only carry CV, such as the rich menu */
   hasBalance: boolean;
   hasCv: boolean;
   hasScenario: boolean;
 }
 
 export interface LineZonePeriod {
-  /** Day */
+  /** Day, the week's Monday, or the month's first day */
   period: string;
   zone: string;
   /** Days with data in this period; a short count means gaps */
@@ -275,7 +275,7 @@ export interface LineZonePeriod {
   /** @nullable */
   cv: number | null;
   /**
-   * Stock; the period's closing value
+   * Stock; the period's closing value, never a sum
    * @nullable
    */
   people: number | null;
@@ -313,7 +313,7 @@ export interface LineZonePeriod {
 
 export interface LineSummary {
   /**
-   * Latest closing balance
+   * Latest closing balance, not a period total
    * @nullable
    */
   activeLatest: number | null;
@@ -371,7 +371,7 @@ export interface LineDeliveryItem {
    * @nullable
    */
   stepNumber: number | null;
-  /** Identifiers under this pack that produced CV */
+  /** Identifiers under this pack that produced CV, one per segment branch */
   variants: number;
   cv: number;
   /** @nullable */
@@ -400,7 +400,7 @@ export interface LineDeliveriesResponse {
   bySubscription: LineDeliverySplit[];
   byChild: LineDeliverySplit[];
   byRoute: LineDeliverySplit[];
-  /** Includes unmatched CV */
+  /** Includes unmatched CV, so the parts can be reconciled */
   totalCv: number;
   matchedCv: number;
   identifierCount: number;
@@ -412,6 +412,18 @@ export interface LineDeliveriesResponse {
   lastSyncedAt: string | null;
   notes: string[];
 }
+
+/**
+ * Which kind of scenario the rates below cover. Step scenarios only, by default; one-off blasts reach nearly every customer and would inflate every match
+ */
+export type OptoutMailCoverageScenarioKind =
+  (typeof OptoutMailCoverageScenarioKind)[keyof typeof OptoutMailCoverageScenarioKind];
+
+export const OptoutMailCoverageScenarioKind = {
+  step: "step",
+  blast: "blast",
+  all: "all",
+} as const;
 
 export interface OptoutMailCoverage {
   /**
@@ -452,13 +464,74 @@ export interface OptoutMailCoverage {
   /** @nullable */
   purchaseSyncedAt: string | null;
   fetchedAt: string;
+  /** Which kind of scenario the rates below cover. Step scenarios only, by default; one-off blasts reach nearly every customer and would inflate every match */
+  scenarioKind: OptoutMailCoverageScenarioKind;
+  /** Opt-outs dropped because they fall on a bulk-processing day, where the count far exceeds what the deliveries of that day could explain */
+  excludedBulkOptouts: number;
+  /** The dropped days */
+  bulkOptoutDates: string[];
+  /** Distinct customers with an opt-out after the bulk days are dropped */
+  optoutCustomers: number;
+  /** Of those, customers that also appear in the delivery history. The rest opted out without a delivery record we hold */
+  matchedOptoutCustomers: number;
+}
+
+/**
+ * Derived from how far the deliveries spread. Neither the CSV nor the database carries a flag
+ */
+export type MaScenarioSummaryKind =
+  (typeof MaScenarioSummaryKind)[keyof typeof MaScenarioSummaryKind];
+
+export const MaScenarioSummaryKind = {
+  blast: "blast",
+  step: "step",
+} as const;
+
+export interface MaScenarioSummary {
+  scenarioName: string;
+  /** Derived from how far the deliveries spread. Neither the CSV nor the database carries a flag */
+  kind: MaScenarioSummaryKind;
+  deliveries: number;
+  customers: number;
+  /** Deliveries per customer. Shown so the classification can be checked, not used to decide it */
+  perCustomer: number;
+  nodes: number;
+  firstDate: string;
+  lastDate: string;
+  /** Days from first to last delivery. Three or fewer means a one-off blast */
+  spanDays: number;
+}
+
+export interface OptoutBlastDay {
+  date: string;
+  /** Days from the first send day; negative is before */
+  offset: number;
+  optouts: number;
+}
+
+export interface OptoutBlastResponse {
+  scenarioName: string;
+  sendFrom: string;
+  sendTo: string;
+  deliveries: number;
+  customers: number;
+  /** Median daily opt-outs over the 28 days before the send */
+  baselineDaily: number;
+  daily: OptoutBlastDay[];
+  /** Opt-outs on the send day through three days after */
+  windowOptouts: number;
+  /** What the baseline would predict over the same four days */
+  expectedOptouts: number;
+  excessOptouts: number;
+  /** Excess divided by deliveries. The share of recipients this blast pushed into opting out */
+  excessRate: number;
 }
 
 export interface OptoutMailMissingScenario {
   scenarioName: string;
   /** Deliveries the aggregate report counts for this scenario in the window */
   deliveries: number;
-  /** Of those */
+  /** Of those, deliveries with no per-customer record; export this scenario again to close the gap */
   missingDeliveries: number;
 }
 
@@ -518,7 +591,7 @@ export interface OptoutMailFrequencyBucket {
 }
 
 export interface OptoutMailFrequencyGroup {
-  /** Compare gaps only within the same sequence position */
+  /** Compare gaps only within the same sequence position, so survivors are not mixed with newcomers */
   sequence: number;
   buckets: OptoutMailFrequencyBucket[];
 }
@@ -536,7 +609,7 @@ export interface OptoutMailLtvCohort {
   withLtv365: number;
   /** Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out */
   optoutRate: number;
-  /** False when 180 days have not elapsed for the whole cohort */
+  /** False when 180 days have not elapsed for the whole cohort, so the average is still rising */
   mature180: boolean;
   mature365: boolean;
 }
@@ -545,6 +618,10 @@ export interface OptoutMailAnalysis {
   coverage: OptoutMailCoverage;
   /** Scenarios whose per-customer export is incomplete, largest gap first */
   missingScenarios: OptoutMailMissingScenario[];
+  /** Every scenario in the delivery history with the figures the one-off/step split is derived from */
+  scenarios: MaScenarioSummary[];
+  /** One-off blasts measured against the days around the send, since a blast reaches everyone at once and has no Nth-email position */
+  blasts: OptoutBlastResponse[];
   sequence: OptoutMailSequenceBucket[];
   nodes: OptoutMailNodeItem[];
   /** Nodes below minEvents, omitted from the list rather than shown with an unstable rate */
@@ -1372,7 +1449,24 @@ export type GetOptoutMailAnalysisParams = {
    * @maximum 100000
    */
   minEvents?: number;
+  /**
+   * Which scenarios to measure. Step by default, because a one-off blast reaches nearly every customer and would attach an opt-out to every template alike
+   */
+  scenarioKind?: GetOptoutMailAnalysisScenarioKind;
+  /**
+   * Pipe-separated scenario names to keep. Applied after scenarioKind; empty means every scenario of that kind
+   */
+  scenarios?: string;
 };
+
+export type GetOptoutMailAnalysisScenarioKind =
+  (typeof GetOptoutMailAnalysisScenarioKind)[keyof typeof GetOptoutMailAnalysisScenarioKind];
+
+export const GetOptoutMailAnalysisScenarioKind = {
+  step: "step",
+  blast: "blast",
+  all: "all",
+} as const;
 
 export type SyncLtvParams = {
   /**

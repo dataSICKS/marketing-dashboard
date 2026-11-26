@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GetOptoutMailAnalysisScenarioKind } from "./getOptoutMailAnalysisScenarioKind";
 
 export type GetOptoutMailAnalysisParams = {
   /**
@@ -13,4 +14,12 @@ export type GetOptoutMailAnalysisParams = {
    * @maximum 100000
    */
   minEvents?: number;
+  /**
+   * Which scenarios to measure. Step by default, because a one-off blast reaches nearly every customer and would attach an opt-out to every template alike
+   */
+  scenarioKind?: GetOptoutMailAnalysisScenarioKind;
+  /**
+   * Pipe-separated scenario names to keep. Applied after scenarioKind; empty means every scenario of that kind
+   */
+  scenarios?: string;
 };

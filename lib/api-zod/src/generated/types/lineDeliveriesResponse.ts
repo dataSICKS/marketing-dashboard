@@ -16,7 +16,7 @@ export interface LineDeliveriesResponse {
   bySubscription: LineDeliverySplit[];
   byChild: LineDeliverySplit[];
   byRoute: LineDeliverySplit[];
-  /** Includes unmatched CV */
+  /** Includes unmatched CV, so the parts can be reconciled */
   totalCv: number;
   matchedCv: number;
   identifierCount: number;

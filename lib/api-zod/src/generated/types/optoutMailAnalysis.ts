@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MaScenarioSummary } from "./maScenarioSummary";
+import type { OptoutBlastResponse } from "./optoutBlastResponse";
 import type { OptoutMailCoverage } from "./optoutMailCoverage";
 import type { OptoutMailFrequencyGroup } from "./optoutMailFrequencyGroup";
 import type { OptoutMailLtvCohort } from "./optoutMailLtvCohort";
@@ -17,6 +19,10 @@ export interface OptoutMailAnalysis {
   coverage: OptoutMailCoverage;
   /** Scenarios whose per-customer export is incomplete, largest gap first */
   missingScenarios: OptoutMailMissingScenario[];
+  /** Every scenario in the delivery history with the figures the one-off/step split is derived from */
+  scenarios: MaScenarioSummary[];
+  /** One-off blasts measured against the days around the send, since a blast reaches everyone at once and has no Nth-email position */
+  blasts: OptoutBlastResponse[];
   sequence: OptoutMailSequenceBucket[];
   nodes: OptoutMailNodeItem[];
   /** Nodes below minEvents, omitted from the list rather than shown with an unstable rate */

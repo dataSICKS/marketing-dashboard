@@ -6,6 +6,7 @@ import type {
   OptoutMailLtvCohort,
 } from "@workspace/api-zod";
 import type { DeliverySnapshot, DeliveryEvent } from "./ma-deliveries-supabase.js";
+import type { ScenarioSummary, BlastResponse, ScenarioKind } from "./ma-scenario-kind.js";
 import type { NewsletterRow } from "./newsletter-types.js";
 import type { LtvRow } from "./ltv-types.js";
 import type { OptoutRow } from "./newsletter-types.js";
@@ -20,6 +21,11 @@ import type { OptoutRow } from "./newsletter-types.js";
  * - **分母を必ず持つ。** 件数だけでは「よく送るテンプレ」が常に悪く見える。
  * - **コホートを `optoutFrom` 以降に初めて配信された顧客に限る。** オプトアウトのデータは
  *   2025-12-31 以降しかないため、それ以前に配信が始まった顧客は「解除したが見えない」状態が混ざる。
+ * - **一斉配信を混ぜない。** 一斉配信は1日でほぼ全顧客に当たるので、どのテンプレートにも
+ *   等しく解除がぶら下がり、順番も頻度も意味を失う。種別の分け方は `ma-scenario-kind.ts`。
+ * - **一括処理の日のオプトアウトを外す。** その日の配信数では説明できない件数が立っている日は、
+ *   名簿の一括処理であって配信への反応ではない。残すと「たまたまその頃に送ったテンプレート」が
+ *   悪者になる。対象日は呼び出し側が `excludeOptoutDates` で渡す。
  */
 
 /** テンプレートがMA側で削除されると名称が失われるので、シナリオ名とノードで見分ける。 */
@@ -125,6 +131,13 @@ export interface OptoutMailOptions {
   nodeSequences?: number[];
   /** 成熟判定の基準日。既定は実行日。 */
   today?: string;
+  /**
+   * 配信への反応ではないと分かっているオプトアウト日。一括処理の日を外すのに使う。
+   * ハザードからもLTVの比較からも外す（片方だけ外すと数が合わなくなる）。
+   */
+  excludeOptoutDates?: readonly string[];
+  /** この分析が覆っているシナリオの種別。画面に出すためのラベル。 */
+  scenarioKind?: ScenarioKind | "all";
 }
 
 interface NodeAccumulator {
@@ -234,6 +247,10 @@ export function analyzeOptoutMail(
     purchaseSyncedAt: string | null;
     fetchedAt: string;
     coverage?: ReturnType<typeof coverageAgainstAggregate>;
+    /** 配信履歴にある全シナリオ。種別の判定根拠を画面で見せるために丸ごと渡す。 */
+    scenarios?: readonly ScenarioSummary[];
+    /** 一斉配信の反応。通目の枠では測れないので別建てにしている。 */
+    blasts?: readonly BlastResponse[];
   },
 ): OptoutMailAnalysis {
   const minEvents = Math.max(1, Math.trunc(options.minEvents ?? 200));
@@ -242,12 +259,18 @@ export function analyzeOptoutMail(
   const today = options.today ?? new Date().toISOString().slice(0, 10);
 
   // 同じ顧客が複数回オフにしている場合は最初の1回だけを見る。
+  const bulkDates = new Set(options.excludeOptoutDates ?? []);
   const optoutDate = new Map<string, string>();
   const optoutDates: string[] = [];
+  let excludedBulkOptouts = 0;
   for (const row of optouts) {
     const code = row.customerCode.trim();
     const date = asDate(row.optoutDate);
     if (!code || !date) continue;
+    if (bulkDates.has(date)) {
+      excludedBulkOptouts++;
+      continue;
+    }
     const current = optoutDate.get(code);
     if (!current || date < current) optoutDate.set(code, date);
     optoutDates.push(date);
@@ -364,7 +387,16 @@ export function analyzeOptoutMail(
     });
 
   const listed = [...nodes.values()].filter((node) => node.events >= minEvents);
+  const kindNote = options.scenarioKind === "blast"
+    ? "この表は一斉配信だけを対象にしています。"
+    : options.scenarioKind === "step"
+      ? "この表は**ステップ配信だけ**を対象にしています。一斉配信は1日でほぼ全顧客に届くため、混ぜるとどのテンプレートにも等しく解除がぶら下がり、順番も頻度も意味を失います。一斉配信の効果は下の専用の表で見てください。"
+      : "この表は一斉配信とステップ配信の両方を含みます。";
   const notes = [
+    kindNote,
+    ...(excludedBulkOptouts > 0
+      ? [`${[...bulkDates].sort().map((date) => date.replaceAll("-", "/")).join("・")}のオプトアウト${excludedBulkOptouts.toLocaleString("ja-JP")}件を除いています。これらの日はその日の配信数では説明がつかない件数が立っており、名簿の一括処理と判断しました。配信への反応ではないため、ハザードにもLTVの比較にも入れていません。`]
+      : []),
     "届いた1通として数えるのは配信方法が「メール」かつ配信ステータスが「完了」の記録だけです。配信不可・スキップは受信していないものとして除きます。",
     "解除日は日次の購読状態の変化から推定した日付で、操作日時ではありません。同じ日の中の前後が分からないため、解除日当日とそれ以降の配信は母数からも外しています。",
     `集計対象はオプトアウトのデータが始まる${optoutFrom ?? "—"}以降に初めて配信された顧客だけです。それより前から配信が始まっている顧客は、解除していても記録に出てこない可能性があるため除いています。`,
@@ -395,8 +427,15 @@ export function analyzeOptoutMail(
       coverageRatio: metadata.coverage?.coverageRatio ?? null,
       purchaseSyncedAt: metadata.purchaseSyncedAt,
       fetchedAt: metadata.fetchedAt,
+      scenarioKind: options.scenarioKind ?? "all",
+      excludedBulkOptouts,
+      bulkOptoutDates: [...bulkDates].sort(),
+      optoutCustomers: optoutDate.size,
+      matchedOptoutCustomers: [...optoutDate.keys()].filter((code) => byCustomer.has(code)).length,
     },
     missingScenarios: metadata.coverage?.missingScenarios ?? [],
+    scenarios: [...(metadata.scenarios ?? [])],
+    blasts: [...(metadata.blasts ?? [])],
     sequence,
     nodes: listed.map((node) => toItem(node, labelOf(node))).sort((a, b) => b.hazard - a.hazard || b.events - a.events),
     lowVolumeNodes: nodes.size - listed.length,

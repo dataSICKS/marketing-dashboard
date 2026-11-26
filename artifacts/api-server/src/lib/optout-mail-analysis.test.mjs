@@ -167,3 +167,53 @@ test("the cohort boundary falls back to the earliest observed opt-out when no ex
   const empty = analyzeOptoutMail(snapshot([]), [], [], { minEvents: 1, today: "2026-11-23" }, metadata);
   assert.equal(empty.coverage.optoutFrom, null);
 });
+
+test("一括処理の日のオプトアウトは分子からもLTVの比較からも外す", () => {
+  // 2026-04-08 は実データで892件立っているが、その日の配信は182通しかない。
+  // 配信への反応ではないので、残すとその頃のテンプレートが不当に悪く見える。
+  const events = [event("a", "2026-04-05"), event("b", "2026-04-05")];
+  const optouts = [out("a", "2026-04-08"), out("b", "2026-04-20")];
+  const purchases = [purchase("a", "2026-02-01"), purchase("b", "2026-02-01")];
+
+  const kept = run(events, optouts, purchases);
+  const dropped = run(events, optouts, purchases, { excludeOptoutDates: ["2026-04-08"] });
+
+  assert.equal(kept.coverage.cohortOptouts, 2);
+  assert.equal(kept.coverage.excludedBulkOptouts, 0);
+  assert.equal(dropped.coverage.cohortOptouts, 1);
+  assert.equal(dropped.coverage.excludedBulkOptouts, 1);
+  assert.deepEqual(dropped.coverage.bulkOptoutDates, ["2026-04-08"]);
+  // LTVの比較でも解除者として数えない（片方だけ外すと数が合わなくなる）
+  const cohort = dropped.ltvCohorts.find((row) => row.cohortMonth === "2026-02");
+  assert.equal(cohort.withCount, 1);
+  assert.equal(cohort.withoutCount, 1);
+  // 除外した件数は注意書きにも出す
+  assert.ok(dropped.notes.some((note) => note.includes("2026/04/08") && note.includes("一括処理")));
+});
+
+test("オプトアウト側の一致人数を分母つきで出す", () => {
+  const events = [event("a", "2026-04-05"), event("b", "2026-04-05")];
+  // c は配信履歴に居ない。一致率の分母には入るが分子には入らない。
+  const result = run(events, [out("a", "2026-04-20"), out("c", "2026-04-21")]);
+  assert.equal(result.coverage.optoutCustomers, 2);
+  assert.equal(result.coverage.matchedOptoutCustomers, 1);
+});
+
+test("対象のシナリオ種別を注意書きの先頭に出す", () => {
+  const step = run([event("a", "2026-04-05")], [], [], { scenarioKind: "step" });
+  assert.ok(step.notes[0].includes("ステップ配信だけ"));
+  const blast = run([event("a", "2026-04-05")], [], [], { scenarioKind: "blast" });
+  assert.ok(blast.notes[0].includes("一斉配信だけ"));
+});
+
+test("シナリオ一覧と一斉配信の表はそのまま渡る", () => {
+  const scenarios = [{
+    scenarioName: "一斉", kind: "blast", deliveries: 2, customers: 2, perCustomer: 1,
+    nodes: 1, firstDate: "2026-05-31", lastDate: "2026-06-01", spanDays: 2,
+  }];
+  const result = analyzeOptoutMail(snapshot([event("a", "2026-04-05")]), [], [],
+    { minEvents: 1, today: "2026-11-23", optoutDataFrom: "2026-01-01" },
+    { ...metadata, scenarios, blasts: [] });
+  assert.deepEqual(result.scenarios, scenarios);
+  assert.deepEqual(result.blasts, []);
+});

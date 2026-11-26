@@ -5,7 +5,10 @@ import {
   useGetLtvOptoutAnalysis, useRefreshLtvOptoutAnalysis, getGetLtvOptoutAnalysisQueryKey,
   useGetOptoutMailAnalysis, getGetOptoutMailAnalysisQueryKey,
 } from "@workspace/api-client-react";
-import type { GetLtvOptoutAnalysisParams, LtvOptoutCustomerMailStatus, LtvOptoutAnalysis, OptoutMailAnalysis } from "@workspace/api-client-react";
+import type {
+  GetLtvOptoutAnalysisParams, GetOptoutMailAnalysisParams, GetOptoutMailAnalysisScenarioKind,
+  LtvOptoutCustomerMailStatus, LtvOptoutAnalysis, OptoutMailAnalysis,
+} from "@workspace/api-client-react";
 import { ArrowLeft, RefreshCw, Info, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MonthDistributionChart, MailDistributionChart } from "@/components/LtvOptoutCharts";
@@ -49,9 +52,13 @@ export default function LtvOptoutsPage() {
   const query = useGetLtvOptoutAnalysis(params, {
     query: { queryKey: getGetLtvOptoutAnalysisQueryKey(params), staleTime: 300000, refetchOnWindowFocus: false },
   });
-  // 配信×解除の分析は絞り込みの影響を受けない（全体の傾向を見るもの）ので、別の問い合わせにする。
+  // 配信×解除の分析は上の絞り込みの影響を受けない（全体の傾向を見るもの）ので、別の問い合わせにする。
   // 片方が落ちてももう片方は表示できる。
-  const mailParams = { minEvents: 200 } as const;
+  //
+  // 既定をステップ配信だけにしているのは、一斉配信が1日でほぼ全顧客に当たるため。
+  // 混ぜるとどのテンプレートにも等しく解除がぶら下がり、順番も頻度も意味を失う。
+  const [scenarioKind, setScenarioKind] = useState<GetOptoutMailAnalysisScenarioKind>("step");
+  const mailParams: GetOptoutMailAnalysisParams = { minEvents: 200, scenarioKind };
   const mailQuery = useGetOptoutMailAnalysis(mailParams, {
     query: { queryKey: getGetOptoutMailAnalysisQueryKey(mailParams), staleTime: 300000, refetchOnWindowFocus: false },
   });
@@ -249,7 +256,31 @@ function Results({ data, fetching, pageSize, onPage, onPageSize, onReset, hasFil
           <div className="mt-3"><button className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700" onClick={onRetryMail} data-testid="button-retry-mail">再読み込み</button></div>
         </div>
       ) : (
-        <OptoutMailBlocks data={mail} />
+        <>
+          <div className="flex flex-wrap items-center gap-2" data-testid="filter-scenario-kind">
+            <span className="text-xs text-gray-500">集計する配信</span>
+            {([
+              { value: "step", label: "ステップ配信のみ", hint: "既定。顧客ごとに起動して長期間に分散する配信" },
+              { value: "blast", label: "一斉配信のみ", hint: "1〜2日で出し切る配信" },
+              { value: "all", label: "すべて", hint: "混ぜると一斉配信がどのテンプレートにも等しくぶら下がります" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                title={option.hint}
+                onClick={() => setScenarioKind(option.value)}
+                data-testid={`button-kind-${option.value}`}
+                className={`rounded-lg border px-3 py-1.5 text-xs ${
+                  scenarioKind === option.value
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 bg-white text-gray-700"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <OptoutMailBlocks data={mail} />
+        </>
       )}
 
       <MailStatusLegend />

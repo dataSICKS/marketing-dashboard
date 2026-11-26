@@ -513,6 +513,8 @@ paths:
       summary: Relate completed email deliveries to opt-out, by sequence position, node, send frequency and LTV
       parameters:
         - { name: minEvents, in: query, schema: { type: integer, minimum: 1, maximum: 100000, default: 200 }, description: Minimum delivery events for a node row to be listed; smaller groups are grouped as low volume }
+        - { name: scenarioKind, in: query, schema: { type: string, enum: [step, blast, all], default: step }, description: "Which scenarios to measure. Step by default, because a one-off blast reaches nearly every customer and would attach an opt-out to every template alike" }
+        - { name: scenarios, in: query, schema: { type: string }, description: "Pipe-separated scenario names to keep. Applied after scenarioKind; empty means every scenario of that kind" }
       responses:
         "200":
           description: Hazard rates with explicit denominators; never bare counts
@@ -1593,7 +1595,7 @@ components:
       properties:
         key: { type: string }
         label: { type: string }
-        hasBalance: { type: boolean, description: False for routes that only carry CV, such as the rich menu }
+        hasBalance: { type: boolean, description: "False for routes that only carry CV, such as the rich menu" }
         hasCv: { type: boolean }
         hasScenario: { type: boolean }
 
@@ -1601,7 +1603,7 @@ components:
       type: object
       required: [period, zone, days, newCount, instantBlock, blockDelta, lpAccess, cv, people, blockTotal, active, scenarioCount, activeDelta, instantBlockRate, blockRate, scenarioRate, cvrLp, convRate]
       properties:
-        period: { type: string, description: Day, the week's Monday, or the month's first day }
+        period: { type: string, description: "Day, the week's Monday, or the month's first day" }
         zone: { type: string }
         days: { type: integer, description: Days with data in this period; a short count means gaps }
         newCount: { type: [integer, "null"], description: Flow; summed }
@@ -1609,7 +1611,7 @@ components:
         blockDelta: { type: [integer, "null"] }
         lpAccess: { type: [integer, "null"] }
         cv: { type: [integer, "null"] }
-        people: { type: [integer, "null"], description: Stock; the period's closing value, never a sum }
+        people: { type: [integer, "null"], description: "Stock; the period's closing value, never a sum" }
         blockTotal: { type: [integer, "null"] }
         active: { type: [integer, "null"], description: people minus blockTotal; the figure to call the friend count }
         scenarioCount: { type: [integer, "null"] }
@@ -1624,7 +1626,7 @@ components:
       type: object
       required: [activeLatest, activeLatestDate, peopleLatest, blockTotalLatest, blockRateLatest, newCount, instantBlock, instantBlockRate, lpAccess, cv, cvrLp, convRate]
       properties:
-        activeLatest: { type: [integer, "null"], description: Latest closing balance, not a period total }
+        activeLatest: { type: [integer, "null"], description: "Latest closing balance, not a period total" }
         activeLatestDate: { type: [string, "null"] }
         peopleLatest: { type: [integer, "null"] }
         blockTotalLatest: { type: [integer, "null"] }
@@ -1671,7 +1673,7 @@ components:
         messagePack: { type: string }
         route: { type: string }
         stepNumber: { type: [integer, "null"], description: Null when neither the column nor the circled numeral gave one }
-        variants: { type: integer, description: Identifiers under this pack that produced CV, one per segment branch }
+        variants: { type: integer, description: "Identifiers under this pack that produced CV, one per segment branch" }
         cv: { type: integer }
         hasCoupon: { type: [boolean, "null"] }
         firstCvDate: { type: [string, "null"] }
@@ -1717,7 +1719,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LineDeliverySplit"
-        totalCv: { type: integer, description: Includes unmatched CV, so the parts can be reconciled }
+        totalCv: { type: integer, description: "Includes unmatched CV, so the parts can be reconciled" }
         matchedCv: { type: integer }
         identifierCount: { type: integer }
         dateMin: { type: [string, "null"] }
@@ -1729,7 +1731,7 @@ components:
 
     OptoutMailCoverage:
       type: object
-      required: [deliveryFrom, deliveryTo, optoutFrom, optoutTo, deliveryEvents, deliveryCustomers, cohortCustomers, cohortOptouts, excludedEarlyCustomers, undecidableSameDay, undecidableNoHistory, aggregateDeliveries, coverageRatio, purchaseSyncedAt, fetchedAt]
+      required: [deliveryFrom, deliveryTo, optoutFrom, optoutTo, deliveryEvents, deliveryCustomers, cohortCustomers, cohortOptouts, excludedEarlyCustomers, undecidableSameDay, undecidableNoHistory, aggregateDeliveries, coverageRatio, purchaseSyncedAt, fetchedAt, scenarioKind, excludedBulkOptouts, bulkOptoutDates, optoutCustomers, matchedOptoutCustomers]
       properties:
         deliveryFrom: { type: [string, "null"], description: Earliest completed email date in the history }
         deliveryTo: { type: [string, "null"] }
@@ -1750,6 +1752,67 @@ components:
           description: Per-customer records divided by aggregate deliveries. Below 1 means some scenarios were never exported, so a customer's Nth email is only the Nth among the records we hold
         purchaseSyncedAt: { type: [string, "null"] }
         fetchedAt: { type: string }
+        scenarioKind:
+          type: string
+          enum: [step, blast, all]
+          description: Which kind of scenario the rates below cover. Step scenarios only, by default; one-off blasts reach nearly every customer and would inflate every match
+        excludedBulkOptouts:
+          type: integer
+          description: Opt-outs dropped because they fall on a bulk-processing day, where the count far exceeds what the deliveries of that day could explain
+        bulkOptoutDates:
+          type: array
+          description: The dropped days
+          items: { type: string }
+        optoutCustomers:
+          type: integer
+          description: Distinct customers with an opt-out after the bulk days are dropped
+        matchedOptoutCustomers:
+          type: integer
+          description: Of those, customers that also appear in the delivery history. The rest opted out without a delivery record we hold
+
+    MaScenarioSummary:
+      type: object
+      required: [scenarioName, kind, deliveries, customers, perCustomer, nodes, firstDate, lastDate, spanDays]
+      properties:
+        scenarioName: { type: string }
+        kind:
+          type: string
+          enum: [blast, step]
+          description: Derived from how far the deliveries spread. Neither the CSV nor the database carries a flag
+        deliveries: { type: integer }
+        customers: { type: integer }
+        perCustomer: { type: number, description: "Deliveries per customer. Shown so the classification can be checked, not used to decide it" }
+        nodes: { type: integer }
+        firstDate: { type: string }
+        lastDate: { type: string }
+        spanDays: { type: integer, description: Days from first to last delivery. Three or fewer means a one-off blast }
+
+    OptoutBlastDay:
+      type: object
+      required: [date, offset, optouts]
+      properties:
+        date: { type: string }
+        offset: { type: integer, description: Days from the first send day; negative is before }
+        optouts: { type: integer }
+
+    OptoutBlastResponse:
+      type: object
+      required: [scenarioName, sendFrom, sendTo, deliveries, customers, baselineDaily, daily, windowOptouts, expectedOptouts, excessOptouts, excessRate]
+      properties:
+        scenarioName: { type: string }
+        sendFrom: { type: string }
+        sendTo: { type: string }
+        deliveries: { type: integer }
+        customers: { type: integer }
+        baselineDaily: { type: number, description: Median daily opt-outs over the 28 days before the send }
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptoutBlastDay"
+        windowOptouts: { type: integer, description: Opt-outs on the send day through three days after }
+        expectedOptouts: { type: integer, description: What the baseline would predict over the same four days }
+        excessOptouts: { type: integer }
+        excessRate: { type: number, description: Excess divided by deliveries. The share of recipients this blast pushed into opting out }
 
     OptoutMailMissingScenario:
       type: object
@@ -1757,7 +1820,7 @@ components:
       properties:
         scenarioName: { type: string }
         deliveries: { type: integer, description: Deliveries the aggregate report counts for this scenario in the window }
-        missingDeliveries: { type: integer, description: Of those, deliveries with no per-customer record; export this scenario again to close the gap }
+        missingDeliveries: { type: integer, description: "Of those, deliveries with no per-customer record; export this scenario again to close the gap" }
 
     OptoutMailSequenceBucket:
       type: object
@@ -1807,7 +1870,7 @@ components:
       type: object
       required: [sequence, buckets]
       properties:
-        sequence: { type: integer, description: Compare gaps only within the same sequence position, so survivors are not mixed with newcomers }
+        sequence: { type: integer, description: "Compare gaps only within the same sequence position, so survivors are not mixed with newcomers" }
         buckets:
           type: array
           items:
@@ -1827,12 +1890,12 @@ components:
         withLtv180: { type: integer }
         withLtv365: { type: integer }
         optoutRate: { type: number, description: Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out }
-        mature180: { type: boolean, description: False when 180 days have not elapsed for the whole cohort, so the average is still rising }
+        mature180: { type: boolean, description: "False when 180 days have not elapsed for the whole cohort, so the average is still rising" }
         mature365: { type: boolean }
 
     OptoutMailAnalysis:
       type: object
-      required: [coverage, missingScenarios, sequence, nodes, lowVolumeNodes, nodesBySequence, frequency, ltvCohorts, notes]
+      required: [coverage, missingScenarios, scenarios, blasts, sequence, nodes, lowVolumeNodes, nodesBySequence, frequency, ltvCohorts, notes]
       properties:
         coverage:
           $ref: "#/components/schemas/OptoutMailCoverage"
@@ -1841,6 +1904,16 @@ components:
           description: Scenarios whose per-customer export is incomplete, largest gap first
           items:
             $ref: "#/components/schemas/OptoutMailMissingScenario"
+        scenarios:
+          type: array
+          description: Every scenario in the delivery history with the figures the one-off/step split is derived from
+          items:
+            $ref: "#/components/schemas/MaScenarioSummary"
+        blasts:
+          type: array
+          description: One-off blasts measured against the days around the send, since a blast reaches everyone at once and has no Nth-email position
+          items:
+            $ref: "#/components/schemas/OptoutBlastResponse"
         sequence:
           type: array
           items:

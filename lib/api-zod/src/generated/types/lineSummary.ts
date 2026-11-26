@@ -8,7 +8,7 @@
 
 export interface LineSummary {
   /**
-   * Latest closing balance
+   * Latest closing balance, not a period total
    * @nullable
    */
   activeLatest: number | null;

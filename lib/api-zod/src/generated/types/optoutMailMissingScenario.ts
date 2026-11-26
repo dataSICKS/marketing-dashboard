@@ -10,6 +10,6 @@ export interface OptoutMailMissingScenario {
   scenarioName: string;
   /** Deliveries the aggregate report counts for this scenario in the window */
   deliveries: number;
-  /** Of those */
+  /** Of those, deliveries with no per-customer record; export this scenario again to close the gap */
   missingDeliveries: number;
 }

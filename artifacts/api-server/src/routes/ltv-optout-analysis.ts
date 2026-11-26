@@ -6,6 +6,7 @@ import {
 import type { LtvRow } from "../lib/ltv-types.js";
 import { analyzeOptoutTiming, normalizeAnalysisDate } from "../lib/ltv-optout-analysis.js";
 import { analyzeOptoutMail, coverageAgainstAggregate } from "../lib/optout-mail-analysis.js";
+import { summarizeScenarios, scenarioKinds, filterByKind, blastResponses, type ScenarioKind } from "../lib/ma-scenario-kind.js";
 import { loadOptoutAnalysisSources } from "../lib/ltv-optout-sources.js";
 import { fetchRowsFromSupabase } from "../lib/newsletter-supabase.js";
 import { getCache } from "../lib/newsletter-cache.js";
@@ -18,6 +19,17 @@ import { logger } from "../lib/logger.js";
  * これより前から配信が始まっている顧客は「解除したのに記録に出てこない」可能性が残る。
  */
 const OPTOUT_DATA_FROM = "2025-12-31";
+
+/**
+ * 配信への反応ではないと分かっているオプトアウト日。
+ *
+ * 2026-04-01 に485件、04-08 に892件、04-09 に1,289件。平常日は中央値10件で、
+ * これらの日の配信はそれぞれ255通・182通・165通しかない。**配信数の5〜8倍の解除**は
+ * 配信への反応では起こり得ないため、名簿の一括処理と判断して外す。
+ * 3日で2,666件＝全オプトアウトの31%にあたり、残すと集計が歪む。
+ * （何の処理だったかは未確認。分かれば `05_Decisions` に残す）
+ */
+const BULK_OPTOUT_DATES = ["2026-04-01", "2026-04-08", "2026-04-09"] as const;
 
 /** 集計側の配信日は `2026/11/04` 形式やシートの連番。比較のためISOに寄せる。 */
 const toIsoDate = (value: string): string | null => {
@@ -89,10 +101,34 @@ export function createLtvOptoutRouter(loadPurchases: LoadPurchases): IRouter {
       const coverage = aggregate.length
         ? coverageAgainstAggregate(snapshot.deliveries, aggregate, toIsoDate)
         : undefined;
+
+      // 種別の判定は配信履歴**全体**から出す。絞り込んだあとで判定すると期間が縮んで
+      // ステップ配信まで一斉配信に見えてしまう。
+      const scenarios = summarizeScenarios(snapshot.deliveries.events);
+      const kinds = scenarioKinds(scenarios);
+      const kind = (parsed.data.scenarioKind ?? "step") as ScenarioKind | "all";
+      const picked = new Set(
+        String((req.query as Record<string, string | undefined>).scenarios ?? "")
+          .split("|").map((name) => name.trim()).filter(Boolean),
+      );
+      let events = kind === "all" ? snapshot.deliveries.events : filterByKind(snapshot.deliveries.events, kinds, kind);
+      if (picked.size) events = events.filter((event) => picked.has(event.scenarioName));
+      const dates = events.map((event) => event.date).sort();
+
       const analysis = analyzeOptoutMail(
-        snapshot.deliveries, snapshot.optouts, purchases.rows,
-        { minEvents: parsed.data.minEvents, optoutDataFrom: OPTOUT_DATA_FROM },
-        { purchaseSyncedAt: purchases.syncedAt, fetchedAt: snapshot.fetchedAt, coverage },
+        { ...snapshot.deliveries, events, from: dates[0] ?? null, to: dates.at(-1) ?? null },
+        snapshot.optouts, purchases.rows,
+        {
+          minEvents: parsed.data.minEvents,
+          optoutDataFrom: OPTOUT_DATA_FROM,
+          excludeOptoutDates: BULK_OPTOUT_DATES,
+          scenarioKind: kind,
+        },
+        {
+          purchaseSyncedAt: purchases.syncedAt, fetchedAt: snapshot.fetchedAt, coverage,
+          scenarios,
+          blasts: blastResponses(scenarios, snapshot.optouts, { excludeDates: BULK_OPTOUT_DATES }),
+        },
       );
       res.json(GetOptoutMailAnalysisResponse.parse(analysis));
     } catch (err) {

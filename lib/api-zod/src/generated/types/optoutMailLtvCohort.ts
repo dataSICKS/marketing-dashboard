@@ -19,7 +19,7 @@ export interface OptoutMailLtvCohort {
   withLtv365: number;
   /** Opt-out customers divided by all customers in the cohort; longer-standing cohorts had more time to opt out */
   optoutRate: number;
-  /** False when 180 days have not elapsed for the whole cohort */
+  /** False when 180 days have not elapsed for the whole cohort, so the average is still rising */
   mature180: boolean;
   mature365: boolean;
 }

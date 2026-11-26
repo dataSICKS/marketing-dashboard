@@ -4,8 +4,9 @@ import {
 } from "recharts";
 import type {
   OptoutMailAnalysis, OptoutMailSequenceBucket, OptoutMailNodeItem, OptoutMailLtvCohort,
+  OptoutBlastResponse, MaScenarioSummary,
 } from "@workspace/api-client-react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 
 const CARD = { border: "1px solid #EBEBEB", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
@@ -324,12 +325,168 @@ export function LtvByOptout({ data }: { data: OptoutMailAnalysis }) {
   );
 }
 
+
+/* ─────────────── オプトアウト側の一致と、外した一括処理 ─────────────── */
+
+export function MatchNotice({ data }: { data: OptoutMailAnalysis }) {
+  const { optoutCustomers, matchedOptoutCustomers, excludedBulkOptouts, bulkOptoutDates, scenarioKind } = data.coverage;
+  if (!optoutCustomers) return null;
+  const matched = optoutCustomers > 0 ? matchedOptoutCustomers / optoutCustomers : 0;
+  return (
+    <section className="bg-white rounded-xl p-4 md:p-5 min-w-0" style={CARD} data-testid="card-optout-match">
+      <h2 className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+        <Info size={14} className="text-gray-400" />この集計が見ている範囲
+      </h2>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div>
+          <div className="text-gray-400">オプトアウトした顧客</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums">{formatNumber(optoutCustomers)}<span className="ml-1 text-xs font-normal text-gray-400">人</span></div>
+        </div>
+        <div>
+          <div className="text-gray-400">うち配信履歴にいる人</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums">{formatNumber(matchedOptoutCustomers)}<span className="ml-1 text-xs font-normal text-gray-400">人</span></div>
+        </div>
+        <div>
+          <div className="text-gray-400">突き合わせられた割合</div>
+          <div className={`mt-0.5 text-lg font-semibold tabular-nums ${matched < 0.5 ? "text-amber-700" : ""}`}>{pct(matched)}</div>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] leading-5 text-gray-500">
+        下の率は<strong>この{formatNumber(matchedOptoutCustomers)}人しか見ていません</strong>。
+        残りは配信履歴に記録が無い人で、どのメールが引き金かを決められません。
+        {scenarioKind === "step" && <>　いまは<strong>ステップ配信だけ</strong>を対象にしています。</>}
+      </p>
+      {excludedBulkOptouts > 0 && (
+        <p className="mt-1.5 text-[11px] leading-5 text-amber-800" data-testid="text-bulk-excluded">
+          <strong>{bulkOptoutDates.map((date) => date.replaceAll("-", "/")).join("・")} のオプトアウト {formatNumber(excludedBulkOptouts)}件を除いています。</strong>
+          これらの日はその日の配信数の5〜8倍の解除が立っており、配信への反応では説明がつきません（名簿の一括処理とみています）。
+          残すと、たまたまその頃に送ったテンプレートが悪く見えます。
+        </p>
+      )}
+    </section>
+  );
+}
+
+/* ───────────────────── 一斉配信の反応 ───────────────────── */
+
+function BlastCard({ item }: { item: OptoutBlastResponse }) {
+  const max = Math.max(1, ...item.daily.map((day) => day.optouts));
+  return (
+    <div className="min-w-0" data-testid={`blast-${item.scenarioName}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-xs font-bold text-gray-700 break-words">{item.scenarioName}</h3>
+        <span className="text-[11px] text-gray-400 tabular-nums">
+          {item.sendFrom.replaceAll("-", "/")}〜{item.sendTo.replaceAll("-", "/")} ／ {formatNumber(item.deliveries)}通・{formatNumber(item.customers)}人
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+        <div><div className="text-gray-400">配信4日間の解除</div><div className="mt-0.5 font-semibold tabular-nums">{formatNumber(item.windowOptouts)}件</div></div>
+        <div><div className="text-gray-400">平常なら</div><div className="mt-0.5 font-semibold tabular-nums text-gray-400">{formatNumber(item.expectedOptouts)}件</div></div>
+        <div><div className="text-gray-400">超過ぶん／配信数</div><div className="mt-0.5 font-semibold tabular-nums">{formatNumber(item.excessOptouts)}件・{pct(item.excessRate)}</div></div>
+      </div>
+      <table className="mt-3 w-full text-[11px]">
+        <tbody>
+          {item.daily.map((day) => (
+            <tr key={day.date} className={day.offset === 0 ? "font-semibold" : ""}>
+              <td className="py-0.5 pr-2 whitespace-nowrap tabular-nums text-gray-500">
+                {day.date.slice(5).replaceAll("-", "/")}
+                <span className="ml-1 text-gray-300">{day.offset === 0 ? "配信日" : day.offset > 0 ? `+${day.offset}` : day.offset}</span>
+              </td>
+              <td className="w-full py-0.5">
+                <div className="h-2.5 rounded-sm" style={{
+                  width: `${Math.max(2, (day.optouts / max) * 100)}%`,
+                  background: day.offset === 0 ? BAR : BAR_THIN,
+                }} />
+              </td>
+              <td className="py-0.5 pl-2 text-right tabular-nums">{formatNumber(day.optouts)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-1.5 text-[11px] text-gray-400">
+        基準線は配信前28日の中央値 {formatNumber(item.baselineDaily)}件/日。
+      </p>
+    </div>
+  );
+}
+
+export function BlastResponses({ data }: { data: OptoutMailAnalysis }) {
+  if (!data.blasts.length) return null;
+  return (
+    <Section
+      title="一斉配信への反応"
+      lead="一斉配信は全員に同じ日に届くので「何通目」がありません。配信日からの経過日数でしか効果が測れないため、ステップ配信とは別に出しています。"
+      testId="card-optout-blasts"
+    >
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {data.blasts.map((item) => <BlastCard key={item.scenarioName} item={item} />)}
+      </div>
+    </Section>
+  );
+}
+
+/* ───────────────── シナリオの一覧と種別の根拠 ───────────────── */
+
+export function ScenarioList({ data }: { data: OptoutMailAnalysis }) {
+  const [open, setOpen] = useState(false);
+  if (!data.scenarios.length) return null;
+  const blast = data.scenarios.filter((item) => item.kind === "blast");
+  const step = data.scenarios.filter((item) => item.kind === "step");
+  const sum = (items: MaScenarioSummary[]) => items.reduce((total, item) => total + item.deliveries, 0);
+  return (
+    <section className="bg-white rounded-xl p-4 md:p-5 min-w-0" style={CARD} data-testid="card-scenario-list">
+      <button className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setOpen(!open)} data-testid="button-toggle-scenarios">
+        <h2 className="text-sm font-bold text-gray-900">シナリオの内訳（{data.scenarios.length}本）</h2>
+        <span className="text-xs text-gray-400">
+          一斉 {formatNumber(sum(blast))}通 ／ ステップ {formatNumber(sum(step))}通　{open ? "閉じる" : "開く"}
+        </span>
+      </button>
+      {open && (
+        <>
+          <p className="mt-2 text-[11px] leading-5 text-gray-500">
+            <strong>データに種別のフラグはありません。</strong>配信日の広がりで分けています（3日以内に収まれば一斉配信）。
+            1人あたりの通数やノード数では分けられません。ステップ配信にも「1ノード・1通/人」のものが多数あるためです。
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-xs">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr><Th>種別</Th><Th>シナリオ</Th><Th right>配信</Th><Th right>顧客</Th><Th right>通/人</Th><Th right>ノード</Th><Th right>期間</Th><Th>配信日</Th></tr>
+              </thead>
+              <tbody>
+                {data.scenarios.map((item) => (
+                  <tr key={item.scenarioName} className="border-t border-gray-100">
+                    <Td>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] ${item.kind === "blast" ? "bg-amber-50 text-amber-800" : "bg-gray-100 text-gray-600"}`}>
+                        {item.kind === "blast" ? "一斉" : "ステップ"}
+                      </span>
+                    </Td>
+                    <Td>{item.scenarioName}</Td>
+                    <Td right>{formatNumber(item.deliveries)}</Td>
+                    <Td right>{formatNumber(item.customers)}</Td>
+                    <Td right dim>{item.perCustomer.toFixed(2)}</Td>
+                    <Td right dim>{formatNumber(item.nodes)}</Td>
+                    <Td right dim>{formatNumber(item.spanDays)}日</Td>
+                    <Td dim>{item.firstDate.replaceAll("-", "/")}〜{item.lastDate.replaceAll("-", "/")}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 /* ──────────────────── まとめて差し込む ──────────────────── */
 
 export function OptoutMailBlocks({ data }: { data: OptoutMailAnalysis }) {
   return (
     <>
       <CoverageNotice data={data} />
+      <MatchNotice data={data} />
+      <ScenarioList data={data} />
+      <BlastResponses data={data} />
       <SequenceHazard data={data} />
       <NodeHazard data={data} />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-5">
